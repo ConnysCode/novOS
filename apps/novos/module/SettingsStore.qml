@@ -75,7 +75,11 @@ Item {
     Timer {
         id: refresh
         interval: 16
-        onTriggered: settingsStore.revision++
+        onTriggered: {
+            var started = PerfProbe.now();
+            settingsStore.revision++;
+            PerfProbe.cost("store.revision", started, settingsStore.revision);
+        }
     }
 
     // ---- Reading ---------------------------------------------------------------
@@ -228,36 +232,44 @@ Item {
         onTriggered: settingsStore.flushWrite()
     }
 
+    // One answer of LG's services. The probe notes how long each took and how large it was.
+    function answer(method, payload) {
+        var response = JSON.parse(payload);
+        if (method === "/getSystemSettings") {
+            // An echo must not undo a value that is still waiting to be written.
+            if (response.settings && settingsStore.pendingWrite &&
+                settingsStore.pendingWrite.category === (response.category || "option")) {
+                for (var waiting in settingsStore.pendingWrite.settings) delete response.settings[waiting];
+            }
+            if (response.settings) Engine.applyValues(settingsStore.store, response);
+        } else if (method === "/getSystemSettingDesc") {
+            var results = response.results || [];
+            var category = results.length > 0 ? results[0].category : "";
+            var first = category !== "" && !settingsStore.descSeen[category];
+            if (category !== "") settingsStore.descSeen[category] = true;
+            Engine.applyDescs(settingsStore.store, response,
+                              first ? { category: category, keys: settingsStore.keys()[category] } : null);
+        } else if (method === "/getConfigs" && response.configs) {
+            for (var name in response.configs) settingsStore.store.configs[name] = response.configs[name];
+            settingsStore.answered(method, response);
+        } else if (method === "/setSystemSettings" || method === "/resetSystemSettings") {
+            if (response.returnValue === false) settingsStore.reread();
+            return;
+        } else {
+            settingsStore.answered(method, response);
+            return;
+        }
+        settingsStore.changed();
+    }
+
     Service {
         id: service
         appId: "com.webos.app.quicksettings"
         onResponse: {
-            var response = JSON.parse(payload);
-            if (method === "/getSystemSettings") {
-                // An echo must not undo a value that is still waiting to be written.
-                if (response.settings && settingsStore.pendingWrite &&
-                    settingsStore.pendingWrite.category === (response.category || "option")) {
-                    for (var waiting in settingsStore.pendingWrite.settings) delete response.settings[waiting];
-                }
-                if (response.settings) Engine.applyValues(settingsStore.store, response);
-            } else if (method === "/getSystemSettingDesc") {
-                var results = response.results || [];
-                var category = results.length > 0 ? results[0].category : "";
-                var first = category !== "" && !settingsStore.descSeen[category];
-                if (category !== "") settingsStore.descSeen[category] = true;
-                Engine.applyDescs(settingsStore.store, response,
-                                  first ? { category: category, keys: settingsStore.keys()[category] } : null);
-            } else if (method === "/getConfigs" && response.configs) {
-                for (var name in response.configs) settingsStore.store.configs[name] = response.configs[name];
-                settingsStore.answered(method, response);
-            } else if (method === "/setSystemSettings" || method === "/resetSystemSettings") {
-                if (response.returnValue === false) settingsStore.reread();
-                return;
-            } else {
-                settingsStore.answered(method, response);
-                return;
-            }
-            settingsStore.changed();
+            var started = PerfProbe.now();
+            settingsStore.answer(method, payload);
+            PerfProbe.cost("luna" + method, started, payload.length);
+            PerfProbe.count("bytes" + method, payload.length);
         }
         onError: {
             if (method === "/setSystemSettings") settingsStore.reread();

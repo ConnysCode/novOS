@@ -89,6 +89,13 @@ Item {
                                       page.rows[Math.min(focusIndex, page.rows.length - 1)] : null
 
     function resolveCurrent() {
+        var started = PerfProbe.now();
+        var resolved = resolveLevel();
+        PerfProbe.cost("modal.resolve", started, resolved.rows.length + " rows");
+        return resolved;
+    }
+
+    function resolveLevel() {
         var top = stack.length > 0 ? stack[stack.length - 1] : null;
         var param = paramOf(stack.length);
         if (top && top.kind === "choice") return Engine.resolveChoice(store, I18n, area.id, top.row, param);
@@ -164,6 +171,7 @@ Item {
 
     // Positions of everything in the list, in logical px from the top of the list.
     function layoutOf(current) {
+        var started = PerfProbe.now();
         var items = [];
         var rowY = [];
         var rowH = [];
@@ -197,6 +205,7 @@ Item {
             items.push({ kind: "note", y: y + 14, text: current.note });
             y += 14 + 52;
         }
+        PerfProbe.cost("modal.layout", started, items.length + " items");
         return { items: items, rowY: rowY, rowH: rowH, height: y };
     }
 
@@ -341,7 +350,10 @@ Item {
     // OK on the search field: the page on the right turns into the search.
     function openSearch() {
         fromSearch = false;
-        searchPage.open(Engine.searchIndex(store, I18n));
+        var started = PerfProbe.now();
+        var entries = Engine.searchIndex(store, I18n);
+        PerfProbe.cost("modal.searchIndex", started, entries.length + " entries");
+        searchPage.open(entries);
         zone = "search";
         pageChange.restart();
     }
@@ -869,6 +881,7 @@ Item {
 
                         Repeater {
                             model: settings.layout.items
+                            onItemAdded: PerfProbe.count("modal.rows.created")
                             delegate: SettingsRow {
                                 entry: modelData
                                 owner: settings

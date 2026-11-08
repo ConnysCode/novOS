@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick 2.12
 import Qt.labs.settings 1.0
 import WebOSServices 1.0
+import "."
 import "UiConfig.js" as UiConfig
 
 // Texts of every window in the language of the TV, from i18n/ next to this file: the
@@ -39,11 +40,14 @@ QtObject {
     readonly property var lazyTexts: UiConfig.lazyTexts
 
     function loadFile(path) {
+        var started = PerfProbe.now();
         try {
             var request = new XMLHttpRequest();
             request.open("GET", Qt.resolvedUrl(path), false);
             request.send();
-            return JSON.parse(request.responseText);
+            var table = JSON.parse(request.responseText);
+            PerfProbe.cost("i18n.load", started, path);
+            return table;
         } catch (error) {
             return {};
         }

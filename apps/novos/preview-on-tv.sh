@@ -7,6 +7,7 @@
 #        PREVIEW_ENTRY=<file> starts another QML file from this upload.
 #        PREVIEW_SED and PREVIEW_MODULE_SED change only the uploaded copy.
 #        PREVIEW_APP=<app id> runs it as another system window.
+#        PREVIEW_UPLOAD_ONLY=1 uploads and stops before the launch.
 set -eu
 
 BUILD_NAME=$1
@@ -38,6 +39,8 @@ cp "$HERE/module/output/libnovos-video-backdrop.so" "$HERE/module/vt-feed.py" "$
 # previews older than ten minutes so that a series of tests cannot fill it.
 ssh lg-tv "find /tmp/lg-quicksettings-final -mindepth 1 -maxdepth 1 -type d -mmin +10 -exec rm -rf {} + 2>/dev/null; mkdir -p $REMOTE_DIR"
 scp -qr "$STAGE"/* "lg-tv:$REMOTE_DIR/"
+# PREVIEW_UPLOAD_ONLY=1: the caller launches by itself (perf-on-tv.sh).
+[ -z "${PREVIEW_UPLOAD_ONLY:-}" ] || exit 0
 
 APP=${PREVIEW_APP:-com.webos.app.quicksettings}
 CLOSE_REQUEST='{"appId":"'$APP'"}'

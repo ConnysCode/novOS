@@ -1,0 +1,15 @@
+# Moving through the panel: single steps and a held key. Only up and down, so that
+# nothing is switched, written or launched.
+# seconds: 10
+wait 600
+phase steps
+key down 350
+key down 350
+key down 350
+key down 350
+key up 350
+key up 350
+phase hold-down
+hold down 1500
+phase hold-up
+hold up 1500

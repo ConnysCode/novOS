@@ -1,0 +1,19 @@
+# Inside a page: into the list, down and up, held. Never right or OK on a row, so that
+# nothing is written to the TV.
+# page: settings:picture
+# seconds: 14
+wait 2500
+phase enter
+key right 600
+phase row-steps
+key down 300
+key down 300
+key down 300
+key down 300
+key down 300
+key up 300
+key up 300
+key up 300
+phase row-hold
+hold down 1500
+hold up 1500

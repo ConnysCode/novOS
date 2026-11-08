@@ -1,0 +1,9 @@
+# The search: up to the search field, OK builds the index, back out.
+# page: settings:picture
+# seconds: 9
+wait 2500
+key up 500
+phase search-open
+key ok 1500
+phase search-back
+key back 1000

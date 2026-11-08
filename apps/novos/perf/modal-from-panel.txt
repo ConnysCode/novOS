@@ -1,0 +1,7 @@
+# The usual way: the panel opens on the cog, OK opens the settings modal.
+# seconds: 8
+wait 800
+phase modal-open
+key ok 2500
+phase modal-stand
+wait 1500

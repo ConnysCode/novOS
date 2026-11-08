@@ -1,0 +1,19 @@
+# Through the twelve areas of the side bar: single steps, then held.
+# page: settings:picture
+# seconds: 18
+wait 2500
+phase side-steps
+key down 450
+key down 450
+key down 450
+key down 450
+key down 450
+key down 450
+key down 450
+key down 450
+key down 450
+key down 450
+phase side-hold-up
+hold up 2500
+phase side-hold-down
+hold down 2500

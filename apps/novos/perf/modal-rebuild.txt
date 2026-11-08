@@ -1,0 +1,10 @@
+# What a slider step costs, without writing: the settings rebuild 20 times, 100 ms apart,
+# as when the TV echoes a held slider.
+# page: settings:picture
+# seconds: 10
+wait 2500
+key right 600
+phase rebuild
+bump 20 100
+phase after
+wait 1000

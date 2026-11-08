@@ -16,10 +16,13 @@ StarfishSystemUIWindow {
     property string previewVersion: "0.3.0"
     property bool cursorVisible: false
     property bool opened: false
+    // Performance probe, off outside perf-on-tv.sh (module/PerfProbe.qml).
+    readonly property real perfCreated: PerfProbe.mark("window.create")
 
     Connections {
         target: rootWindow.lifeCycleStatus
         onLaunch: {
+            PerfProbe.mark("launch", payload && payload.reason ? payload.reason : "");
             if (payload && payload.reason === "preload") {
                 rootWindow.opened = false;
                 rootWindow.exit();
@@ -39,6 +42,8 @@ StarfishSystemUIWindow {
             }
         }
         onClose: {
+            PerfProbe.mark("exit");
+            PerfProbe.finish("exit");
             rootWindow.opened = false;
             rootWindow.exit();
         }
@@ -168,6 +173,7 @@ StarfishSystemUIWindow {
         // Current TV state. Empty until the TV has answered.
         property string tvName: ""
         property string foregroundApp: ""
+        onForegroundAppChanged: PerfProbe.mark("foreground", foregroundApp)
         property var sourceDevices: []
         property string detailDeviceId: ""        // the input on the device detail page, for example HDMI_3
         readonly property var detailDevice: deviceById(sourceDevices, detailDeviceId)
@@ -1427,9 +1433,14 @@ StarfishSystemUIWindow {
 
         // The settings modal, opened on one of its areas.
         function openSettings(areaId, pageId) {
+            var started = PerfProbe.now();
+            var built = settingsLoader.status === Loader.Ready;
             settingsLoader.asynchronous = false;
             settingsNeeded = true;
+            PerfProbe.cost("settings.build", started, built ? "ready" : "sync");
+            started = PerfProbe.now();
             settingsLoader.item.open(areaId || "picture", pageId || "");
+            PerfProbe.cost("settings.open", started);
         }
 
         function settingsHostAction(name, params) {
@@ -1529,12 +1540,17 @@ StarfishSystemUIWindow {
             openTimer.restart();
             backdropService.call("luna://com.webos.applicationManager",
                                  "/getForegroundAppInfo", "{}");
+            PerfProbe.beginPhase("open");
+            var started = PerfProbe.now();
             readTvState();
+            PerfProbe.cost("panel.readTvState", started);
             if (liveGlass.pictureReady) startOpenAnimation();
         }
 
         function close() {
             if (closing) return;
+            PerfProbe.mark("close");
+            PerfProbe.finish("close");
             closing = true;
             guide.stop();
             if (modalLoader.item) modalLoader.item.closeFlow();
@@ -1547,6 +1563,7 @@ StarfishSystemUIWindow {
 
         function startOpenAnimation() {
             if (closing || openAnimation.running || glass.opacity > 0) return;
+            PerfProbe.mark("open.animation");
             openTimer.stop();
             openAnimation.restart();
         }
@@ -1711,74 +1728,101 @@ StarfishSystemUIWindow {
             return Remote.isBack(key);
         }
 
+        // Keys of the remote, and the steps of the performance probe (PerfMeter).
+        function pressKey(key, autoRepeat) {
+            var started = PerfProbe.now();
+            var handled = handlePress(key, autoRepeat);
+            PerfProbe.cost("key.press", started, modalActive ? "flow" : (settingsActive ? "settings" : page));
+            return handled;
+        }
+
+        function releaseKey(key) {
+            var started = PerfProbe.now();
+            var handled = handleRelease(key);
+            PerfProbe.cost("key.release", started, modalActive ? "flow" : (settingsActive ? "settings" : page));
+            return handled;
+        }
+
         Keys.onPressed: {
-            if (modalActive) {
-                modalLoader.item.handleKey(event.key, event.isAutoRepeat);
-            } else if (settingsActive) {
-                settingsLoader.item.handleKey(event.key, event.isAutoRepeat);
-            } else if (choicePopover.shown) {
-                choicePopover.handleKey(event.key, event.isAutoRepeat);
-            } else if (popover !== "") {
-                handlePopoverKey(event.key, event.isAutoRepeat);
-            } else if (event.key === Qt.Key_Up) {
-                moveFocus(-1);
-            } else if (event.key === Qt.Key_Down) {
-                moveFocus(1);
-            } else if (event.key === Qt.Key_Right && focusedRow.icon && focusIndex === 0) {
-                focusIndex = 1;
-            } else if (event.key === Qt.Key_Right && focusedRow.icon && focusIndex === 2) {
-                focusIndex = 0;
-            } else if (event.key === Qt.Key_Left && focusedRow.icon && focusIndex === 1) {
-                focusIndex = 0;
-                leftConsumed = true;
-            } else if (event.key === Qt.Key_Left && focusedRow.icon && focusIndex === 0) {
-                focusIndex = 2;
-                leftConsumed = true;
-            } else if ((event.key === Qt.Key_Left || event.key === Qt.Key_Right) && focusedRow.step !== undefined) {
-                adjustSlider(focusedRow, event.key === Qt.Key_Right ? 1 : -1);
-                if (event.key === Qt.Key_Left) leftConsumed = true;
-            } else if (event.key === Qt.Key_Right && focusedRow.opens === true) {
-                if (!event.isAutoRepeat) openChoice(focusedRow);
-            } else if (event.key === Qt.Key_Right && (focusedRow.key === "app" || focusedRow.key === "tvName" ||
-                                                      focusedRow.key === "language" || focusedRow.key === "deviceName" ||
-                                                      (focusedRow.key === "device" && focusedRow.deviceId))) {
-                if (!event.isAutoRepeat) activateFocusedRow();
-            } else if (event.key === Qt.Key_Right && opensPage(focusedRow)) {
-                if (!event.isAutoRepeat) openPage(focusedRow.key);
-            } else if (event.key === Qt.Key_Right && linkTargets[focusedRow.key]) {
-                if (!event.isAutoRepeat) openLink(linkTargets[focusedRow.key]);
-            } else if (Remote.isOk(event.key)) {
-                if (!event.isAutoRepeat) activateFocusedRow();
-            } else if (event.key !== Qt.Key_Left && event.key !== Qt.Key_Right &&
-                       !isBackKey(event.key)) {
-                return;
-            }
-            event.accepted = true;
+            if (pressKey(event.key, event.isAutoRepeat)) event.accepted = true;
         }
 
         Keys.onReleased: {
+            if (releaseKey(event.key)) event.accepted = true;
+        }
+
+        // Probe only: everything that follows the settings rebuilds, nothing is written.
+        function bump() {
+            settingsStore.changed();
+        }
+
+        function handlePress(key, autoRepeat) {
             if (modalActive) {
-                if (isBackKey(event.key)) modalLoader.item.back();
+                modalLoader.item.handleKey(key, autoRepeat);
             } else if (settingsActive) {
-                if (isBackKey(event.key)) settingsLoader.item.back();
-                else return;
+                settingsLoader.item.handleKey(key, autoRepeat);
             } else if (choicePopover.shown) {
-                if (isBackKey(event.key)) choicePopover.close();
-                else return;
-            } else if (event.key === Qt.Key_Left && leftConsumed) {
+                choicePopover.handleKey(key, autoRepeat);
+            } else if (popover !== "") {
+                handlePopoverKey(key, autoRepeat);
+            } else if (key === Qt.Key_Up) {
+                moveFocus(-1);
+            } else if (key === Qt.Key_Down) {
+                moveFocus(1);
+            } else if (key === Qt.Key_Right && focusedRow.icon && focusIndex === 0) {
+                focusIndex = 1;
+            } else if (key === Qt.Key_Right && focusedRow.icon && focusIndex === 2) {
+                focusIndex = 0;
+            } else if (key === Qt.Key_Left && focusedRow.icon && focusIndex === 1) {
+                focusIndex = 0;
+                leftConsumed = true;
+            } else if (key === Qt.Key_Left && focusedRow.icon && focusIndex === 0) {
+                focusIndex = 2;
+                leftConsumed = true;
+            } else if ((key === Qt.Key_Left || key === Qt.Key_Right) && focusedRow.step !== undefined) {
+                adjustSlider(focusedRow, key === Qt.Key_Right ? 1 : -1);
+                if (key === Qt.Key_Left) leftConsumed = true;
+            } else if (key === Qt.Key_Right && focusedRow.opens === true) {
+                if (!autoRepeat) openChoice(focusedRow);
+            } else if (key === Qt.Key_Right && (focusedRow.key === "app" || focusedRow.key === "tvName" ||
+                                                focusedRow.key === "language" || focusedRow.key === "deviceName" ||
+                                                (focusedRow.key === "device" && focusedRow.deviceId))) {
+                if (!autoRepeat) activateFocusedRow();
+            } else if (key === Qt.Key_Right && opensPage(focusedRow)) {
+                if (!autoRepeat) openPage(focusedRow.key);
+            } else if (key === Qt.Key_Right && linkTargets[focusedRow.key]) {
+                if (!autoRepeat) openLink(linkTargets[focusedRow.key]);
+            } else if (Remote.isOk(key)) {
+                if (!autoRepeat) activateFocusedRow();
+            } else if (key !== Qt.Key_Left && key !== Qt.Key_Right && !isBackKey(key)) {
+                return false;
+            }
+            return true;
+        }
+
+        function handleRelease(key) {
+            if (modalActive) {
+                if (isBackKey(key)) modalLoader.item.back();
+            } else if (settingsActive) {
+                if (isBackKey(key)) settingsLoader.item.back();
+                else return false;
+            } else if (choicePopover.shown) {
+                if (isBackKey(key)) choicePopover.close();
+                else return false;
+            } else if (key === Qt.Key_Left && leftConsumed) {
                 leftConsumed = false;
             } else if (popover !== "") {
-                if (isBackKey(event.key) || (event.key === Qt.Key_Left && popover === "eyeComfort")) {
+                if (isBackKey(key) || (key === Qt.Key_Left && popover === "eyeComfort")) {
                     popover = "";
                 } else {
-                    return;
+                    return false;
                 }
-            } else if (event.key === Qt.Key_Left || isBackKey(event.key)) {
+            } else if (key === Qt.Key_Left || isBackKey(key)) {
                 backOrClose();
             } else {
-                return;
+                return false;
             }
-            event.accepted = true;
+            return true;
         }
 
         readonly property string titleFamily: GlassStyle.titleFont
@@ -1800,6 +1844,12 @@ StarfishSystemUIWindow {
             shown: panel.panelShown
             closing: panel.closing
             onReady: if (rootWindow.opened) panel.startOpenAnimation()
+            onPictureReadyChanged: if (pictureReady) PerfProbe.mark("glass.picture")
+        }
+
+        PerfMeter {
+            target: panel
+            start: panel.panelShown
         }
 
         // Content scrim: rgba(4, 6, 8, .18), rising to .55 behind a modal.
@@ -1987,6 +2037,7 @@ StarfishSystemUIWindow {
                 Loader {
                     id: subpagesLoader
                     anchors.fill: parent
+                    onLoaded: PerfProbe.mark("loader.subpages")
                     active: panel.panelShown || panel.pagesNeeded
                     asynchronous: true
                     sourceComponent: Component {
@@ -2609,6 +2660,7 @@ StarfishSystemUIWindow {
         Loader {
             id: modalLoader
             anchors.fill: parent
+            onLoaded: PerfProbe.mark("loader.flow")
             z: 20
             active: panel.panelShown || panel.modalNeeded
             asynchronous: true
@@ -2642,6 +2694,7 @@ StarfishSystemUIWindow {
         Loader {
             id: settingsLoader
             anchors.fill: parent
+            onLoaded: PerfProbe.mark("loader.settings")
             z: 19
             active: panel.settingsNeeded
             asynchronous: true
@@ -2742,6 +2795,8 @@ StarfishSystemUIWindow {
             id: openAnimation
             onStopped: {
                 if (panel.closing) return;
+                PerfProbe.mark("open.done");
+                PerfProbe.beginPhase("shown");
                 panel.panelShown = true;
                 panel.readApps();
                 if (panel.launchPage === "wifi") {

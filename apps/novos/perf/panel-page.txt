@@ -1,0 +1,9 @@
+# The panel opens straight on a subpage (built at once), then moves through it.
+# Only up and down: nothing is written.
+# page: picture
+# seconds: 9
+phase page-stand
+wait 2000
+phase page-hold
+hold down 1500
+hold up 1500

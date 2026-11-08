@@ -8,3 +8,4 @@
 singleton GlassStyle GlassStyle.qml
 singleton I18n I18n.qml
 singleton Remote Remote.qml
+singleton PerfProbe PerfProbe.qml

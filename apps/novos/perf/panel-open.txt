@@ -1,0 +1,5 @@
+# The panel opens and stands; the first opening of a new build is the cold one.
+# opens: 4
+# seconds: 5
+phase stand
+wait 2500
