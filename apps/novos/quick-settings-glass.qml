@@ -1238,7 +1238,16 @@ StarfishSystemUIWindow {
             works.push(work);
             pendingFlow = works;
             if (shows !== false) flowWaiting = true;
-            modalNeeded = true;
+            if (!modalNeeded) {
+                modalNeeded = true;
+                // By URL, so that Qt compiles the flow only now, in its loader thread.
+                modalLoader.setSource(Qt.resolvedUrl("module/PanelFlow.qml"), { host: panel, glass: liveGlass });
+            }
+        }
+
+        function flowNetworkChanged() {
+            readNetworkState();
+            networkRefresh.restart();
         }
 
         function flowBuilt() {
@@ -1510,7 +1519,12 @@ StarfishSystemUIWindow {
             if (settingsLoader.status !== Loader.Ready) {
                 PerfProbe.mark("settings.request");
                 pendingSettings = wanted;
-                settingsNeeded = true;
+                if (!settingsNeeded) {
+                    settingsNeeded = true;
+                    // By URL, so that Qt compiles the modal only now, in its loader thread.
+                    settingsLoader.setSource(Qt.resolvedUrl("module/PanelSettings.qml"),
+                                             { host: panel, glass: liveGlass });
+                }
                 return;
             }
             var started = PerfProbe.now();
@@ -2798,31 +2812,7 @@ StarfishSystemUIWindow {
                 panel.flowBuilt();
             }
             z: 20
-            active: panel.modalNeeded
             asynchronous: true
-            sourceComponent: Component {
-                WifiSetup {
-                    unit: panel.unit
-                    titleFont: panel.titleFamily
-                    rowFont: panel.rowFamily
-                    valueFont: panel.valueFamily
-                    backdrop: liveGlass.texture
-                    glassShader: liveGlass.glassShader
-                    shadowShader: liveGlass.shadowShader
-                    backdropMargin: panel.backdropMargin
-                    backdropArea: panel.modalArea
-                    hasBackdrop: liveGlass.hasFrame ? 1 : 0
-                    focusCurve: panel.standardCurve
-                    onActiveChanged: panel.modalChanged()
-                    onDialogConfirmed: panel.runDialogAction(action)
-                    onTextSaved: panel.saveTvName(value)
-                    onDeviceNameSaved: panel.saveDeviceName(value)
-                    onNetworkChanged: {
-                        panel.readNetworkState();
-                        networkRefresh.restart();
-                    }
-                }
-            }
         }
 
         // The large settings modal. Built only when it is asked for: it reads several
@@ -2835,29 +2825,7 @@ StarfishSystemUIWindow {
                 panel.settingsBuilt();
             }
             z: 19
-            active: panel.settingsNeeded
             asynchronous: true
-            sourceComponent: Component {
-                SettingsModal {
-                    // Through panel: inside the modal "settingsStore" names its own property.
-                    settingsStore: panel.sharedSettings
-                    unit: panel.unit
-                    titleFont: panel.titleFamily
-                    rowFont: panel.rowFamily
-                    valueFont: panel.valueFamily
-                    backdrop: liveGlass.texture
-                    glassShader: liveGlass.glassShader
-                    shadowShader: liveGlass.shadowShader
-                    backdropMargin: panel.backdropMargin
-                    backdropArea: panel.settingsArea
-                    hasBackdrop: liveGlass.hasFrame ? 1 : 0
-                    focusCurve: panel.standardCurve
-                    hostState: panel.settingsHostState
-                    onActiveChanged: panel.modalChanged()
-                    onHostAction: panel.settingsHostAction(name, params)
-                    onLaunchApp: panel.openLink(app)
-                }
-            }
         }
 
         // Short confirmation inside the panel, for example after renaming the TV.

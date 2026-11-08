@@ -66,8 +66,8 @@ Item {
 
     // Values, descriptors and writing live in the shared SettingsStore of the panel.
     property var settingsStore: null
-    readonly property var store: settingsStore.store
-    readonly property int revision: settingsStore.revision
+    readonly property var store: settingsStore ? settingsStore.store : Engine.newStore()
+    readonly property int revision: settingsStore ? settingsStore.revision : 0
     property bool requested: false
 
     property string zone: "sidebar"           // sidebar, content, search
@@ -153,10 +153,15 @@ Item {
         tvData.request();
     }
 
-    onHostStateChanged: {
-        for (var name in hostState) store.state[name] = hostState[name];
+    // The host may hand over its state before or after the store.
+    function applyHostState() {
+        if (!settingsStore) return;
+        for (var name in hostState) settingsStore.store.state[name] = hostState[name];
         changed();
     }
+
+    onHostStateChanged: applyHostState()
+    onSettingsStoreChanged: applyHostState()
 
     // Many answers arrive at once; the page is built once for all of them.
     function changed() {
