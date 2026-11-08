@@ -1,0 +1,16 @@
+# LG files covered by a bind mount, checked on webOS 25, 10.3.2-33.
+# <file in the release> <LG file> <SHA-256 of LG's original>
+# A different hash, after a firmware update for example, means: mount nothing.
+QuickSettings.qml /usr/lib/qml/QuickSettings/QuickSettings.qml 69a028d9e96bac46230c2617b3ed4d804522395162da65344d64a22dc780e627
+InputPicker.qml /usr/lib/qml/InputPicker/InputPicker.qml 1914e3fe3d65477146615154eece6c9be11d2bf59947587ce9fcefceae12af68
+StoreStreamer.qml /usr/lib/qml/StoreStreamer/StoreStreamer.qml 87b8ddb53ab308991fec89b52a35343ca5dc65b0472286af68b5cf03b4627825
+systemUi.js /usr/lib/qml/KeyFilters/systemUi.js b44c9cceac8fd1bb8487c053e15c2bc4376933f94b3cf18aebb32800594ce1ba
+Services.qml /usr/lib/qml/SystemUI/Notification/Services.qml 472b3503aa179b8223eae6be065ca178d16878b1be92060c5f6c0c9613de14de
+StarfishFullscreenContainer.qml /usr/lib/qml/WebOSCompositor/views/fullscreen/StarfishFullscreenContainer.qml 0f6acef790e46cb3f8f617617b867d9a1b1fccbe67e7a004e4d8d31c673cccd7
+StarfishImageSplash.qml /usr/lib/qml/WebOSCompositor/views/StarfishImageSplash.qml 4bea83294c28cd539a0716e8a542a79e6df03a0eed45da87ad7819d7999e408c
+StarfishSystemUIManager.qml /usr/lib/qml/WebOSCompositor/views/systemUi/StarfishSystemUIManager.qml d87c00ac4b06a62c8428ac653a27ac23e55318442bd82fadd8b4f5e188ed39d5
+StarfishViewStateController.qml /usr/lib/qml/WebOSCompositor/controllers/StarfishViewStateController.qml 7cb7409439e6586ec1d59b3cf7f67238c15512617413560652c1b041aebda6dd
+StarfishVolumeView.qml /usr/lib/qml/WebOSCompositor/views/StarfishVolumeView.qml e82a5221ae3c27a3940a2f966d8acd79b7b86168bbeaffec3b8075aafc5f03b4
+appLaunch.js /usr/lib/qml/KeyFilters/appLaunch.js 7975fbb56c38cf36e2b79965ff23e30f7c45052436c117bf9e1531f738f21943
+settings-index.multi.html /usr/palm/applications/com.palm.app.settings/index.multi.html 3982b61426b84ddbf25d6a77f8d2b331c853e0a8dcfccf636558a3018a323cd1
+settings-index.html /usr/palm/applications/com.palm.app.settings/index.html 9d52af46b11876787bc160ad1041971633057651dfacfba392f295482328f3a9

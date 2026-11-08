@@ -1,0 +1,899 @@
+import QtQuick 2.12
+import "."
+import "SettingsEngine.js" as Engine
+import "ListScroll.js" as ListScroll
+
+// The large settings modal of K3-Einstellungen and K3-Struktur: a side bar with search and
+// twelve areas, on the right the page of the chosen area with up to two levels below it.
+// What a page shows comes from the catalogs (SettingsArea*.js) and from what this TV's
+// settings service describes, see docs/settings-catalog.md. Values are written the way LG's
+// own settings app writes them.
+Item {
+    id: settings
+
+    property real unit: 1
+    property string titleFont: ""
+    property string rowFont: ""
+    property string valueFont: ""
+    property variant backdrop
+    property string glassShader: ""
+    property string shadowShader: ""
+    property real backdropMargin: 56
+    property rect backdropArea: Qt.rect(0, 0, 0, 0)
+    property real hasBackdrop: 0
+    property var focusCurve: GlassStyle.curve
+    property var hostState: ({})          // source, network and device facts the panel knows
+
+    property bool active: false           // the modal owns the keys
+    property bool shown: false            // the card is on screen, set by the panel
+
+    // The panel runs what needs its own flows: Wi-Fi setup, name entry, confirmations.
+    signal hostAction(string name, var params)
+    signal launchApp(var app)
+
+    // ---- Stage --------------------------------------------------------------
+
+    readonly property real cardWidth: 1680
+    readonly property real cardHeight: 920
+    readonly property real sideX: 16
+    readonly property real sideY: 16
+    readonly property real sideWidth: 440
+    readonly property real tabX: 32           // side bar padding 16
+    readonly property real tabWidth: 408
+    readonly property real searchY: 104
+    readonly property real tabsY: 170
+    readonly property real tabHeight: 50
+    readonly property real tabPitch: 54
+    readonly property int separatorAfter: 9    // a line between Datenschutz and System
+    readonly property real paneX: 504
+    readonly property real paneY: 52
+    readonly property real paneWidth: 1120
+    readonly property real paneHeight: 828
+    readonly property real rowGap: 4
+    readonly property real sectionGap: 32
+    readonly property real sectionTitle: 30    // 20 px label and 10 px to the list
+    readonly property real listGap: 28
+    readonly property int pageDuration: GlassStyle.pageDuration
+    readonly property real pageShift: GlassStyle.pageShift
+
+    readonly property color textPrimary: GlassStyle.textPrimary
+    readonly property color textSecondary: GlassStyle.textSecondary
+    readonly property color focusText: GlassStyle.focusText
+    readonly property color focusSecondary: GlassStyle.focusSecondary
+    readonly property color accent: GlassStyle.accent
+
+    // ---- State ---------------------------------------------------------------
+
+    // Values, descriptors and writing live in the shared SettingsStore of the panel.
+    property var settingsStore: null
+    readonly property var store: settingsStore.store
+    readonly property int revision: settingsStore.revision
+    property bool requested: false
+
+    property string zone: "sidebar"           // sidebar, content, search
+    property bool fromSearch: false           // the page was opened from a hit
+    property int searchDepth: 0               // its level: Back there returns to the hits
+    property int sideIndex: 1                 // 0 is the search, then the areas
+    property int areaIndex: 0
+    property var stack: []                    // levels below the area: { kind, page, row, rowId, focus }
+    property int focusIndex: 0
+    property real scroll: 0
+    property real pageFade: 1
+    property real pageOffset: 0
+    property var lastFocus: ({})              // per area, where the focus was on level 0
+
+    readonly property var area: Engine.areas[areaIndex]
+    readonly property var page: resolveCurrent(revision, areaIndex, stack)
+    readonly property var layout: layoutOf(page)
+    readonly property var focusedRow: zone === "content" && page.rows.length > 0 ?
+                                      page.rows[Math.min(focusIndex, page.rows.length - 1)] : null
+
+    function resolveCurrent() {
+        var top = stack.length > 0 ? stack[stack.length - 1] : null;
+        var param = paramOf(stack.length);
+        if (top && top.kind === "choice") return Engine.resolveChoice(store, I18n, area.id, top.row, param);
+        return Engine.resolvePage(store, I18n, area.id, top ? top.page : area.page.id, param);
+    }
+
+    // The entry the levels up to depth were opened for; a choice inherits its page's.
+    function paramOf(depth) {
+        for (var i = depth - 1; i >= 0; i--) {
+            if (stack[i].param !== undefined) return stack[i].param;
+        }
+        return undefined;
+    }
+
+    // ---- Opening -------------------------------------------------------------
+
+    // areaId and rowId are optional: the panel opens on the page that matches its own.
+    function open(areaId, pageId) {
+        requestData();
+        var index = 0;
+        for (var i = 0; i < Engine.areas.length; i++) {
+            if (Engine.areas[i].id === areaId) index = i;
+        }
+        areaIndex = index;
+        sideIndex = index + 1;
+        stack = [];
+        zone = "sidebar";
+        focusIndex = 0;
+        scroll = 0;
+        if (pageId && pageId !== Engine.areas[index].page.id) {
+            stack = [{ kind: "page", page: pageId, rowId: "", focus: 0 }];
+            zone = "content";
+        }
+        active = true;
+    }
+
+    function close() {
+        flushWrite();
+        active = false;
+    }
+
+    // The panel calls this once the card has faded out.
+    function reset() {
+        stack = [];
+        zone = "sidebar";
+    }
+
+    function requestData() {
+        if (requested) return;
+        requested = true;
+        settingsStore.request();
+        settingsStore.call("luna://com.webos.service.eim", "/getAllInputStatus", { subscribe: true });
+        tvData.request();
+    }
+
+    onHostStateChanged: {
+        for (var name in hostState) store.state[name] = hostState[name];
+        changed();
+    }
+
+    // Many answers arrive at once; the page is built once for all of them.
+    function changed() {
+        settingsStore.changed();
+    }
+
+    // ---- Layout ---------------------------------------------------------------
+
+    function rowHeight(row) {
+        var twoLines = row.subtitle !== "";
+        if (row.type === "slider") return 104;   // as the panel's slider rows
+        return twoLines ? 80 : 68;
+    }
+
+    // Positions of everything in the list, in logical px from the top of the list.
+    function layoutOf(current) {
+        var items = [];
+        var rowY = [];
+        var rowH = [];
+        var y = 0;
+        // Head block of Über novOS: word mark, version, what it runs on.
+        if (current.hero) {
+            items.push({ kind: "hero", y: 0, h: 116, hero: current.hero });
+            y = 116 + listGap;
+        }
+        for (var s = 0; s < current.sections.length; s++) {
+            var section = current.sections[s];
+            if (s > 0) y += sectionGap;
+            if (section.title !== "") {
+                items.push({ kind: "section", y: y, text: section.title });
+                y += sectionTitle;
+            }
+            for (var r = 0; r < section.rows.length; r++) {
+                var row = section.rows[r];
+                var height = rowHeight(row);
+                items.push({ kind: "row", y: y, h: height, row: row, index: rowY.length });
+                rowY.push(y);
+                rowH.push(height);
+                y += height + (r < section.rows.length - 1 ? rowGap : 0);
+            }
+            if (section.note) {
+                items.push({ kind: "note", y: y + 14, text: section.note });
+                y += 14 + 52;
+            }
+        }
+        if (current.note) {
+            items.push({ kind: "note", y: y + 14, text: current.note });
+            y += 14 + 52;
+        }
+        return { items: items, rowY: rowY, rowH: rowH, height: y };
+    }
+
+    readonly property real headerHeight: (stack.length > 0 ? 34 : 0) + 48 + (page.subtitle !== "" ? 30 : 0)
+    readonly property real listTop: paneY + headerHeight + listGap
+    readonly property real listHeight: paneY + paneHeight - listTop
+
+    readonly property real listEndGap: 24
+    readonly property real maxScroll: Math.max(0, layout.height + listEndGap - listHeight)
+    // The chosen row stays in the middle of the list until the list meets its start or
+    // its end. Near the start that shows a head block and the section titles above, near
+    // the end a note below the last row, which take no focus themselves.
+    function keepVisible() {
+        if (zone !== "content" || layout.rowY.length === 0) return;
+        scroll = ListScroll.centred(layout.rowY[focusIndex], layout.rowH[focusIndex], listHeight,
+                                    maxScroll + listHeight);
+    }
+
+    onLayoutChanged: {
+        if (focusIndex >= layout.rowY.length) focusIndex = Math.max(0, layout.rowY.length - 1);
+        keepVisible();
+    }
+    onFocusIndexChanged: keepVisible()
+
+    // The single focus surface, in card coordinates.
+    readonly property rect focusRect: {
+        if (zone === "search") {
+            var hit = searchPage.focusRect;
+            return Qt.rect(paneX + hit.x, paneY + hit.y, hit.width, hit.height);
+        }
+        if (zone === "sidebar") {
+            if (sideIndex === 0) return Qt.rect(tabX, searchY, tabWidth, 52);
+            return Qt.rect(tabX, tabY(sideIndex - 1), tabWidth, tabHeight);
+        }
+        if (layout.rowY.length === 0) return Qt.rect(paneX, listTop, paneWidth, 68);
+        return Qt.rect(paneX, listTop + layout.rowY[focusIndex] - scroll, paneWidth, layout.rowH[focusIndex]);
+    }
+
+    function tabY(index) {
+        return tabsY + index * tabPitch + (index > separatorAfter ? 21 : 0);
+    }
+
+    // ---- Writing ---------------------------------------------------------------
+
+    function ctx() {
+        var context = Engine.context(store, area.id, I18n);
+        context.area = area;
+        context.param = paramOf(stack.length);
+        return context;
+    }
+
+    // The new value shows at once; the TV gets it once the key rests.
+    function write(row, value) {
+        var context = ctx();
+        var key = Engine.rowKey(row, context);
+        if (key.indexOf("novos.") === 0) {
+            tvData.writeNovos(key.slice(6), value);
+            return;
+        }
+        commit(Engine.writeRequest(store, row, value, context), row, context);
+    }
+
+    // The shared store shows a value at once and writes it once the key rests.
+    function commit(request, row, context) {
+        settingsStore.commit(request, row, context);
+    }
+
+    function flushWrite() {
+        settingsStore.flushWrite();
+    }
+
+    // ---- Actions -------------------------------------------------------------
+
+    // Actions the modal runs itself. The rest go to the panel through hostAction.
+    function runAction(name, params) {
+        var context = ctx();
+        if (name === "applyPictureToAll") {
+            settingsStore.call("luna://com.webos.settingsservice", "/setSystemSettings",
+                         JSON.stringify({ category: "picture", settings: { applyToAllInput: "picture" } }));
+        } else if (name === "resetPicture") {
+            resetPicture(context);
+        } else if (name === "applySoundToAll") {
+            settingsStore.call("luna://com.webos.settingsservice", "/setSystemSettings",
+                         JSON.stringify({ category: "sound", settings: { applyToAllInputSSM: "sound" } }));
+        } else if (tvData.runs(name)) {
+            tvData.run(name, params || {}, context);
+        } else {
+            // The panel gets the entry the page is about, for example the input.
+            var forward = {};
+            for (var key in params || {}) forward[key] = params[key];
+            if (forward.param === undefined) forward.param = context.param;
+            var item = tvData.inputOf(context);
+            if (item) forward.input = item;
+            hostAction(name, forward);
+        }
+    }
+
+    // As LG: reset the mode of this input, then mark it as unchanged.
+    function resetPicture(context) {
+        var dimension = store.dimension.picture || {};
+        var mode = context.val("picture.pictureMode");
+        settingsStore.call("luna://com.webos.settingsservice", "/resetSystemSettings", JSON.stringify(
+            { category: "picture", dimension: { input: dimension.input, _3dStatus: dimension._3dStatus,
+                                                pictureMode: mode } }));
+        var modified = context.val("picture.pictureSettingModified") || {};
+        var marked = {};
+        for (var m in modified) marked[m] = modified[m];
+        marked[mode] = false;
+        var settingsOut = { pictureSettingModified: marked };
+        var isf = context.val("picture.isfMode");
+        if (isf && typeof isf === "object" && isf[mode] && isf[mode] !== "none") {
+            var cleared = {};
+            for (var i in isf) cleared[i] = isf[i];
+            cleared[mode] = "none";
+            settingsOut.isfMode = cleared;
+        }
+        settingsStore.call("luna://com.webos.settingsservice", "/setSystemSettings",
+                     JSON.stringify({ category: "picture", settings: settingsOut }));
+    }
+
+    // The panel answers a confirmation with this.
+    function confirmed(name, params) {
+        runAction(name, params);
+    }
+
+    // ---- Keys -----------------------------------------------------------------
+
+    function isOk(key) {
+        return Remote.isOk(key);
+    }
+
+    function handleKey(key, autoRepeat) {
+        if (zone === "sidebar") sidebarKey(key, autoRepeat);
+        else if (zone === "search") {
+            if (!searchPage.handleKey(key, autoRepeat)) {
+                zone = "sidebar";
+                sideIndex = 0;
+            }
+        } else contentKey(key, autoRepeat);
+    }
+
+    // OK on the search field: the page on the right turns into the search.
+    function openSearch() {
+        fromSearch = false;
+        searchPage.open(Engine.searchIndex(store, I18n));
+        zone = "search";
+        pageChange.restart();
+    }
+
+    // A hit opens its page with the focus on the row that was found.
+    function openResult(entry) {
+        if (!entry) return;
+        var index = 0;
+        for (var i = 0; i < Engine.areas.length; i++) {
+            if (Engine.areas[i].id === entry.area) index = i;
+        }
+        areaIndex = index;
+        sideIndex = index + 1;
+        var levels = [];
+        for (var c = 0; c < entry.chain.length; c++) {
+            levels.push({ kind: "page", page: entry.chain[c].page, rowId: entry.chain[c].rowId, focus: 0 });
+        }
+        stack = levels;
+        scroll = 0;
+        focusIndex = 0;
+        for (var r = 0; r < page.rows.length; r++) {
+            if (page.rows[r].id === entry.row) focusIndex = r;
+        }
+        zone = "content";
+        fromSearch = true;
+        searchDepth = levels.length;
+        keepVisible();
+        pageChange.restart();
+    }
+
+    function sidebarKey(key, autoRepeat) {
+        if (key === Qt.Key_Up && sideIndex > 0) {
+            selectSide(sideIndex - 1);
+        } else if (key === Qt.Key_Down && sideIndex < Engine.areas.length) {
+            selectSide(sideIndex + 1);
+        } else if ((key === Qt.Key_Right || isOk(key)) && !autoRepeat) {
+            if (sideIndex === 0) {
+                openSearch();
+            } else if (page.rows.length > 0) {
+                zone = "content";
+                focusIndex = Math.min(lastFocus[area.id] || firstFocusable(), page.rows.length - 1);
+                keepVisible();
+            }
+        }
+    }
+
+    // Up and down change the page at once, without OK.
+    function selectSide(index) {
+        sideIndex = index;
+        fromSearch = false;
+        if (index === 0) return;
+        if (areaIndex !== index - 1) {
+            areaIndex = index - 1;
+            stack = [];
+            scroll = 0;
+            focusIndex = 0;
+            pageChange.restart();
+        }
+    }
+
+    function firstFocusable() {
+        for (var i = 0; i < page.rows.length; i++) {
+            if (page.rows[i].focusable) return i;
+        }
+        return 0;
+    }
+
+    function moveFocus(step) {
+        var index = focusIndex + step;
+        while (index >= 0 && index < page.rows.length && !page.rows[index].focusable) index += step;
+        if (index >= 0 && index < page.rows.length) focusIndex = index;
+    }
+
+    function contentKey(key, autoRepeat) {
+        var row = focusedRow;
+        if (key === Qt.Key_Up) {
+            moveFocus(-1);
+        } else if (key === Qt.Key_Down) {
+            moveFocus(1);
+        } else if ((key === Qt.Key_Left || key === Qt.Key_Right) && row && row.type === "slider") {
+            if (!row.disabled) {
+                var context = ctx();
+                write(row.row, Engine.sliderStep(row.row, context, key === Qt.Key_Right ? 1 : -1));
+            }
+        } else if (key === Qt.Key_Left) {
+            toSidebar();
+        } else if ((key === Qt.Key_Right && row && (row.type === "page" || row.type === "choice")) ||
+                   isOk(key)) {
+            if (!autoRepeat && row) activate(row);
+        }
+    }
+
+    function toSidebar() {
+        if (stack.length === 0) lastFocus[area.id] = focusIndex;
+        zone = "sidebar";
+        sideIndex = areaIndex + 1;
+    }
+
+    // Rows with pin: "parental" ask LG's own PIN prompt first; the PIN never reaches us.
+    function activate(row) {
+        if (row.disabled) return;
+        if (row.row && row.row.pin && row.type !== "page") {
+            tvData.askPin(row.row.pin, function () { perform(row); });
+            return;
+        }
+        perform(row);
+    }
+
+    function perform(row) {
+        var context = ctx();
+        if (row.type === "page") {
+            push({ kind: "page", page: row.row.page, rowId: row.id, focus: focusIndex });
+        } else if (row.type === "choice") {
+            push({ kind: "choice", row: row.row, rowId: row.id, focus: focusIndex });
+        } else if (row.type === "option" && row.action) {
+            runAction(row.action, row.params || {});
+        } else if (row.type === "option" && row.write) {
+            commit(row.write, null, context);
+            flushWrite();
+        } else if (row.type === "option") {
+            write(row.row, row.option);
+            if (row.row.onChange) runAction(row.row.onChange, { value: row.option });
+        } else if (row.type === "toggle" && row.row.action) {
+            // The host writes, for example to move a timer's app along with it.
+            runAction(row.row.action, { value: Engine.nextToggleValue(row.row, context) });
+        } else if (row.type === "toggle") {
+            var next = Engine.nextToggleValue(row.row, context);
+            write(row.row, next);
+            if (row.row.onChange) {
+                flushWrite();
+                runAction(row.row.onChange, { value: next });
+            }
+        } else if (row.type === "lgApp") {
+            flushWrite();
+            launchApp(row.row.app);
+        } else if (row.type === "action") {
+            var catalogRow = row.row;
+            if (catalogRow.confirm) {
+                hostAction("confirm", { action: catalogRow.action, params: catalogRow.params || {},
+                                        title: context.t(catalogRow.confirm.title),
+                                        text: context.t(catalogRow.confirm.text),
+                                        confirm: context.t(catalogRow.confirm.confirm),
+                                        safe: catalogRow.confirm.safe === true });
+            } else {
+                runAction(catalogRow.action, catalogRow.params || {});
+            }
+        } else if (row.type === "listItem" && row.row.page) {
+            push({ kind: "page", page: row.row.page, param: row.item.id, rowId: row.id, focus: focusIndex });
+        } else if (row.type === "listItem") {
+            tvData.activateItem(row, context);
+        }
+    }
+
+    // Levels built at run time, for example the sleep timer's minutes.
+    function pushChoice(row) {
+        push({ kind: "choice", row: row, rowId: focusedRow ? focusedRow.id : "", focus: focusIndex });
+    }
+
+    function pushPage(pageObject) {
+        push({ kind: "page", page: pageObject, rowId: focusedRow ? focusedRow.id : "", focus: focusIndex });
+    }
+
+    function push(level) {
+        var next = stack.slice();
+        next.push(level);
+        stack = next;
+        scroll = 0;
+        focusIndex = 0;
+        if (level.kind === "choice") {
+            for (var i = 0; i < page.rows.length; i++) {
+                if (page.rows[i].selected) focusIndex = i;
+            }
+        } else {
+            focusIndex = firstFocusable();
+        }
+        keepVisible();
+        pageChange.restart();
+    }
+
+    // Back: one level up with the focus on the row we came from; on the top level into
+    // the side bar; from the side bar the modal closes.
+    function back() {
+        if (zone === "sidebar") {
+            close();
+            return;
+        }
+        if (zone === "search") {
+            zone = "sidebar";
+            sideIndex = 0;
+            return;
+        }
+        // From a hit, Back leads to the hits, not one level up.
+        if (fromSearch && stack.length === searchDepth) {
+            fromSearch = false;
+            zone = "search";
+            pageChange.restart();
+            return;
+        }
+        if (stack.length === 0) {
+            toSidebar();
+            return;
+        }
+        var top = stack[stack.length - 1];
+        var next = stack.slice(0, stack.length - 1);
+        stack = next;
+        scroll = 0;
+        focusIndex = 0;
+        for (var i = 0; i < page.rows.length; i++) {
+            if (page.rows[i].id === top.rowId) focusIndex = i;
+        }
+        keepVisible();
+        pageChange.restart();
+    }
+
+    SequentialAnimation {
+        id: pageChange
+        PropertyAction { target: settings; property: "pageFade"; value: 0 }
+        PropertyAction { target: settings; property: "pageOffset"; value: settings.pageShift }
+        ParallelAnimation {
+            NumberAnimation { target: settings; property: "pageFade"; to: 1; duration: settings.pageDuration;
+                              easing.type: Easing.Bezier; easing.bezierCurve: settings.focusCurve }
+            NumberAnimation { target: settings; property: "pageOffset"; to: 0; duration: settings.pageDuration;
+                              easing.type: Easing.Bezier; easing.bezierCurve: settings.focusCurve }
+        }
+    }
+
+    // Preview only: keys the modal presses by itself, one every 450 ms ("down", "ok", "back",
+    // "left", "right", "up" or a digit). The TV takes no injected keys.
+    property var testKeys: []
+
+    Timer {
+        id: testKeyTimer
+        interval: 450
+        repeat: true
+        running: settings.active && settings.shown && settings.testKeys.length > 0
+        onTriggered: {
+            var keys = settings.testKeys.slice();
+            var name = keys.shift();
+            settings.testKeys = keys;
+            var map = { up: Qt.Key_Up, down: Qt.Key_Down, left: Qt.Key_Left, right: Qt.Key_Right, ok: Qt.Key_Return };
+            if (name === "back") settings.back();
+            else if (map[name] !== undefined) settings.handleKey(map[name], false);
+            else if (/^[0-9]$/.test(name)) settings.handleKey(Qt.Key_0 + Number(name), false);
+        }
+    }
+
+    // ---- Speech ------------------------------------------------------------------
+
+    readonly property var speech: {
+        if (!active) return null;
+        if (zone === "sidebar") {
+            var label = sideIndex === 0 ? I18n.t("settings", "row.search") : I18n.t("settings_" + area.id, area.title);
+            return { context: "settings", layer: "sidebar", subject: "side-" + sideIndex,
+                     intro: I18n.t("settings", "title.settings"), text: label };
+        }
+        if (zone === "search") {
+            var hit = searchPage.onResult ? searchPage.results[searchPage.resultIndex] : null;
+            return { context: "settings", layer: "search", subject: searchPage.focusId,
+                     layerIntro: I18n.t("settings", "title.search"),
+                     text: hit ? [hit.title, hit.path, hit.value].join(", ") :
+                           (searchPage.focusId.indexOf("t-") === 0 ? searchPage.focusId.substring(2) : searchPage.typed) };
+        }
+        var row = focusedRow;
+        if (!row) return null;
+        var state = row.type === "toggle" ? I18n.t("settings", row.on ? "value.on" : "value.off") :
+                    (row.type === "option" && row.selected ? I18n.t("settings", "speech.selected") : row.value);
+        return { context: "settings", layer: area.id + "/" + page.id, subject: row.id,
+                 layerIntro: page.title, text: [row.title, state, row.subtitle].join(", "), change: state };
+    }
+
+    // ---- Data from the TV -----------------------------------------------------------
+
+    Connections {
+        target: settings.settingsStore
+        onAnswered: {
+            if (method === "/getAllInputStatus") tvData.applyInputs(response);
+        }
+    }
+
+    SettingsData {
+        id: tvData
+        settings: settings
+    }
+
+    // ---- Drawing ---------------------------------------------------------------------
+
+    Item {
+        anchors.fill: parent
+        visible: opacity > 0
+        opacity: settings.shown ? 1 : 0
+
+        Behavior on opacity {
+            NumberAnimation { duration: 200 }
+        }
+
+        // The picture behind the modal steps back by 38 %.
+        Rectangle {
+            anchors.fill: parent
+            color: "#61040608"
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: settings.close()
+        }
+
+        GlassCard {
+            id: card
+            x: (settings.width - width) / 2
+            y: (settings.height - height) / 2
+            width: settings.cardWidth * settings.unit
+            height: settings.cardHeight * settings.unit
+            unit: settings.unit
+            backdrop: settings.backdrop
+            glassShader: settings.glassShader
+            backdropMargin: settings.backdropMargin
+            backdropArea: settings.backdropArea
+            hasBackdrop: settings.hasBackdrop
+            glideCurve: settings.focusCurve
+
+            MouseArea {
+                anchors.fill: parent
+            }
+
+            // Side bar: a light plate in the glass, not a second glass layer.
+            GlassControl {
+                x: settings.sideX * settings.unit
+                y: settings.sideY * settings.unit
+                width: settings.sideWidth * settings.unit
+                height: (settings.cardHeight - 2 * settings.sideY) * settings.unit
+                unit: settings.unit
+                radius: 34
+                fill: "#12ffffff"
+            }
+
+            // The chosen area keeps a plate while the focus works on the page.
+            Rectangle {
+                x: settings.tabX * settings.unit
+                y: settings.tabY(settings.areaIndex) * settings.unit
+                width: settings.tabWidth * settings.unit
+                height: settings.tabHeight * settings.unit
+                radius: 22 * settings.unit
+                color: "#2effffff"
+                opacity: settings.zone === "content" ? 1 : 0
+                visible: settings.zone !== "search"
+                Behavior on opacity { NumberAnimation { duration: 160 } }
+            }
+
+            // Search field, with its own contour.
+            Item {
+                x: settings.tabX * settings.unit
+                y: settings.searchY * settings.unit
+                width: settings.tabWidth * settings.unit
+                height: 52 * settings.unit
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 26 * settings.unit
+                    color: "#2e000000"
+                    border.width: Math.max(1, settings.unit)
+                    border.color: "#24ffffff"
+                }
+            }
+
+            Rectangle {
+                x: (settings.tabX + 18) * settings.unit
+                y: (settings.tabY(settings.separatorAfter + 1) - 13) * settings.unit
+                width: (settings.tabWidth - 36) * settings.unit
+                height: Math.max(1, settings.unit)
+                color: "#24ffffff"
+            }
+
+            // The focus surface glides between side bar and page.
+            FocusSurface {
+                id: focusSurface
+                x: settings.focusRect.x * settings.unit
+                y: settings.focusRect.y * settings.unit
+                width: settings.focusRect.width * settings.unit
+                height: settings.focusRect.height * settings.unit
+                visible: settings.zone !== "content" || settings.page.rows.length > 0
+                unit: settings.unit
+                pressScale: settings.zone === "search" ? searchPage.focusScale : 1
+                radius: settings.zone === "search" ? searchPage.focusRadius : (settings.zone === "sidebar" ? (settings.sideIndex === 0 ? 26 : 22) : 26)
+            }
+
+            Text {
+                x: (settings.sideX + 34) * settings.unit
+                y: (settings.sideY + 28) * settings.unit
+                height: 40 * settings.unit
+                verticalAlignment: Text.AlignVCenter
+                text: I18n.t("settings", "title.settings")
+                color: settings.textPrimary
+                font.family: settings.titleFont
+                font.pixelSize: 34 * settings.unit
+                font.letterSpacing: -0.68 * settings.unit
+            }
+
+            // Search row of the side bar.
+            Item {
+                readonly property bool focused: settings.zone === "sidebar" && settings.sideIndex === 0
+                x: settings.tabX * settings.unit
+                y: settings.searchY * settings.unit
+                width: settings.tabWidth * settings.unit
+                height: 52 * settings.unit
+
+                Image {
+                    x: 18 * settings.unit
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 28 * settings.unit
+                    height: width
+                    source: Qt.resolvedUrl("icons/settings-search" + (parent.focused ? "-dark" : "") + ".png")
+                }
+
+                Text {
+                    x: 58 * settings.unit
+                    height: parent.height
+                    verticalAlignment: Text.AlignVCenter
+                    text: I18n.t("settings", "row.search")
+                    color: parent.focused ? settings.focusSecondary : settings.textSecondary
+                    font.family: settings.valueFont
+                    font.pixelSize: 20 * settings.unit
+                }
+            }
+
+            Repeater {
+                model: Engine.areas
+                Item {
+                    readonly property bool focused: settings.zone === "sidebar" && settings.sideIndex === index + 1
+                    readonly property bool current: settings.areaIndex === index
+                    x: settings.tabX * settings.unit
+                    y: settings.tabY(index) * settings.unit
+                    width: settings.tabWidth * settings.unit
+                    height: settings.tabHeight * settings.unit
+
+                    Image {
+                        x: 18 * settings.unit
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 28 * settings.unit
+                        height: width
+                        source: Qt.resolvedUrl("icons/settings-" + modelData.icon + (parent.focused ? "-dark" : "") + ".png")
+                    }
+
+                    Text {
+                        x: 62 * settings.unit
+                        width: parent.width - 80 * settings.unit
+                        height: parent.height
+                        verticalAlignment: Text.AlignVCenter
+                        elide: Text.ElideRight
+                        text: I18n.t("settings_" + modelData.id, modelData.title)
+                        color: parent.focused ? settings.focusText : settings.textPrimary
+                        font.family: parent.current ? settings.titleFont : settings.rowFont
+                        font.pixelSize: 21 * settings.unit
+                    }
+                }
+            }
+
+            // ---- Search ----
+            SettingsSearch {
+                id: searchPage
+                x: (settings.paneX + settings.pageOffset) * settings.unit
+                y: settings.paneY * settings.unit
+                width: settings.paneWidth * settings.unit
+                height: settings.paneHeight * settings.unit
+                opacity: settings.pageFade
+                visible: settings.zone === "search"
+                owner: settings
+                unit: settings.unit
+                titleFont: settings.titleFont
+                rowFont: settings.rowFont
+                valueFont: settings.valueFont
+            }
+
+            // ---- Page ----
+            Item {
+                id: pane
+                x: (settings.paneX + settings.pageOffset) * settings.unit
+                y: settings.paneY * settings.unit
+                width: settings.paneWidth * settings.unit
+                height: settings.paneHeight * settings.unit
+                opacity: settings.pageFade
+                visible: settings.zone !== "search"
+
+                // Path of the levels above, title and second line: the shared header, large.
+                PageHeader {
+                    x: 20 * settings.unit
+                    width: parent.width - 40 * settings.unit
+                    unit: settings.unit
+                    large: true
+                    back: settings.stack.length > 0 ? settings.pathText() : ""
+                    title: settings.page.title
+                    subtitle: settings.page.subtitle
+                }
+
+                Text {
+                    x: 20 * settings.unit
+                    y: (settings.listTop - settings.paneY) * settings.unit
+                    width: parent.width - 40 * settings.unit
+                    visible: settings.page.rows.length === 0
+                    wrapMode: Text.WordWrap
+                    text: settings.revision === 0 ? "" : I18n.t("settings", "detail.nothing_here")
+                    color: settings.textSecondary
+                    font.family: settings.valueFont
+                    font.pixelSize: 20 * settings.unit
+                }
+
+                // The list scrolls under the head and fades out at an end with more.
+                Item {
+                    id: listViewport
+                    y: (settings.listTop - settings.paneY) * settings.unit
+                    width: parent.width
+                    height: settings.listHeight * settings.unit
+                    clip: true
+                    layer.enabled: settings.maxScroll > 0
+                    layer.effect: EdgeFade {
+                        topFade: 56 * settings.unit / Math.max(1, listViewport.height)
+                        bottomFade: 96 * settings.unit / Math.max(1, listViewport.height)
+                        topAmount: settings.scroll > 1 ? 1 : 0
+                        bottomAmount: settings.scroll < settings.maxScroll - 1 ? 1 : 0
+                    }
+
+                    Item {
+                        width: parent.width
+                        y: -settings.scroll * settings.unit
+                        Behavior on y { NumberAnimation { duration: GlassStyle.focusDuration; easing.type: Easing.Bezier; easing.bezierCurve: settings.focusCurve } }
+
+                        Repeater {
+                            model: settings.layout.items
+                            delegate: SettingsRow {
+                                entry: modelData
+                                owner: settings
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    function pathText() {
+        var parts = [I18n.t("settings_" + area.id, area.title)];
+        for (var i = 0; i < stack.length - 1; i++) {
+            var level = stack[i];
+            if (level.kind === "page") {
+                var pageData = Engine.pageOf(area, level.page);
+                var context = Engine.context(store, area.id, I18n);
+                context.param = paramOf(i + 1);
+                parts.push(!pageData ? "" : (typeof pageData.title === "function" ? pageData.title(context)
+                                                                                 : context.t(pageData.title)));
+            } else {
+                parts.push(Engine.text(I18n, area.id, level.row.title));
+            }
+        }
+        return parts.join("  /  ");
+    }
+}

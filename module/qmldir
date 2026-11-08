@@ -1,0 +1,4 @@
+plugin novos-video-backdrop
+singleton GlassStyle GlassStyle.qml
+singleton I18n I18n.qml
+singleton Remote Remote.qml

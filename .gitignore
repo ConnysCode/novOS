@@ -1,0 +1,9 @@
+.DS_Store
+.env
+.env.*
+*.key
+*.pem
+id_ed25519*
+__pycache__/
+*.pyc
+node_modules/

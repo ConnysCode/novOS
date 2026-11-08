@@ -1,0 +1,25 @@
+#!/bin/sh
+# novOS early start, the kick. surface-manager starts at about 4 s, while /var is still
+# LG's read-only overlay: it cannot see its own environment file yet, the data
+# partition comes over /var only with LG's mount-readwrite.service at about 14 s.
+# /var/systemd/system/env/rec-info-adapter.env puts this folder first in the PATH of
+# LG's rec-info-adapter.service, which waits for that mount and calls luna-send first,
+# at about 16 s, before the first picture. Once per boot that call has
+# novos-early.sh kick restart surface-manager; the new one reads surface-manager.env, and
+# the PmLogCtl stand-in mounts our overlays before it loads anything.
+# Every call, that one too, ends in LG's own luna-send.
+#
+# Without /var/lib/novos this folder is gone and PATH simply goes on to LG's folders.
+HERE=/var/lib/novos/current/bin/kick
+early=/var/lib/novos/current/bin/novos-early.sh
+if [ ! -e /tmp/novos-early-kicked ] && [ -f "$early" ] && [ -d /var/lib/novos/state ]; then
+    : > /tmp/novos-early-kicked
+    # 30 s at most; early in a cold boot the CPU is busy.
+    timeout 30 sh "$early" kick </dev/null >>/var/lib/novos/state/early.log 2>&1
+fi
+IFS=:
+for dir in $PATH; do
+    [ "$dir" != "$HERE" ] || continue
+    [ -x "$dir/luna-send" ] && exec "$dir/luna-send" "$@"
+done
+exit 127
