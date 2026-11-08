@@ -47,6 +47,7 @@ entry() {
         -e "s#\.ttf\")#.ttf\"#" \
         -e "s#Qt.resolvedUrl(\"module/icons/#(\"file://$PANEL/module/icons/#" \
         -e "s#Qt.resolvedUrl(\"module/vt-feed.py\").toString().replace(\"file://\", \"\")#\"$PANEL/module/vt-feed.py\"#" \
+        -e "s#Qt.resolvedUrl(\"module/#(\"file://$PANEL/module/#" \
         -e "s#Qt.resolvedUrl(\"launcher/#(\"file://$PANEL/launcher/#" \
         "$HERE/$1" | state > "$OUT/$2"
     # A relative URL left in an entry file would point into LG's folder.
