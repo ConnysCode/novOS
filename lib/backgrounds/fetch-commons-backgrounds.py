@@ -102,7 +102,7 @@ def main():
     index = []
     credits = ["# Hintergründe", "",
                "Alle Bilder stammen von Wikimedia Commons. Für den TV wurden sie verkleinert und auf 1920×1080",
-               "zugeschnitten (Bildmitte), sonst unverändert. Erzeugt von `launcher/fetch-commons-backgrounds.py`.", ""]
+               "zugeschnitten (Bildmitte), sonst unverändert. Erzeugt von `lib/backgrounds/fetch-commons-backgrounds.py`.", ""]
     for title, author in PICKS:
         data = info(title)
         if not ALLOWED.match(data["license"]):

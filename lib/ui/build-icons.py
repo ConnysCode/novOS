@@ -85,6 +85,9 @@ ICONS = [
     ("minus-28", 28, 2, strokes(["M5 12h14"]), BOTH),
     ("plus-28", 28, 2, strokes(PLUS), BOTH),
     ("external-18", 18, 2.4, strokes(EXTERNAL), [("", "rgba(255,255,255,0.50)"), ("-dark", LOCK_DARK)]),
+    # Status marks of check and progress lists (StatusMark) and the badge of OptionCard.
+    ("refresh-18", 18, 2.2, strokes(REFRESH), LIGHT_ONLY),
+    ("check-20", 20, 2.6, strokes(CHECK), BOTH),
 ]
 
 

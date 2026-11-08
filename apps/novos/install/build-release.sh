@@ -19,6 +19,7 @@ STATE=${3:-}
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 INSTALL=$HERE/install
 LIB=$(CDPATH= cd -- "$HERE/../../lib/ui" && pwd)
+BACKGROUNDS=$(CDPATH= cd -- "$HERE/../../lib/backgrounds" && pwd)
 
 # novos-uninstall.sh with the list of LG files inside. Also used by novos-on-tv.sh.
 uninstall_script() {
@@ -69,7 +70,9 @@ for file in "$OUT"/module/*.qml "$OUT"/module/*.js; do
 done
 state < "$HERE/module/vt-feed.py" > "$OUT/module/vt-feed.py"
 cp "$HERE/module/output/libnovos-video-backdrop.so" "$OUT/module/"
-cp -R "$HERE/launcher/backgrounds" "$OUT/launcher/"
+# The pictures of launcher and hub, shared with the setup in lib/backgrounds.
+mkdir -p "$OUT/launcher/backgrounds"
+cp "$BACKGROUNDS"/*.jpg "$BACKGROUNDS/index.json" "$BACKGROUNDS/CREDITS.md" "$OUT/launcher/backgrounds/"
 cp "$LIB"/fonts/novos-inter-*.ttf "$OUT/"
 state < "$HERE/banner-relay.py" > "$OUT/banner-relay.py"
 cp "$HERE/toast-filter.inc" "$HERE/settings-redirect.inc" "$HERE/launcher-home-key.inc" "$HERE/fullscreen-home.inc" "$HERE/splash-hide.inc" "$HERE/launcher-home.inc" "$HERE/launcher-stays.inc" \

@@ -1,7 +1,7 @@
 # Hintergründe
 
 Alle Bilder stammen von Wikimedia Commons. Für den TV wurden sie verkleinert und auf 1920×1080
-zugeschnitten (Bildmitte), sonst unverändert. Erzeugt von `launcher/fetch-commons-backgrounds.py`.
+zugeschnitten (Bildmitte), sonst unverändert. Erzeugt von `lib/backgrounds/fetch-commons-backgrounds.py`.
 
 - `himalayas-nepal.jpg`: „Himalayas, Nepal“ von Vyacheslav Argenberg, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0), https://commons.wikimedia.org/wiki/File:Himalayas,_Nepal.jpg
 - `le-ngauruhoe-et-le-ruapehu-vus-du-sommet-du-tongariro.jpg`: „Le Ngauruhoe et le Ruapehu vus du sommet du Tongariro“ von Eusebius, CC BY 3.0 (https://creativecommons.org/licenses/by/3.0), https://commons.wikimedia.org/wiki/File:Le_Ngauruhoe_et_le_Ruapehu_vus_du_sommet_du_Tongariro.jpg
