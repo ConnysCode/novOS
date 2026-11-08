@@ -12,7 +12,7 @@ Homebrew Channel and is not a product.
 
 novOS never writes LG's system partition. Every LG file it replaces is covered
 by a bind mount from `/var/lib/novos`, checked against the SHA-256 listed in
-[`install/lg-targets.txt`](install/lg-targets.txt) before and after. A start
+[`install/lg-targets.txt`](apps/novos/install/lg-targets.txt) before and after. A start
 hook sets the mounts on every boot, with a self check, a supervisor and an
 emergency switch. Each mount disappears with the next restart, and the
 uninstaller brings LG's interface back completely.
@@ -23,7 +23,17 @@ uninstaller brings LG's interface back completely.
 - Docker, to build the video plugin for the TV's ARM userland.
 - Python 3 on the TV (part of webOS).
 
+## Repository
+
+| Path | Content |
+| --- | --- |
+| [`apps/novos/`](apps/novos) | novOS itself: the interface, the video plugin, the release build and everything that runs on the TV |
+
+`apps/` holds the deployable apps, `lib/` will hold components they share.
+
 ## Usage
+
+All commands run from `apps/novos/`.
 
 ```sh
 module/build.sh                 # builds module/output/libnovos-video-backdrop.so
@@ -40,7 +50,7 @@ after `ssh lg-tv`: `sh novos-uninstall.sh`.
 Releases are named after the commit of this repository. `install` refuses
 uncommitted changes.
 
-## Layout
+## Layout of `apps/novos/`
 
 | Path | Content |
 | --- | --- |
@@ -59,6 +69,6 @@ research repository, which is not part of this one.
 ## Credits
 
 The interface font is Inter, under the SIL Open Font License
-([`fonts/OFL.txt`](fonts/OFL.txt)). The launcher backgrounds come from
+([`fonts/OFL.txt`](apps/novos/fonts/OFL.txt)). The launcher backgrounds come from
 Wikimedia Commons, credited in
-[`launcher/backgrounds/CREDITS.md`](launcher/backgrounds/CREDITS.md).
+[`launcher/backgrounds/CREDITS.md`](apps/novos/launcher/backgrounds/CREDITS.md).
