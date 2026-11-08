@@ -27,66 +27,72 @@ Item {
     height: logicalHeight * unit
 
     // Head block of Über novOS: a light plate with the word mark, a line, version and TV.
-    Item {
+    // Only that page has one, so the other rows do not build its texts at all.
+    Loader {
         anchors.fill: parent
-        visible: cell.entry.kind === "hero"
+        active: cell.entry.kind === "hero"
+        sourceComponent: Component {
+            Item {
+                anchors.fill: parent
 
-        GlassControl {
-            anchors.fill: parent
-            unit: cell.unit
-            radius: 28
-            fill: "#14ffffff"
-        }
+                GlassControl {
+                    anchors.fill: parent
+                    unit: cell.unit
+                    radius: 28
+                    fill: "#14ffffff"
+                }
 
-        Row {
-            id: wordMark
-            x: 28 * cell.unit
-            anchors.verticalCenter: parent.verticalCenter
+                Row {
+                    id: wordMark
+                    x: 28 * cell.unit
+                    anchors.verticalCenter: parent.verticalCenter
 
-            Text {
-                text: "nov"
-                color: "#ffffff"
-                font.family: cell.owner ? cell.owner.titleFont : ""
-                font.pixelSize: 64 * cell.unit
-                font.letterSpacing: -2.2 * cell.unit
-            }
+                    Text {
+                        text: "nov"
+                        color: "#ffffff"
+                        font.family: cell.owner ? cell.owner.titleFont : ""
+                        font.pixelSize: 64 * cell.unit
+                        font.letterSpacing: -2.2 * cell.unit
+                    }
 
-            Text {
-                text: "OS"
-                color: GlassStyle.textSecondary
-                font.family: cell.valueFont
-                font.pixelSize: 64 * cell.unit
-                font.letterSpacing: -2.2 * cell.unit
-            }
-        }
+                    Text {
+                        text: "OS"
+                        color: GlassStyle.textSecondary
+                        font.family: cell.valueFont
+                        font.pixelSize: 64 * cell.unit
+                        font.letterSpacing: -2.2 * cell.unit
+                    }
+                }
 
-        Rectangle {
-            x: wordMark.x + wordMark.width + 28 * cell.unit
-            anchors.verticalCenter: parent.verticalCenter
-            width: Math.max(1, cell.unit)
-            height: 60 * cell.unit
-            color: "#29ffffff"
-        }
+                Rectangle {
+                    x: wordMark.x + wordMark.width + 28 * cell.unit
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Math.max(1, cell.unit)
+                    height: 60 * cell.unit
+                    color: "#29ffffff"
+                }
 
-        Column {
-            x: wordMark.x + wordMark.width + 57 * cell.unit
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 4 * cell.unit
+                Column {
+                    x: wordMark.x + wordMark.width + 57 * cell.unit
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 4 * cell.unit
 
-            Text {
-                text: cell.entry.hero ? cell.entry.hero.title : ""
-                visible: text !== ""
-                color: "#ffffff"
-                font.family: cell.titleFont
-                font.pixelSize: 24 * cell.unit
-            }
+                    Text {
+                        text: cell.entry.hero ? cell.entry.hero.title : ""
+                        visible: text !== ""
+                        color: "#ffffff"
+                        font.family: cell.titleFont
+                        font.pixelSize: 24 * cell.unit
+                    }
 
-            Text {
-                text: cell.entry.hero ? cell.entry.hero.text : ""
-                visible: text !== ""
-                color: GlassStyle.textSecondary
-                font.family: cell.valueFont
-                font.pixelSize: 18 * cell.unit
+                    Text {
+                        text: cell.entry.hero ? cell.entry.hero.text : ""
+                        visible: text !== ""
+                        color: GlassStyle.textSecondary
+                        font.family: cell.valueFont
+                        font.pixelSize: 18 * cell.unit
+                    }
+                }
             }
         }
     }

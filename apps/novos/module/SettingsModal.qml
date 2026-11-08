@@ -81,6 +81,8 @@ Item {
     property real pageFade: 1
     property real pageOffset: 0
     property var lastFocus: ({})              // per area, where the focus was on level 0
+    property bool searchNeeded: false         // the search page is built on its first use
+    readonly property var searchPage: searchLoader.item
 
     readonly property var area: Engine.areas[areaIndex]
     readonly property var page: resolveCurrent(revision, areaIndex, stack)
@@ -146,7 +148,7 @@ Item {
     function requestData() {
         if (requested) return;
         requested = true;
-        settingsStore.request();
+        settingsStore.describeAll();
         settingsStore.call("luna://com.webos.service.eim", "/getAllInputStatus", { subscribe: true });
         tvData.request();
     }
@@ -225,9 +227,23 @@ Item {
     }
 
     onLayoutChanged: {
+        growRows();
         if (focusIndex >= layout.rowY.length) focusIndex = Math.max(0, layout.rowY.length - 1);
         keepVisible();
     }
+
+    // The list's rows: one slot per entry of the longest page so far.
+    readonly property var emptyEntry: ({ kind: "none", y: 0, h: 0 })
+    ListModel {
+        id: rowSlots
+    }
+
+    function growRows() {
+        while (rowSlots.count < layout.items.length) rowSlots.append({ slot: rowSlots.count });
+    }
+
+    Component.onCompleted: growRows()
+
     onFocusIndexChanged: keepVisible()
 
     // The single focus surface, in card coordinates.
@@ -350,10 +366,11 @@ Item {
     // OK on the search field: the page on the right turns into the search.
     function openSearch() {
         fromSearch = false;
-        var started = PerfProbe.now();
-        var entries = Engine.searchIndex(store, I18n);
-        PerfProbe.cost("modal.searchIndex", started, entries.length + " entries");
-        searchPage.open(entries);
+        var built = PerfProbe.now();
+        searchLoader.asynchronous = false;      // finishes a build still running
+        searchNeeded = true;
+        PerfProbe.cost("modal.searchBuild", built, searchLoader.status === Loader.Ready ? "ready" : "");
+        searchPage.open(searchEntries());
         zone = "search";
         pageChange.restart();
     }
@@ -400,11 +417,38 @@ Item {
         }
     }
 
+    // The search index (about 50 ms) is kept while the values stay the same, and worked out
+    // once the focus has rested on the search field, not with the key that opens it.
+    property var searchCache: null
+
+    function searchEntries() {
+        if (searchCache && searchCache.revision === revision) return searchCache.entries;
+        var started = PerfProbe.now();
+        var entries = Engine.searchIndex(store, I18n);
+        PerfProbe.cost("modal.searchIndex", started, entries.length + " entries");
+        searchCache = { revision: revision, entries: entries };
+        return entries;
+    }
+
+    Timer {
+        id: searchWarm
+        interval: GlassStyle.focusDuration + GlassStyle.popoverDuration
+        onTriggered: {
+            if (settings.active && settings.zone === "sidebar" && settings.sideIndex === 0) settings.searchEntries();
+        }
+    }
+
     // Up and down change the page at once, without OK.
     function selectSide(index) {
         sideIndex = index;
         fromSearch = false;
-        if (index === 0) return;
+        // On the search field the search page starts building in the background, so that
+        // OK usually finds it standing.
+        if (index === 0) {
+            searchNeeded = true;
+            searchWarm.restart();
+            return;
+        }
         if (areaIndex !== index - 1) {
             areaIndex = index - 1;
             stack = [];
@@ -811,19 +855,28 @@ Item {
             }
 
             // ---- Search ----
-            SettingsSearch {
-                id: searchPage
+            // Built on its first use, in the background once the focus reaches the search
+            // field: with its keyboard it is a large part of the modal, and every opening of
+            // the modal would wait for it.
+            Loader {
+                id: searchLoader
                 x: (settings.paneX + settings.pageOffset) * settings.unit
                 y: settings.paneY * settings.unit
                 width: settings.paneWidth * settings.unit
                 height: settings.paneHeight * settings.unit
                 opacity: settings.pageFade
                 visible: settings.zone === "search"
-                owner: settings
-                unit: settings.unit
-                titleFont: settings.titleFont
-                rowFont: settings.rowFont
-                valueFont: settings.valueFont
+                active: settings.searchNeeded
+                asynchronous: true
+                sourceComponent: Component {
+                    SettingsSearch {
+                        owner: settings
+                        unit: settings.unit
+                        titleFont: settings.titleFont
+                        rowFont: settings.rowFont
+                        valueFont: settings.valueFont
+                    }
+                }
             }
 
             // ---- Page ----
@@ -860,30 +913,31 @@ Item {
                 }
 
                 // The list scrolls under the head and fades out at an end with more.
-                Item {
+                EdgeFadeView {
                     id: listViewport
                     y: (settings.listTop - settings.paneY) * settings.unit
                     width: parent.width
                     height: settings.listHeight * settings.unit
-                    clip: true
-                    layer.enabled: settings.maxScroll > 0
-                    layer.effect: EdgeFade {
-                        topFade: 56 * settings.unit / Math.max(1, listViewport.height)
-                        bottomFade: 96 * settings.unit / Math.max(1, listViewport.height)
-                        topAmount: settings.scroll > 1 ? 1 : 0
-                        bottomAmount: settings.scroll < settings.maxScroll - 1 ? 1 : 0
-                    }
+                    fading: settings.maxScroll > 0
+                    topFade: 56 * settings.unit
+                    bottomFade: 96 * settings.unit
+                    topAmount: settings.scroll > 1 ? 1 : 0
+                    bottomAmount: settings.scroll < settings.maxScroll - 1 ? 1 : 0
 
                     Item {
                         width: parent.width
                         y: -settings.scroll * settings.unit
                         Behavior on y { NumberAnimation { duration: GlassStyle.focusDuration; easing.type: Easing.Bezier; easing.bezierCurve: settings.focusCurve } }
 
+                        // A pool of rows that only grows: another page reuses them and
+                        // changes their texts, instead of building every row anew.
                         Repeater {
-                            model: settings.layout.items
+                            model: rowSlots
                             onItemAdded: PerfProbe.count("modal.rows.created")
                             delegate: SettingsRow {
-                                entry: modelData
+                                readonly property bool used: index < settings.layout.items.length
+                                entry: used ? settings.layout.items[index] : settings.emptyEntry
+                                visible: used
                                 owner: settings
                             }
                         }

@@ -15,6 +15,8 @@ import "."
 //   key <name> [ms]                press and release, then wait ms (default 400)
 //   hold <name> <ms> [repeat]      held key: auto-repeat every repeat ms (default 100)
 //   bump <count> <ms>              bump() count times, ms apart
+//   gc                             a full garbage collection, timed as cost "gc"
+//   call <function>                calls target.<function>() without arguments, timed
 //   close
 // Key names: up, down, left, right, ok, back.
 Item {
@@ -100,6 +102,16 @@ Item {
             bumpsLeft = Number(words[1]);
             bumper.interval = Number(words[2]);
             bumper.restart();
+        } else if (command === "gc") {
+            var started = PerfProbe.now();
+            gc();
+            PerfProbe.cost("gc", started);
+            after(1);
+        } else if (command === "call") {
+            var begun = PerfProbe.now();
+            if (typeof target[words[1]] === "function") target[words[1]]();
+            PerfProbe.cost("call." + words[1], begun);
+            after(1);
         } else if (command === "close") {
             if (target.close) target.close();
         } else {

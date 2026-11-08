@@ -1,4 +1,5 @@
 import QtQuick 2.12
+import "."
 
 // Layer effect for long lists: fades the content out towards the top and bottom,
 // but only at an end that has more rows. All lengths are shares of the height.
@@ -10,8 +11,8 @@ ShaderEffect {
     property real horizontal: 0              // 1 fades left and right instead
     property real bottomAmount: 0
 
-    Behavior on topAmount { NumberAnimation { duration: 180 } }
-    Behavior on bottomAmount { NumberAnimation { duration: 180 } }
+    Behavior on topAmount { NumberAnimation { duration: GlassStyle.listFadeDuration } }
+    Behavior on bottomAmount { NumberAnimation { duration: GlassStyle.listFadeDuration } }
 
     fragmentShader: "
         varying highp vec2 qt_TexCoord0;

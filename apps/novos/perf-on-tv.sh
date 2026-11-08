@@ -9,7 +9,8 @@
 # Then:  python3 -I perf-report.py <out-dir>
 #
 # Use a new build name for every run: surface-manager keeps components per URL, and the
-# first opening of a build is the cold one. Scenario files may set, in comment lines,
+# first opening of a build is the cold one. PERF_SED and PERF_MODULE_SED are sed scripts
+# for the uploaded copy only (main file and module/*.qml). Scenario files may set, in comment lines,
 # "# page: <launch page>", "# opens: <n>" and "# seconds: <open time>".
 set -eu
 
@@ -23,8 +24,11 @@ MAIN=file://$REMOTE_DIR/QuickSettings.glass.qml
 CLOSE='{\"appId\":\"'$APP'\"}'
 
 mkdir -p "$OUT"
-PREVIEW_UPLOAD_ONLY=1 \
-PREVIEW_MODULE_SED='s/readonly property bool enabled: false/readonly property bool enabled: true/' \
+# PERF_SED and PERF_MODULE_SED change the uploaded copy further, for comparing variants.
+PROBE_ON='s/readonly property bool enabled: false/readonly property bool enabled: true/'
+PREVIEW_UPLOAD_ONLY=1 PREVIEW_SED="${PERF_SED:-}" \
+PREVIEW_MODULE_SED="$PROBE_ON
+${PERF_MODULE_SED:-}" \
     "$HERE/preview-on-tv.sh" "$BUILD_NAME" /dev/null
 scp -q "$HERE/perf/perf-open.sh" lg-tv:/tmp/novos-perf-open.sh
 ssh lg-tv "rm -f /tmp/novos-perf.ini /tmp/novos-perf-script.txt"
@@ -52,4 +56,6 @@ done
 
 ssh lg-tv "pkill -f '[n]ovos-perf-guard'" || true
 scp -q lg-tv:/tmp/novos-perf.ini "$OUT/novos-perf.ini"
+# /tmp on the TV is RAM: the upload goes once its results are in.
+ssh lg-tv "rm -rf $REMOTE_DIR"
 echo "$OUT"

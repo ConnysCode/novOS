@@ -64,6 +64,7 @@ Item {
         property real dim: 0
         property real hasBackdrop: card.hasBackdrop
         property real edgeGain: GlassStyle.edgeGain
+        vertexShader: GlassStyle.glassVertexShader
         fragmentShader: card.glassShader
     }
 

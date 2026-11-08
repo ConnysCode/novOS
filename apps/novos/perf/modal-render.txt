@@ -1,0 +1,11 @@
+# The settings modal standing and scrolling, for comparing what its drawing costs.
+# Only right from the side bar into the list, then up and down: nothing is written.
+# page: settings:picture
+# seconds: 11
+wait 2500
+phase idle
+wait 2500
+key right 400
+phase scroll
+hold down 1500
+hold up 1500

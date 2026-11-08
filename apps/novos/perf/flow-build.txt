@@ -1,0 +1,9 @@
+# The panel opens on its network page, which prepares the Wi-Fi list in the background:
+# what building the dialogs and Wi-Fi flow costs. Only up and down afterwards.
+# page: network
+# seconds: 8
+phase flow-build
+wait 2500
+phase after
+hold down 1000
+hold up 1000

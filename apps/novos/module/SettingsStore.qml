@@ -17,7 +17,13 @@ Item {
     property var store: Engine.newStore()
     property int revision: 0
     property bool requested: false
-    property var descSeen: ({})
+    // Descriptors are large (about 93 KB for every key) and every answer is garbage the
+    // JavaScript heap has to collect, which pauses the window for 70 ms and more. A surface
+    // that needs only a few names them here ("category.name"); describeAll() asks for the
+    // rest once a surface needs them, like the settings modal. null asks for all at once.
+    property var descKeys: null
+    property bool describedAll: false
+    property var descAsked: ({})              // per category, the key lists still unanswered
     property var pendingWrite: null
     property var extraKeys: ({})           // keys a surface needs beyond the catalogs
     readonly property int writeDelay: 120
@@ -39,19 +45,50 @@ Item {
         return all;
     }
 
-    // Subscribes once to every key; later openings reuse the subscription.
+    // Subscribes once to every value and to the descriptors in descKeys.
     function request() {
         if (requested) return;
         requested = true;
         var all = keys();
         for (var category in all) {
             if (category === "novos") continue;
-            var asked = { category: category, keys: all[category], subscribe: true };
-            call("luna://com.webos.settingsservice", "/getSystemSettings", asked);
-            call("luna://com.webos.settingsservice", "/getSystemSettingDesc", asked);
+            call("luna://com.webos.settingsservice", "/getSystemSettings",
+                 { category: category, keys: all[category], subscribe: true });
+            var wanted = [];
+            for (var i = 0; i < all[category].length; i++) {
+                if (descKeys === null || descKeys.indexOf(category + "." + all[category][i]) >= 0) {
+                    wanted.push(all[category][i]);
+                }
+            }
+            describe(category, wanted);
         }
+        describedAll = descKeys === null;
         var configs = Engine.collectConfigs();
         if (configs.length > 0) call("luna://com.webos.service.config", "/getConfigs", { configNames: configs });
+    }
+
+    // The descriptors request() left out.
+    function describeAll() {
+        request();
+        if (describedAll) return;
+        describedAll = true;
+        var all = keys();
+        for (var category in all) {
+            if (category === "novos") continue;
+            var rest = [];
+            for (var i = 0; i < all[category].length; i++) {
+                if (descKeys.indexOf(category + "." + all[category][i]) < 0) rest.push(all[category][i]);
+            }
+            describe(category, rest);
+        }
+    }
+
+    function describe(category, names) {
+        if (names.length === 0) return;
+        if (!descAsked[category]) descAsked[category] = [];
+        descAsked[category].push(names);
+        call("luna://com.webos.settingsservice", "/getSystemSettingDesc",
+             { category: category, keys: names, subscribe: true });
     }
 
     // After a refused write the shown values may be wrong: read them again once.
@@ -245,10 +282,11 @@ Item {
         } else if (method === "/getSystemSettingDesc") {
             var results = response.results || [];
             var category = results.length > 0 ? results[0].category : "";
-            var first = category !== "" && !settingsStore.descSeen[category];
-            if (category !== "") settingsStore.descSeen[category] = true;
+            // The first answer to a request marks the keys it asked for and did not get.
+            var waiting = category !== "" ? settingsStore.descAsked[category] : undefined;
+            var askedKeys = waiting && waiting.length > 0 ? waiting.shift() : null;
             Engine.applyDescs(settingsStore.store, response,
-                              first ? { category: category, keys: settingsStore.keys()[category] } : null);
+                              askedKeys ? { category: category, keys: askedKeys } : null);
         } else if (method === "/getConfigs" && response.configs) {
             for (var name in response.configs) settingsStore.store.configs[name] = response.configs[name];
             settingsStore.answered(method, response);

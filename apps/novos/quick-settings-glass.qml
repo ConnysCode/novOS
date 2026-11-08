@@ -142,6 +142,9 @@ StarfishSystemUIWindow {
         // Opened for the settings modal alone (long press of the gear key, LG's settings app):
         // the panel never shows, and leaving the modal closes the window.
         property bool settingsLaunch: false
+        property var pendingSettings: null   // the modal was asked for and is still being built
+        property var pendingFlow: []          // work for the flow, which is still being built
+        property bool flowWaiting: false      // a flow the user asked for is still being built
         property string settingsConfirm: ""     // action a confirmation of the modal runs
         property var settingsConfirmParams: ({})
         property bool modalBackdrop: false  // the glass samples the screen centre
@@ -603,18 +606,20 @@ StarfishSystemUIWindow {
         }
 
         function askScreenOff() {
-            modal().openDialog({
-                action: "screenOff", icon: "screen-off-44", confirm: I18n.t("panel", "modal.screen_off_confirm"),
-                safe: true, title: I18n.t("panel", "modal.screen_off_title"),
-                busyTitle: I18n.t("panel", "modal.screen_off_busy"),
-                text: I18n.t("panel", "modal.screen_off_text")
+            withFlow(function (flow) {
+                flow.openDialog({
+                    action: "screenOff", icon: "screen-off-44", confirm: I18n.t("panel", "modal.screen_off_confirm"),
+                    safe: true, title: I18n.t("panel", "modal.screen_off_title"),
+                    busyTitle: I18n.t("panel", "modal.screen_off_busy"),
+                    text: I18n.t("panel", "modal.screen_off_text")
+                });
             });
         }
 
         function runDialogAction(action) {
             if (action === "settings") {
                 settingsLoader.item.confirmed(settingsConfirm, settingsConfirmParams);
-                modal().closeFlow();
+                if (flow()) flow().closeFlow();
             } else if (action === "removeApp") {
                 removeApp();
             } else if (action === "reboot") {
@@ -622,7 +627,7 @@ StarfishSystemUIWindow {
                                      JSON.stringify({ reason: "reset" }));
             } else if (action === "screenOff") {
                 backdropService.call("luna://com.webos.service.tvpower/power", "/turnOffScreen", "{}");
-                modal().closeFlow();
+                if (flow()) flow().closeFlow();
                 close();
             }
         }
@@ -806,10 +811,12 @@ StarfishSystemUIWindow {
         }
 
         function askReboot() {
-            modal().openDialog({
-                action: "reboot", icon: "refresh-44", confirm: I18n.t("panel", "row.restart"),
-                title: I18n.t("panel", "modal.restart_title"), busyTitle: I18n.t("panel", "modal.restart_busy"),
-                text: I18n.t("panel", "modal.restart_text")
+            withFlow(function (flow) {
+                flow.openDialog({
+                    action: "reboot", icon: "refresh-44", confirm: I18n.t("panel", "row.restart"),
+                    title: I18n.t("panel", "modal.restart_title"), busyTitle: I18n.t("panel", "modal.restart_busy"),
+                    text: I18n.t("panel", "modal.restart_text")
+                });
             });
         }
 
@@ -852,12 +859,15 @@ StarfishSystemUIWindow {
 
         function askRemoveApp() {
             var texts = { name: selectedApp.title, size: selectedApp.size };
-            modal().openDialog({
-                action: "removeApp", appIcon: selectedApp.iconPath, confirm: I18n.t("global", "remove"),
-                title: I18n.t("panel", "modal.remove_app_title", texts),
-                busyTitle: I18n.t("panel", "modal.remove_app_busy", texts),
-                text: selectedApp.size !== "" ? I18n.t("panel", "modal.remove_app_text_size", texts) :
-                                                I18n.t("panel", "modal.remove_app_text")
+            var app = selectedApp;
+            withFlow(function (flow) {
+                flow.openDialog({
+                    action: "removeApp", appIcon: app.iconPath, confirm: I18n.t("global", "remove"),
+                    title: I18n.t("panel", "modal.remove_app_title", texts),
+                    busyTitle: I18n.t("panel", "modal.remove_app_busy", texts),
+                    text: app.size !== "" ? I18n.t("panel", "modal.remove_app_text_size", texts) :
+                                            I18n.t("panel", "modal.remove_app_text")
+                });
             });
         }
 
@@ -875,14 +885,14 @@ StarfishSystemUIWindow {
             selectedApp = null;
             changePage("apps", 0);
             moveApp(0);
-            modal().closeFlow();
+            if (flow()) flow().closeFlow();
         }
 
         function removeFailed() {
             if (removingApp === "") return;
             removeCheck.stop();
             removingApp = "";
-            modal().showError(I18n.t("panel", "modal.remove_app_failed"));
+            if (flow()) flow().showError(I18n.t("panel", "modal.remove_app_failed"));
         }
 
         function rowValue(key) {
@@ -1207,10 +1217,34 @@ StarfishSystemUIWindow {
             focusIndex = focus;
         }
 
-        // The flow may still be building in the background.
-        function modal() {
-            modalLoader.asynchronous = false;
+        // Confirmations, name entry and Wi-Fi are built when first asked for, in the
+        // background. Built with every opening of the panel they cost each opening CPU time
+        // and frames, built in one piece they stopped the picture for 180 ms
+        // (docs/performance-plan.md). work(flow) runs once the flow stands; while a flow the
+        // user asked for (shows) is still being built, keys wait.
+        function withFlow(work, shows) {
+            if (modalLoader.status === Loader.Ready) {
+                work(modalLoader.item);
+                return;
+            }
+            PerfProbe.mark("flow.request");
+            var works = pendingFlow.slice();
+            works.push(work);
+            pendingFlow = works;
+            if (shows !== false) flowWaiting = true;
             modalNeeded = true;
+        }
+
+        function flowBuilt() {
+            var works = pendingFlow;
+            pendingFlow = [];
+            flowWaiting = false;
+            if (closing) return;
+            for (var i = 0; i < works.length; i++) works[i](modalLoader.item);
+        }
+
+        // The flow, if it has been built; for closing or updating what it shows.
+        function flow() {
             return modalLoader.item;
         }
 
@@ -1225,7 +1259,7 @@ StarfishSystemUIWindow {
                 if (pageRows[i].active) focus = i;
             }
             changePage(name, focus);
-            if (name === "network") modal().prepareList();
+            if (name === "network") withFlow(function (flow) { flow.prepareList(); }, false);
         }
 
         function opensPage(row) {
@@ -1299,15 +1333,15 @@ StarfishSystemUIWindow {
             else if (focusedRow.key === "device" && focusedRow.deviceId) openSourceDetail(focusedRow.deviceId);
             else if (focusedRow.key === "device") switchTo(focusedRow);
             else if (focusedRow.key === "deviceSwitch") switchTo({ appId: detailDevice.appId });
-            else if (focusedRow.key === "deviceName") modal().openDeviceName(SourceList.deviceName(detailDevice));
+            else if (focusedRow.key === "deviceName") withFlow(function (flow) { flow.openDeviceName(SourceList.deviceName(detailDevice)); });
             else if (focusedRow.key === "mode") selectPictureMode(focusedRow.value);
             else if (linkTargets[focusedRow.key]) openLink(linkTargets[focusedRow.key]);
             else if (focusedRow.key === "soundOutput") selectSound("soundOutput", focusedRow.value);
             else if (focusedRow.key === "soundMode") selectSound("soundMode", focusedRow.value);
-            else if (focusedRow.key === "wifiChange") modal().openList();
+            else if (focusedRow.key === "wifiChange") withFlow(function (flow) { flow.openList(); });
             else if (focusedRow.key === "app") openApp();
             else if (focusedRow.key === "smartHome") openSmartHome();
-            else if (focusedRow.key === "tvName") modal().openTvName(tvName);
+            else if (focusedRow.key === "tvName") withFlow(function (flow) { flow.openTvName(tvName); });
             else if (focusedRow.key === "audioGuidance") toggleOption("audioGuidance", "audioGuidance");
             else if (focusedRow.key === "highContrast") toggleOption("highContrast", "highContrast");
             else if (focusedRow.key === "screenZoom") toggleOption("screenZoom", "screenMagnification");
@@ -1324,7 +1358,7 @@ StarfishSystemUIWindow {
             else if (focusedRow.key === "demoDevices") NovosSettings.demoDevices = !NovosSettings.demoDevices;
             else if (focusedRow.key === "appStart") switchTo({ appId: selectedApp.id });
             else if (focusedRow.key === "appRemove") askRemoveApp();
-            else if (focusedRow.key === "wifiForget") modal().openForget(wifiProfile, networkName);
+            else if (focusedRow.key === "wifiForget") withFlow(function (flow) { flow.openForget(wifiProfile, networkName); });
         }
 
         function readTvState() {
@@ -1432,30 +1466,42 @@ StarfishSystemUIWindow {
         }
 
         // The settings modal, opened on one of its areas.
+        // The modal is built in the background (about 120 ms of work, which in one piece
+        // stopped the picture) and opens once it stands. Keys wait for it meanwhile.
         function openSettings(areaId, pageId) {
+            var wanted = { area: areaId || "picture", page: pageId || "" };
+            if (settingsLoader.status !== Loader.Ready) {
+                PerfProbe.mark("settings.request");
+                pendingSettings = wanted;
+                settingsNeeded = true;
+                return;
+            }
             var started = PerfProbe.now();
-            var built = settingsLoader.status === Loader.Ready;
-            settingsLoader.asynchronous = false;
-            settingsNeeded = true;
-            PerfProbe.cost("settings.build", started, built ? "ready" : "sync");
-            started = PerfProbe.now();
-            settingsLoader.item.open(areaId || "picture", pageId || "");
+            settingsLoader.item.open(wanted.area, wanted.page);
             PerfProbe.cost("settings.open", started);
+        }
+
+        function settingsBuilt() {
+            var wanted = pendingSettings;
+            pendingSettings = null;
+            if (wanted !== null && !closing) openSettings(wanted.area, wanted.page);
         }
 
         function settingsHostAction(name, params) {
             if (name === "confirm") {
                 settingsConfirm = params.action;
                 settingsConfirmParams = params.params || {};
-                modal().openDialog({ action: "settings", icon: params.danger === true ? "alert-44" : "",
-                                     title: params.title, text: params.text, confirm: params.confirm,
-                                     safe: params.safe === true });
+                withFlow(function (flow) {
+                    flow.openDialog({ action: "settings", icon: params.danger === true ? "alert-44" : "",
+                                      title: params.title, text: params.text, confirm: params.confirm,
+                                      safe: params.safe === true });
+                });
             } else if (name === "wifiSetup") {
-                modal().openList();
+                withFlow(function (flow) { flow.openList(); });
             } else if (name === "tvName") {
-                modal().openTvName(tvName);
+                withFlow(function (flow) { flow.openTvName(tvName); });
             } else if (name === "wifiForget") {
-                modal().openForget(wifiProfile, networkName);
+                withFlow(function (flow) { flow.openForget(wifiProfile, networkName); });
             } else if (name === "closePanel") {
                 close();
             } else if (name === "switchInput" && params.input) {
@@ -1463,7 +1509,7 @@ StarfishSystemUIWindow {
             } else if (name === "deviceDetails" && params.input) {
                 // The panel's name entry for an input, saved through eim/setDeviceInfo.
                 detailDeviceId = params.input.id;
-                modal().openDeviceName(SourceList.deviceName(params.input.device));
+                withFlow(function (flow) { flow.openDeviceName(SourceList.deviceName(params.input.device)); });
             } else if (name === "language") {
                 // The language list lives in the panel; the modal steps back to it.
                 settingsLoader.item.close();
@@ -1543,6 +1589,8 @@ StarfishSystemUIWindow {
             PerfProbe.beginPhase("open");
             var started = PerfProbe.now();
             readTvState();
+            // Opened for the settings modal alone: its descriptors are needed at once.
+            if (settingsLaunch) settingsStore.describeAll();
             PerfProbe.cost("panel.readTvState", started);
             if (liveGlass.pictureReady) startOpenAnimation();
         }
@@ -1553,6 +1601,9 @@ StarfishSystemUIWindow {
             PerfProbe.finish("close");
             closing = true;
             guide.stop();
+            pendingSettings = null;
+            pendingFlow = [];
+            flowWaiting = false;
             if (modalLoader.item) modalLoader.item.closeFlow();
             if (settingsLoader.item) settingsLoader.item.close();
             openTimer.stop();
@@ -1599,6 +1650,11 @@ StarfishSystemUIWindow {
             extraKeys: ({ network: ["deviceName"], option: ["country"],
                           general: ["remotePointer", "tvOnSound"],
                           time: ["onTimerHour", "onTimerMinute", "onTimerAppId", "offTimerHour", "offTimerMinute"] })
+            // The descriptors the panel itself reads (value lists, picture dimensions); the
+            // settings modal asks for the rest when it opens.
+            descKeys: ["picture.pictureMode", "picture.backlight", "picture.energySaving",
+                       "picture.eyeComfortMode", "sound.soundMode", "sound.soundOutput",
+                       "sound.audioDescription", "option.audioGuidanceSpeed"]
             onRevisionChanged: panel.applyStore()
         }
 
@@ -1757,7 +1813,9 @@ StarfishSystemUIWindow {
         }
 
         function handlePress(key, autoRepeat) {
-            if (modalActive) {
+            if (pendingSettings !== null || flowWaiting) {
+                return true;
+            } else if (modalActive) {
                 modalLoader.item.handleKey(key, autoRepeat);
             } else if (settingsActive) {
                 settingsLoader.item.handleKey(key, autoRepeat);
@@ -1801,7 +1859,17 @@ StarfishSystemUIWindow {
         }
 
         function handleRelease(key) {
-            if (modalActive) {
+            if (flowWaiting) {
+                // Back while a dialog is still being built: it does not open after all.
+                if (isBackKey(key)) {
+                    pendingFlow = [];
+                    flowWaiting = false;
+                }
+            } else if (pendingSettings !== null) {
+                // Back while the modal is still being built: it does not open after all.
+                if (isBackKey(key)) pendingSettings = null;
+                if (isBackKey(key) && settingsLaunch) close();
+            } else if (modalActive) {
                 if (isBackKey(key)) modalLoader.item.back();
             } else if (settingsActive) {
                 if (isBackKey(key)) settingsLoader.item.back();
@@ -1918,6 +1986,7 @@ StarfishSystemUIWindow {
                     enabled: panel.panelShown
                     NumberAnimation { duration: panel.panelDuration }
                 }
+                vertexShader: GlassStyle.glassVertexShader
                 fragmentShader: liveGlass.glassShader
             }
 
@@ -2592,6 +2661,7 @@ StarfishSystemUIWindow {
                         property real dim: 0.28
                         property real hasBackdrop: liveGlass.hasFrame ? 1 : 0
                         property real edgeGain: GlassStyle.edgeGain
+                        vertexShader: GlassStyle.glassVertexShader
                         fragmentShader: liveGlass.glassShader
                     }
 
@@ -2654,15 +2724,18 @@ StarfishSystemUIWindow {
             }
         }
 
-        // Everything beyond the first view is built in the background once the panel
-        // stands. The window is created anew for every key press, so whatever is built
-        // up front is waited for every time.
+        // Dialogs, name entry and Wi-Fi: built on first use, in the background, see withFlow().
+        // The window is created anew for every key press, so whatever is built up front is
+        // paid every time.
         Loader {
             id: modalLoader
             anchors.fill: parent
-            onLoaded: PerfProbe.mark("loader.flow")
+            onLoaded: {
+                PerfProbe.mark("loader.flow");
+                panel.flowBuilt();
+            }
             z: 20
-            active: panel.panelShown || panel.modalNeeded
+            active: panel.modalNeeded
             asynchronous: true
             sourceComponent: Component {
                 WifiSetup {
@@ -2694,7 +2767,10 @@ StarfishSystemUIWindow {
         Loader {
             id: settingsLoader
             anchors.fill: parent
-            onLoaded: PerfProbe.mark("loader.settings")
+            onLoaded: {
+                PerfProbe.mark("loader.settings");
+                panel.settingsBuilt();
+            }
             z: 19
             active: panel.settingsNeeded
             asynchronous: true
@@ -2801,7 +2877,7 @@ StarfishSystemUIWindow {
                 panel.readApps();
                 if (panel.launchPage === "wifi") {
                     panel.openPage("network");
-                    modal().openList();
+                    withFlow(function (flow) { flow.openList(); });
                 } else if (panel.launchPage.indexOf("settings") === 0) {
                     // "settings" or "settings:<area>": straight into the settings modal.
                     settingsOpenTimer.area = panel.launchPage.split(":")[1] || "picture";

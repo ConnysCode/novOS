@@ -1,0 +1,14 @@
+# How long one full garbage collection takes: in the panel, then with the settings modal.
+# seconds: 12
+wait 1500
+phase gc-panel
+gc
+wait 800
+gc
+wait 800
+key ok 2500
+phase gc-modal
+gc
+wait 800
+gc
+wait 800

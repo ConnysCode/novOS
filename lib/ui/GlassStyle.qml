@@ -40,6 +40,7 @@ QtObject {
     readonly property int pageDuration: 240                // pages cross-fade with 16 px shift
     readonly property real pageShift: 16
     readonly property int popoverDuration: 160             // popovers, dimming, fades
+    readonly property int listFadeDuration: 180            // a list end fades in or out
     readonly property int pressDuration: 40
     readonly property real dimmedOpacity: 0.4              // what steps back behind a popover
     readonly property int switchDuration: 260               // the knob of a switch springs over
@@ -100,8 +101,38 @@ QtObject {
             gl_FragColor = shadowColor * coverage * outside * strength * qt_Opacity;
         }"
 
+    // Everything of the glass that is linear across the surface (the pixel, the place in the
+    // backdrop, the sheen's position) is worked out per corner here and interpolated, so the
+    // fragment shader reads the backdrop without computing its coordinates first. Every
+    // ShaderEffect with glassShader sets this as its vertexShader.
+    readonly property string glassVertexShader: "
+                uniform highp mat4 qt_Matrix;
+                uniform highp vec2 panelSize;
+                uniform highp float backdropMargin;
+                uniform highp vec2 backdropOrigin;
+                uniform highp vec2 backdropArea;
+                attribute highp vec4 qt_Vertex;
+                attribute highp vec2 qt_MultiTexCoord0;
+                varying highp vec2 qt_TexCoord0;
+                varying highp vec2 pixel;
+                varying highp vec2 uv;
+                varying highp float sheenAt;
+
+                void main() {
+                    qt_TexCoord0 = qt_MultiTexCoord0;
+                    pixel = qt_MultiTexCoord0 * panelSize;
+                    uv = (pixel + backdropOrigin + vec2(backdropMargin)) /
+                         (backdropArea + vec2(2.0 * backdropMargin));
+                    highp float span = (panelSize.x + panelSize.y) * 0.70710678;
+                    sheenAt = dot(pixel - panelSize * 0.5, vec2(0.70710678)) / span + 0.5;
+                    gl_Position = qt_Matrix * qt_Vertex;
+                }"
+
     readonly property string glassShader: "
                 varying highp vec2 qt_TexCoord0;
+                varying highp vec2 pixel;
+                varying highp vec2 uv;
+                varying highp float sheenAt;
                 uniform lowp float qt_Opacity;
                 uniform sampler2D backdrop;
                 uniform highp vec2 panelSize;
@@ -109,9 +140,6 @@ QtObject {
                 uniform highp float topLightWidth;
                 uniform highp float contourWidth;
                 uniform highp float glowHeight;
-                uniform highp float backdropMargin;
-                uniform highp vec2 backdropOrigin;
-                uniform highp vec2 backdropArea;
                 uniform lowp float dim;
                 uniform lowp float hasBackdrop;
                 uniform highp float edgeGain;
@@ -128,18 +156,14 @@ QtObject {
                 }
 
                 void main() {
-                    highp vec2 pixel = qt_TexCoord0 * panelSize;
                     highp vec2 halfSize = panelSize * 0.5;
                     highp vec2 point = pixel - halfSize;
 
-                    highp vec2 uv = (pixel + backdropOrigin + vec2(backdropMargin)) /
-                                    (backdropArea + vec2(2.0 * backdropMargin));
                     lowp vec3 color = mix(fallback, texture2D(backdrop, uv).rgb, hasBackdrop);
                     lowp float alpha = mix(0.94, 1.0, hasBackdrop);
 
                     // linear-gradient(135deg, white 20 %, 7 % at 45 %, 13 %).
-                    highp float span = (panelSize.x + panelSize.y) * 0.70710678;
-                    highp float t = dot(point, vec2(0.70710678)) / span + 0.5;
+                    highp float t = sheenAt;
                     highp float sheen = t < 0.45 ? mix(0.20, 0.07, t / 0.45)
                                                  : mix(0.07, 0.13, (t - 0.45) / 0.55);
                     color = mix(color, vec3(1.0), sheen * hasBackdrop);
@@ -150,9 +174,15 @@ QtObject {
 
                     // The edge work only runs near the edge. Most pixels of a
                     // large card never get here, which is what keeps it smooth.
+                    // The glow fades out by the middle of the card, so below the
+                    // middle only the corners and the contour itself need it.
                     highp float shape = 1.0;
                     highp vec2 inset = abs(point) - halfSize;
-                    if (max(inset.x, inset.y) > -(cornerRadius + glowHeight)) {
+                    highp float nearest = max(inset.x, inset.y);
+                    bool corner = min(inset.x, inset.y) > -cornerRadius;
+                    bool rimBand = nearest > -(contourWidth + topLightWidth + 1.0);
+                    bool glowBand = pixel.y < halfSize.y && nearest > -(cornerRadius + glowHeight);
+                    if (corner || rimBand || glowBand) {
                         highp float outer = roundedBox(point, halfSize, cornerRadius);
                         highp float shifted = roundedBox(point - vec2(0.0, topLightWidth), halfSize, cornerRadius);
 
