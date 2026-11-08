@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Opens the pills that replace LG's banner and its picture attribute toasts.
+"""Opens the pills that replace LG's banner and its picture attribute toasts, and our
+smart home hub in place of LG's Home Hub.
 
 LG's input app may not start a system window: its bus role only reaches public
 methods. This process runs as root beside it and watches the foreground app and the
@@ -32,6 +33,14 @@ SETTINGS = "/tmp/novos-debug.ini"
 # The system closes overlay windows while the new source takes over.
 SETTLE_SECONDS = 0.4
 HOME = "com.webos.app.home"
+LAUNCHER = "com.webos.app.store-streamer"
+# LG's Home Hub. The source key's long press opens our hub directly (appLaunch.js);
+# every other way, by voice, from a notification, LG's app list or another app, ends up
+# here.
+LG_HUB = "com.webos.app.homeconnect"
+CLOSE = "luna://com.webos.applicationManager/closeByAppId"
+# If the app below LG's Home Hub never reports, the hub opens anyway after this.
+HUB_WAIT_SECONDS = 2
 LAUNCHER_STATE = "/tmp/novos-launcher-open.ini"
 # The launcher writes its state about 0.3 s after it shows.
 LAUNCHER_CHECK_SECONDS = 2
@@ -65,7 +74,24 @@ def show_pill(app_id):
 
 def show_launcher():
     """LG's Home starts on its own too, after an app ends for example. The launcher covers it."""
-    open_window_of("com.webos.app.store-streamer", {})
+    open_window_of(LAUNCHER, {})
+
+
+def close_lg_hub():
+    """LG's Home Hub came to the front. The compositor keeps it out of sight
+    (fullscreen-home.inc, splash-hide.inc); it goes, and our hub opens once the app
+    below it is back, see open_hub."""
+    subprocess.run(["luna-send", "-n", "1", "-w", "3000", CLOSE, json.dumps({"id": LG_HUB})],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def open_hub(below):
+    """Our hub in place of LG's. Over LG's Home it opens over the launcher, so that back
+    leads there and not to the hidden Home; over a source or an app it opens alone."""
+    if below == HOME and not launcher_open():
+        show_launcher()
+        time.sleep(SETTLE_SECONDS)
+    open_window_of(LAUNCHER, {"page": "hub"})
 
 
 def launcher_open():
@@ -173,9 +199,14 @@ def main():
     # example. LG's Home stays hidden, the screen would stay black: ask again.
     launcher_due = 0
     launcher_tries = 0
+    # Set while LG's Home Hub goes: our hub opens over the app that comes back.
+    hub_due = 0
     try:
         while time.time() < deadline and os.path.exists(marker):
             ready, _, _ = select.select([foreground, toasts, alerts], [], [], 0.5)
+            if hub_due and time.time() >= hub_due:
+                hub_due = 0
+                open_hub("")
             if launcher_due and time.time() >= launcher_due:
                 launcher_due = 0
                 if previous == HOME and not launcher_open() and launcher_tries > 0:
@@ -198,7 +229,17 @@ def main():
                 if not found or not found.group(1) or found.group(1) == previous:
                     continue
                 current = found.group(1)
-                if previous and SOURCE.match(current):
+                if current == LG_HUB:
+                    close_lg_hub()
+                    hub_due = time.time() + HUB_WAIT_SECONDS
+                elif hub_due:
+                    # The app below LG's Home Hub is back: no pill, no launcher of its own.
+                    hub_due = 0
+                    open_hub(current)
+                    if current == HOME:
+                        launcher_due = time.time() + LAUNCHER_CHECK_SECONDS
+                        launcher_tries = LAUNCHER_RETRIES
+                elif previous and SOURCE.match(current):
                     hide_banner(current)
                     show_pill(current)
                 elif current == HOME:

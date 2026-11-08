@@ -19,7 +19,9 @@
         return parts[0] === "on" && Date.now() / 1000 - Number(parts[1]) < 180;
     }
 
+    // LG's Home Hub too: the relay closes it and opens our hub instead.
     function novosHideSplash(appId) {
+        if (appId === "com.webos.app.homeconnect") return novosRead("/tmp/novos-banner-active").indexOf("on") === 0;
         if (!/^com\.webos\.app\.(hdmi\d|dp\d|usbc\d|externalinput\.|livetv$)/.test(appId || "")) return false;
         return novosRead("/tmp/novos-banner-active").indexOf("on") === 0 || novosBooting();
     }

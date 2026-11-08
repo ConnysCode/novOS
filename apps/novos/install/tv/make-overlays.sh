@@ -86,17 +86,26 @@ echo "}" >> "$DIR/StarfishViewStateController.qml"
 expect 'novosLauncherOnHome' "$DIR/StarfishViewStateController.qml" 3
 expect 'if (views.starfishHome && !novosLauncherOnHome())' "$DIR/StarfishViewStateController.qml" 1
 expect 'if (views.starfishHome && !(userActivityTimer && novosLauncherOnHome()))' "$DIR/StarfishViewStateController.qml" 1
-# A long press of the gear key opens novOS's settings modal instead of LG's settings app.
-# The quick panel takes "settings" as its launch page; a second long press over LG's
+# A long press of the gear key opens novOS's settings modal instead of LG's settings app.# The quick panel takes "settings" as its launch page; a second long press over LG's
 # app still closes LG's app as before.
 launch=$(original appLaunch.js)
 [ "$(grep -c '^                    applicationManager.checkLaunch(settingsAppId);$' "$launch")" = 1 ] || {
     echo "$launch: the settings launch of the long press is not where it was" >&2
     exit 1
 }
+# A long press of the source key (Key_Video, com.webos.keyaction.inputHub) opens
+# novOS's smart home hub instead of LG's Home Hub. The hub lives in the launcher's
+# window; pressed again over the hub, it closes. Another app configured for the key
+# stays as LG has it.
+[ "$(grep -c '^                            applicationManager.checkLaunch(inputHubAction.appId, JSON.stringify({"appID":settingsService.lastInputApp}));$' "$launch")" = 1 ] || {
+    echo "$launch: the launch of the source key's long press is not where it was" >&2
+    exit 1
+}
 sed -e 's#^                    applicationManager.checkLaunch(settingsAppId);$#                    lunaCall.send("com.webos.service.systemUIManager", "/launch", JSON.stringify({"appId": "com.webos.app.quicksettings", "params": {"page": "settings"}})); // novOS#' \
+    -e 's#^                            applicationManager.checkLaunch(inputHubAction.appId, JSON.stringify({"appID":settingsService.lastInputApp}));$#                            if (inputHubAction.appId === "com.webos.app.homeconnect") lunaCall.send("com.webos.service.systemUIManager", "/launch", JSON.stringify({"appId": "com.webos.app.store-streamer", "params": {"page": "hub"}})); else applicationManager.checkLaunch(inputHubAction.appId, JSON.stringify({"appID":settingsService.lastInputApp})); // novOS#' \
     "$launch" > "$DIR/appLaunch.js"
 expect '"params": {"page": "settings"}})); // novOS' "$DIR/appLaunch.js" 1
+expect '"params": {"page": "hub"}})); else applicationManager.checkLaunch' "$DIR/appLaunch.js" 1
 # LG's settings app opened without a target hands over to the modal, see settings-redirect.inc.
 for name in settings-index.multi.html settings-index.html; do
     page=$(original "$name")

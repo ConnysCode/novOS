@@ -30,10 +30,18 @@
         return !!item && /^com\.webos\.app\.(hdmi\d|dp\d|usbc\d|externalinput\.|livetv$)/.test(item.appId || "");
     }
 
+    // LG's Home Hub stays out of sight as well while the relay runs: the relay closes it
+    // and opens our hub instead, however it was started.
+    function novosLgHub(item) {
+        return !!item && item.appId === "com.webos.app.homeconnect";
+    }
+
     function novosUpdateHide() {
         var home = !!root.__surfaceItem && root.__surfaceItem.appId === "com.webos.app.home";
         var booting = root.novosEarly && novosBooting();
-        root.novosHideHome = (home && (novosRead("/tmp/novos-banner-active").indexOf("on") === 0 || booting)) ||
+        var relay = novosRead("/tmp/novos-banner-active").indexOf("on") === 0;
+        root.novosHideHome = (home && (relay || booting)) ||
+                            (novosLgHub(root.__surfaceItem) && relay) ||
                             (novosInput(root.__surfaceItem) && booting);
     }
 
@@ -53,6 +61,7 @@
         repeat: true
         triggeredOnStart: true
         running: !!root.__surfaceItem && (root.__surfaceItem.appId === "com.webos.app.home" ||
+                                          root.novosLgHub(root.__surfaceItem) ||
                                           (root.novosEarly && root.novosInput(root.__surfaceItem)))
         onTriggered: root.novosUpdateHide()
     }
