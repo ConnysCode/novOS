@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Builds every page of the settings modal outside the TV: the catalogs and the engine
 // run in Node against values and descriptors read from a TV, with the same text lookup
-// as module/I18n.qml. It finds script errors, missing texts and pages that stay empty
+// as lib/ui/I18n.qml. It finds script errors, missing texts and pages that stay empty
 // before anything goes to the TV.
 //
 //   node settings-check.js keys                 prints the keys to read, per category
@@ -15,6 +15,7 @@ const path = require("path");
 const vm = require("vm");
 
 const MODULE = path.join(__dirname, "module");
+const LIB = path.join(__dirname, "../../lib/ui");
 
 // Loads a .pragma library file and its .import lines into one sandbox per file.
 function loadLibrary(file, cache) {
@@ -52,7 +53,11 @@ function makeI18n(language, missing) {
             if (namespace === "settings") tables[id] = readJson(path.join(MODULE, "i18n/settings/common", lang + ".json"));
             else if (namespace.startsWith("settings_")) {
                 tables[id] = readJson(path.join(MODULE, "i18n/settings", namespace.slice(9), lang + ".json"));
-            } else tables[id] = readJson(path.join(MODULE, "i18n", lang + ".json"))[namespace] || {};
+            } else {
+                // The app's texts and lib/ui's, merged by namespace as lib/ui/stage.py does.
+                tables[id] = readJson(path.join(MODULE, "i18n", lang + ".json"))[namespace] ||
+                             readJson(path.join(LIB, "i18n", lang + ".json"))[namespace] || {};
+            }
         }
         return tables[id];
     }

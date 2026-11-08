@@ -501,7 +501,7 @@ StarfishSystemUIWindow {
                 switched = source;
                 switchChecks = 0;
                 service.call("luna://com.webos.applicationManager", "/launch",
-                             GlassStyle.launchRequest(source.appId));
+                             NovosSettings.launchRequest(source.appId));
                 switchCheck.restart();
             }
         }

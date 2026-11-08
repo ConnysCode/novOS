@@ -1,8 +1,9 @@
 pragma Singleton
 import QtQuick 2.12
 import Qt.labs.settings 1.0
+import "UiConfig.js" as UiConfig
 
-// Values both menus share. The edge light follows the blur: a sharper picture behind the
+// Values every window of an app shares. The edge light follows the blur: a sharper picture behind the
 // glass needs a stronger edge to hold the shape, a very soft one needs less. At the
 // approved blur of 84 px the factor is exactly 1.
 QtObject {
@@ -11,7 +12,7 @@ QtObject {
     readonly property real referenceBlur: 84
 
     // ---- Design tokens -------------------------------------------------------------
-    // One place for the values every window and module shares, so that all of novOS
+    // One place for the values every window and component shares, so that all of novOS
     // looks and moves the same. Change them here, never as numbers in a file.
     // Text on the glass.
     readonly property color textPrimary: "#ffffff"
@@ -52,12 +53,11 @@ QtObject {
     readonly property int sectionSize: 16
     readonly property real sectionTracking: 0.96          // 0.06 em, as in the hand-off
     property alias blur: values.blur
-    property alias hideInputBanner: values.hideInputBanner
-    property alias demoDevices: values.demoDevices
     property alias keyboardMode: values.keyboardMode
     readonly property real edgeGain: Math.max(0.5, Math.min(2.5, Math.pow(referenceBlur / blur, 0.7)))
 
-    // Inter in the three cuts of the hand-off, loaded once for every window.
+    // Inter in the three cuts of the hand-off, loaded once for every window. An app's build
+    // puts fonts/novos-inter-*.ttf next to the folder that holds these files.
     readonly property string titleFont: titleLoader.name     // bold: titles
     readonly property string rowFont: rowLoader.name         // medium: rows, buttons
     readonly property string valueFont: valueLoader.name     // regular: values, second lines
@@ -65,13 +65,11 @@ QtObject {
     property FontLoader rowLoader: FontLoader { source: Qt.resolvedUrl("../novos-inter-row.ttf") }
     property FontLoader valueLoader: FontLoader { source: Qt.resolvedUrl("../novos-inter-value.ttf") }
 
-    // Kept until the TV restarts, also across the two menus.
+    // Kept in the app's settings file (UiConfig.js), shared by all its windows.
     property Settings values: Settings {
         id: values
-        fileName: "/tmp/novos-debug.ini"
+        fileName: UiConfig.settingsFile
         property real blur: 84
-        property bool hideInputBanner: true
-        property bool demoDevices: false     // the smart home hub's made-up home
         property string keyboardMode: "qwertz"   // last used: "qwertz" or "t9"
     }
 
@@ -238,15 +236,4 @@ QtObject {
                         lowp float alpha = clamp(0.5 - outer, 0.0, 1.0);
                         gl_FragColor = vec4(color * alpha, alpha) * qt_Opacity;
                     }"
-
-    // LG's Home starts its preview with this role, and its input apps then leave out their
-    // banner. It lasts until the next launch of that input, and touches a few of LG's
-    // checks there, so the debug page can turn it off. banner-relay.py reads the same value.
-    function launchRequest(appId) {
-        var request = { id: appId };
-        if (hideInputBanner && appId.indexOf("com.webos.app.hdmi") === 0) {
-            request.params = { appViewRole: "appViewGuest" };
-        }
-        return JSON.stringify(request);
-    }
 }

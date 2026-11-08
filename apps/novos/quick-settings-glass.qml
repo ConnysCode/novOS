@@ -250,9 +250,9 @@ StarfishSystemUIWindow {
             { key: "debugBlur", title: I18n.t("panel", "row.blur_intensity"), y: 166, h: 104, plain: true,
               min: 20, max: 140, step: 4 },
             { key: "hideInputBanner", title: I18n.t("panel", "row.hide_lg_banner"), y: 316, h: 80, plain: true,
-              sublabel: I18n.t("panel", "detail.hide_lg_banner"), toggle: GlassStyle.hideInputBanner },
+              sublabel: I18n.t("panel", "detail.hide_lg_banner"), toggle: NovosSettings.hideInputBanner },
             { key: "demoDevices", title: I18n.t("panel", "row.demo_devices"), y: 446, h: 80, plain: true,
-              sublabel: I18n.t("panel", "detail.demo_devices"), toggle: GlassStyle.demoDevices }
+              sublabel: I18n.t("panel", "detail.demo_devices"), toggle: NovosSettings.demoDevices }
         ]
         readonly property var systemRows: [
             { key: "tvName", title: settingsStore.text("network", "row.tv_name"), y: 226, h: 68 },
@@ -1263,7 +1263,7 @@ StarfishSystemUIWindow {
         function switchTo(row) {
             if (row.appId !== foregroundApp) {
                 backdropService.call("luna://com.webos.applicationManager", "/launch",
-                                     GlassStyle.launchRequest(row.appId));
+                                     NovosSettings.launchRequest(row.appId));
             }
             close();
         }
@@ -1314,8 +1314,8 @@ StarfishSystemUIWindow {
             else if (focusedRow.key === "screenOff") askScreenOff();
             else if (focusedRow.key === "quickStart") toggleQuickStart();
             else if (focusedRow.key === "powerSound") togglePowerSound();
-            else if (focusedRow.key === "hideInputBanner") GlassStyle.hideInputBanner = !GlassStyle.hideInputBanner;
-            else if (focusedRow.key === "demoDevices") GlassStyle.demoDevices = !GlassStyle.demoDevices;
+            else if (focusedRow.key === "hideInputBanner") NovosSettings.hideInputBanner = !NovosSettings.hideInputBanner;
+            else if (focusedRow.key === "demoDevices") NovosSettings.demoDevices = !NovosSettings.demoDevices;
             else if (focusedRow.key === "appStart") switchTo({ appId: selectedApp.id });
             else if (focusedRow.key === "appRemove") askRemoveApp();
             else if (focusedRow.key === "wifiForget") modal().openForget(wifiProfile, networkName);

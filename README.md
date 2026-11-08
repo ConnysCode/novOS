@@ -28,8 +28,11 @@ uninstaller brings LG's interface back completely.
 | Path | Content |
 | --- | --- |
 | [`apps/novos/`](apps/novos) | novOS itself: the interface, the video plugin, the release build and everything that runs on the TV |
+| [`lib/ui/`](lib/ui) | The glass components every app shares: style tokens, glass cards, focus surface, rows, switches, sliders, buttons, notices, popovers, the on-screen keyboard, texts, icons and fonts |
 
-`apps/` holds the deployable apps, `lib/` will hold components they share.
+`apps/` holds the deployable apps, `lib/` the code they share. An app's build merges
+`lib/ui/` into its own `module/` folder with [`lib/ui/stage.py`](lib/ui/stage.py), so both
+import as one directory; the app brings a `UiConfig.js` with its settings file and app id.
 
 ## Usage
 
@@ -55,9 +58,8 @@ uncommitted changes.
 | Path | Content |
 | --- | --- |
 | `quick-settings-glass.qml`, `source-picker.qml`, `launcher.qml`, `volume-view.qml` | The four entry files, mounted over LG's QML |
-| `module/` | Shared QML components, settings catalogs, icons, texts and the C++ video plugin |
+| `module/` | novOS' own QML components, settings catalogs, icons, texts and the C++ video plugin |
 | `launcher/` | Launcher backgrounds and the script that fetches them |
-| `fonts/` | Static Inter cuts for Qt 5.12, the script that builds them, and the font licence |
 | `*.inc`, `banner-relay.py` | Pieces patched into LG's files and a helper process |
 | `install/` | Release build, list of LG targets, and everything that runs on the TV |
 | `preview-on-tv.sh`, `gear-test-on-tv.sh`, `volume-preview.qml` | Previews from `/tmp` and temporary test mounts |
@@ -69,6 +71,6 @@ research repository, which is not part of this one.
 ## Credits
 
 The interface font is Inter, under the SIL Open Font License
-([`fonts/OFL.txt`](apps/novos/fonts/OFL.txt)). The launcher backgrounds come from
+([`lib/ui/fonts/OFL.txt`](lib/ui/fonts/OFL.txt)). The launcher backgrounds come from
 Wikimedia Commons, credited in
 [`launcher/backgrounds/CREDITS.md`](apps/novos/launcher/backgrounds/CREDITS.md).

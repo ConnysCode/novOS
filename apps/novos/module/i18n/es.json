@@ -1,22 +1,4 @@
 {
-  "global": {
-    "back": "Atrás",
-    "cancel": "Cancelar",
-    "close": "Cerrar",
-    "done": "Listo",
-    "next": "Siguiente",
-    "no": "No",
-    "not_now": "Ahora no",
-    "off": "No",
-    "ok": "Aceptar",
-    "on": "Sí",
-    "open": "Abrir",
-    "remove": "Eliminar",
-    "retry": "Reintentar",
-    "save": "Guardar",
-    "settings": "Ajustes",
-    "yes": "Sí"
-  },
   "hub": {
     "action.lock": "Bloquear",
     "action.turn_off": "Apagar",
@@ -114,18 +96,6 @@
     "type.washer": "Lavadora",
     "unreachable.detail": "Comprueba la red y la cuenta LG.",
     "unreachable.title": "Hogar inteligente no disponible"
-  },
-  "keyboard": {
-    "hint.multi_tap": "Pulsa 2–9 en el mando hasta que salga la letra.",
-    "key.delete": "Borrar",
-    "key.space": "Espacio",
-    "label.key": "Tecla {digit}",
-    "label.multi_tap": "Pulsación múltiple",
-    "mode.qwertz": "QWERTZ",
-    "mode.t9": "T9",
-    "speech.digit_key": "{digit}, {letters}",
-    "speech.mode_qwertz": "Teclado QWERTZ",
-    "speech.mode_t9": "Teclado T9"
   },
   "launcher": {
     "action.back_to_app": "Volver a la app",
@@ -332,18 +302,6 @@
     "speech.turning_on": "encendiendo",
     "state.switching": "Cambiando …",
     "state.turning_on": "Encendiendo …"
-  },
-  "popover": {
-    "button.confirm": "Confirmar",
-    "button.timer_off": "Desactivar temporizador",
-    "label.hour": "Hora",
-    "label.minute": "Minuto",
-    "speech.confirm_time": "Confirmar, {time}",
-    "speech.hour": "Hora, {hour}",
-    "speech.minute": "Minuto, {minute}",
-    "speech.selected": "seleccionado",
-    "speech.time": "{hour}:{minute_padded}",
-    "speech.time_hour": "{hour}:00"
   },
   "source": {
     "badge.running": "En uso",

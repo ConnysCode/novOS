@@ -2,8 +2,10 @@ pragma Singleton
 import QtQuick 2.12
 import Qt.labs.settings 1.0
 import WebOSServices 1.0
+import "UiConfig.js" as UiConfig
 
-// Texts of every window in the language of the TV. English is the fallback for a
+// Texts of every window in the language of the TV, from i18n/ next to this file: the
+// lib's and the app's, merged by the app's build (see qmldir). English is the fallback for a
 // language or a key that is missing. Keys follow the team convention: a namespace per
 // area, then category.content in snake_case, categories in the singular.
 //
@@ -33,9 +35,8 @@ QtObject {
     property var strings: ({})
     property var fallback: ({})
 
-    // Areas of the settings modal, one file per area and language in i18n/settings/<area>/.
-    readonly property var settingsAreas: ["picture", "sound", "sources", "games", "network", "interface",
-                                          "energy", "accessibility", "parental", "privacy", "system", "info"]
+    // Groups whose texts load on first use, with their areas: the app's UiConfig.lazyTexts.
+    readonly property var lazyTexts: UiConfig.lazyTexts
 
     function loadFile(path) {
         try {
@@ -52,14 +53,17 @@ QtObject {
         return loadFile("i18n/" + language + ".json");
     }
 
-    // The texts of the settings modal load on their first use: every opening of the panel
-    // builds this window anew and should not wait for them. The common texts go to
-    // "settings", an area's to "settings_<area>".
+    // A lazy group's common texts go to "<group>", an area's to "<group>_<area>", read from
+    // i18n/<group>/<area or common>/<language>.json.
     function ensure(table, language, namespace) {
-        if (table[namespace] !== undefined || namespace.indexOf("settings") !== 0) return;
-        var area = namespace === "settings" ? "common" : namespace.slice(9);
-        if (area !== "common" && settingsAreas.indexOf(area) < 0) return;
-        table[namespace] = loadFile("i18n/settings/" + area + "/" + language + ".json");
+        if (table[namespace] !== undefined) return;
+        var cut = namespace.indexOf("_");
+        var group = cut < 0 ? namespace : namespace.slice(0, cut);
+        var areas = lazyTexts[group];
+        if (areas === undefined) return;
+        var area = cut < 0 ? "common" : namespace.slice(cut + 1);
+        if (area !== "common" && areas.indexOf(area) < 0) return;
+        table[namespace] = loadFile("i18n/" + group + "/" + area + "/" + language + ".json");
     }
 
     function t(namespace, key, params) {
@@ -88,7 +92,7 @@ QtObject {
 
     property Service service: Service {
         id: service
-        appId: "com.webos.app.quicksettings"
+        appId: UiConfig.serviceAppId
         onResponse: {
             var response = JSON.parse(payload);
             var info = response.settings && response.settings.localeInfo;
@@ -98,7 +102,7 @@ QtObject {
 
     property Settings values: Settings {
         id: values
-        fileName: "/tmp/novos-debug.ini"
+        fileName: UiConfig.settingsFile
         property string language: ""
     }
 }

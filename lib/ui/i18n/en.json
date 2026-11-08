@@ -1,0 +1,44 @@
+{
+  "global": {
+    "back": "Back",
+    "cancel": "Cancel",
+    "close": "Close",
+    "done": "Done",
+    "next": "Next",
+    "no": "No",
+    "not_now": "Not now",
+    "off": "Off",
+    "ok": "OK",
+    "on": "On",
+    "open": "Open",
+    "remove": "Remove",
+    "retry": "Try again",
+    "save": "Save",
+    "settings": "Settings",
+    "yes": "Yes"
+  },
+  "keyboard": {
+    "hint.multi_tap": "Press 2–9 on the remote until the letter is right.",
+    "key.delete": "Delete",
+    "key.space": "Space",
+    "label.key": "Key {digit}",
+    "label.multi_tap": "Multi-tap",
+    "mode.qwertz": "QWERTZ",
+    "mode.t9": "T9",
+    "speech.digit_key": "{digit}, {letters}",
+    "speech.mode_qwertz": "QWERTZ keyboard",
+    "speech.mode_t9": "T9 keypad"
+  },
+  "popover": {
+    "button.confirm": "Confirm",
+    "button.timer_off": "Timer off",
+    "label.hour": "Hour",
+    "label.minute": "Minute",
+    "speech.confirm_time": "Confirm, {time}",
+    "speech.hour": "Hour, {hour}",
+    "speech.minute": "Minute, {minute}",
+    "speech.selected": "selected",
+    "speech.time": "{hour}:{minute_padded}",
+    "speech.time_hour": "{hour}:00"
+  }
+}

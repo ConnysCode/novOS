@@ -1,6 +1,7 @@
 import QtQuick 2.12
 import WebOSServices 1.0
 import "."
+import "UiConfig.js" as UiConfig
 
 // Reads aloud what has the focus while LG's Audio-Guidance is on. webOS does not do
 // this for a window by itself: LG's own quick menu calls the TTS service for every
@@ -17,7 +18,7 @@ import "."
 Item {
     id: guide
 
-    property string appId: "com.webos.app.quicksettings"
+    property string appId: UiConfig.serviceAppId
     property string setting: ""          // option.audioGuidance, read by the guide itself
     readonly property bool speaking: setting === "on"
     property int delay: 200              // LG's value

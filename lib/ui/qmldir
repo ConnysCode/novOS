@@ -1,0 +1,10 @@
+# lib/ui: the glass components every app of novOS shares.
+#
+# An app's build merges these files into the app's own module folder, so that both
+# import as one directory: QML, JS, icons/, i18n/ (per-language files merged by
+# namespace) and qmldir (the app's lines first). A name both have stops the build.
+# The app ships UiConfig.js there, and puts the fonts novos-inter-*.ttf one level
+# up. Merging is done by lib/ui/stage.py.
+singleton GlassStyle GlassStyle.qml
+singleton I18n I18n.qml
+singleton Remote Remote.qml

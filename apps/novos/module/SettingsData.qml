@@ -127,12 +127,12 @@ Item {
     // novOS's own values: the switches GlassStyle keeps in its ini file.
     function readNovos() {
         if (!settings.store.values.novos) settings.store.values.novos = {};
-        settings.store.values.novos.hideInputBanner = GlassStyle.hideInputBanner;
+        settings.store.values.novos.hideInputBanner = NovosSettings.hideInputBanner;
         settings.store.values.novos.keyboardMode = GlassStyle.keyboardMode;
     }
 
     function writeNovos(name, value) {
-        if (name === "hideInputBanner") GlassStyle.hideInputBanner = value === true || value === "on";
+        if (name === "hideInputBanner") NovosSettings.hideInputBanner = value === true || value === "on";
         else if (name === "keyboardMode") GlassStyle.keyboardMode = String(value);
         readNovos();
         settings.changed();

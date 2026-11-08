@@ -1,22 +1,4 @@
 {
-  "global": {
-    "back": "Zurück",
-    "cancel": "Abbrechen",
-    "close": "Schließen",
-    "done": "Fertig",
-    "next": "Weiter",
-    "no": "Nein",
-    "not_now": "Nicht jetzt",
-    "off": "Aus",
-    "ok": "OK",
-    "on": "An",
-    "open": "Öffnen",
-    "remove": "Entfernen",
-    "retry": "Erneut versuchen",
-    "save": "Speichern",
-    "settings": "Einstellungen",
-    "yes": "Ja"
-  },
   "hub": {
     "action.lock": "Verriegeln",
     "action.turn_off": "Ausschalten",
@@ -114,18 +96,6 @@
     "type.washer": "Waschmaschine",
     "unreachable.detail": "Prüfe Netzwerk und LG-Konto.",
     "unreachable.title": "Smart Home nicht erreichbar"
-  },
-  "keyboard": {
-    "hint.multi_tap": "Tippe 2–9 auf der Fernbedienung, bis der Buchstabe stimmt.",
-    "key.delete": "Löschen",
-    "key.space": "Leerzeichen",
-    "label.key": "Taste {digit}",
-    "label.multi_tap": "Mehrfach-Tippen",
-    "mode.qwertz": "QWERTZ",
-    "mode.t9": "T9",
-    "speech.digit_key": "{digit}, {letters}",
-    "speech.mode_qwertz": "QWERTZ-Tastatur",
-    "speech.mode_t9": "T9-Tastenfeld"
   },
   "launcher": {
     "action.back_to_app": "Zurück zur App",
@@ -332,18 +302,6 @@
     "speech.turning_on": "wird eingeschaltet",
     "state.switching": "Wird umgeschaltet …",
     "state.turning_on": "Wird eingeschaltet …"
-  },
-  "popover": {
-    "button.confirm": "Bestätigen",
-    "button.timer_off": "Timer aus",
-    "label.hour": "Stunde",
-    "label.minute": "Minute",
-    "speech.confirm_time": "Bestätigen, {time}",
-    "speech.hour": "Stunde, {hour}",
-    "speech.minute": "Minute, {minute}",
-    "speech.selected": "ausgewählt",
-    "speech.time": "{hour} Uhr {minute}",
-    "speech.time_hour": "{hour} Uhr"
   },
   "source": {
     "badge.running": "Läuft",

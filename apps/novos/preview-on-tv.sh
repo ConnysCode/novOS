@@ -14,6 +14,7 @@ CAPTURE_TARGET=$2
 FOCUS_INDEX=${3:-0}
 SECONDS_OPEN=${4:-20}
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+LIB=$(CDPATH= cd -- "$HERE/../../lib/ui" && pwd)
 REMOTE_DIR=/tmp/lg-quicksettings-final/$BUILD_NAME
 ENTRY=${PREVIEW_ENTRY:-QuickSettings.glass.qml}
 STAGE=$(mktemp -d)
@@ -25,12 +26,10 @@ sed -e "s/property int initialFocus: 0/property int initialFocus: $FOCUS_INDEX/"
 sed -e "${PREVIEW_SED:-s/^$//}" "$HERE/source-picker.qml" > "$STAGE/source-picker.qml"
 sed -e "${PREVIEW_SED:-s/^$//}" "$HERE/launcher.qml" > "$STAGE/launcher.qml"
 cp -R "$HERE/launcher" "$STAGE/"
-cp "$HERE"/fonts/novos-inter-*.ttf "$STAGE/"
-mkdir "$STAGE/module"
-cp "$HERE/module/output/libnovos-video-backdrop.so" "$STAGE/module/"
-cp "$HERE/module/qmldir" "$HERE"/module/*.qml "$HERE"/module/*.js "$HERE/module/vt-feed.py" "$STAGE/module/"
-cp -R "$HERE/module/i18n" "$STAGE/module/"
-cp -R "$HERE/module/icons" "$STAGE/module/"
+cp "$LIB"/fonts/novos-inter-*.ttf "$STAGE/"
+# lib/ui and our module/ become one folder, see lib/ui/qmldir.
+python3 -I "$LIB/stage.py" "$HERE/module" "$STAGE/module"
+cp "$HERE/module/output/libnovos-video-backdrop.so" "$HERE/module/vt-feed.py" "$STAGE/module/"
 [ -z "${PREVIEW_MODULE_SED:-}" ] || sed -i '' -e "$PREVIEW_MODULE_SED" "$STAGE"/module/*.qml
 [ -z "${PREVIEW_EXTRA:-}" ] || cp $PREVIEW_EXTRA "$STAGE/"
 

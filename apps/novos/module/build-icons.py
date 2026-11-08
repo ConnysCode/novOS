@@ -1,49 +1,27 @@
 #!/usr/bin/env python3
-"""Renders the Wi-Fi setup icons to PNG with headless Chrome.
+"""Renders novOS' own icons to PNG with headless Chrome, with lib/ui's helpers.
 
-The setup shows up to 30 list rows. Canvas icons would repaint on the UI thread
-for each of them, so these are plain images that share one texture per icon.
+The shared icons, edge lights and shadows come from lib/ui/build-icons.py. Both
+scripts write different names; stage.py merges the two icons/ folders.
+
+    python3 apps/novos/module/build-icons.py [name-prefix ...]
 """
-import html
+import importlib.util
 import pathlib
-import subprocess
-import tempfile
 
-from PIL import Image
+_SPEC = importlib.util.spec_from_file_location(
+    "ui_icons", pathlib.Path(__file__).resolve().parents[3] / "lib/ui/build-icons.py")
+ui = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(ui)
+path, strokes, render = ui.path, ui.strokes, ui.render
+LIGHT, BOTH, LIGHT_ONLY, LOCK = ui.LIGHT, ui.BOTH, ui.LIGHT_ONLY, ui.LOCK
 
-CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 OUTPUT = pathlib.Path(__file__).parent / "icons"
-CELL = 96
-COLUMNS = 8
-
-LIGHT = "#ffffff"
-DARK = "#0b0c10"
-LOCK_LIGHT = "rgba(255,255,255,0.70)"
-LOCK_DARK = "#5b5e66"
-ERROR = "#ff9a90"
 
 WIFI = ["M3.5 9.5a12 12 0 0 1 17 0", "M6.5 12.8a7.5 7.5 0 0 1 11 0",
         "M9.5 16a3 3 0 0 1 5 0", "M12 19.2v0.1"]
 WIFI_OFF = WIFI + ["M4 4l16 16"]
 LAN = ["M5 6.5h14v9h-3.5v3h-7v-3H5z", "M9 10.5v2M12 10.5v2M15 10.5v2"]
-PLUS = ["M12 5v14M5 12h14"]
-REFRESH = ["M20 12a8 8 0 1 1-2.4-5.7", "M20 4v4.5h-4.5"]
-BACK = ["M15 6l-6 6 6 6"]
-CHEVRON = ["M9 6l6 6-6 6"]
-CHECK = ["M5 12.5l4.5 4.5L19 7.5"]
-SHIFT = ["M12 4.5l7.5 7.5h-4.5v6.5H9V12H4.5z"]
-# Keyboard modes and T9 keys (K3-Tastatur-T9).
-KEYBOARD = ('<rect x="2.5" y="6" width="19" height="12" rx="2.5"/>' +
-            '<path d="M6 10h.01M9.3 10h.01M12.6 10h.01M15.9 10h.01M18 10h.01M6 13.5h.01M18 13.5h.01M9 14.5h6"/>')
-T9_GRID = "".join(f'<circle cx="{x}" cy="{y}" r="1.6" fill="currentColor"/>' for y in (6, 12, 18) for x in (6, 12, 18))
-SPACE = ["M4 10v4h16v-4"]
-DELETE = ["M8.5 5.5H20a1.5 1.5 0 0 1 1.5 1.5v10a1.5 1.5 0 0 1-1.5 1.5H8.5L2.5 12z", "M11.5 9.5l5 5M16.5 9.5l-5 5"]
-ALERT = ["M12 7.8v5", "M12 16.2v0.1"]
-
-
-def path(data, opacity=1):
-    return f'<path d="{data}" opacity="{opacity}"/>'
-
 
 def signal(level):
     return (path("M2.6 9.6a13.2 13.2 0 0 1 18.8 0", 1 if level >= 3 else 0.28) +
@@ -104,9 +82,6 @@ ROW_ACCESS = ('<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="7.8" r="1.1"
               path("M8 10.5h8M12 10.5v3.5l-2 3.5M12 14l2 3.5"))
 ROW_SYSTEM = ('<rect x="6.5" y="6.5" width="11" height="11" rx="2"/>' +
               path("M9.5 3.5v3M14.5 3.5v3M9.5 17.5v3M14.5 17.5v3M3.5 9.5h3M3.5 14.5h3M17.5 9.5h3M17.5 14.5h3"))
-LOCK = '<rect x="5" y="11" width="14" height="9" rx="2"/>' + path("M8 11V8a4 4 0 0 1 8 0v3")
-ALERT_BODY = '<circle cx="12" cy="12" r="9"/>' + "".join(path(d) for d in ALERT)
-ALERT_LARGE = '<circle cx="12" cy="12" r="8.5"/>' + "".join(path(d) for d in ALERT)
 
 
 SPEAKER = path("M4 9.5h3.5L12 6v12l-4.5-3.5H4z")
@@ -116,9 +91,6 @@ MUTED = SPEAKER + path("M16 9.5l5 5M21 9.5l-5 5")
 SOUNDBAR = '<rect x="2.5" y="9.5" width="19" height="6" rx="2"/>' + path("M6.5 12.5h0.01M17.5 12.5h0.01")
 HEADPHONES = path("M4.5 15v-3a7.5 7.5 0 0 1 15 0v3") + '<rect x="4" y="14" width="4" height="6" rx="1.5"/><rect x="16" y="14" width="4" height="6" rx="1.5"/>'
 
-
-def strokes(paths):
-    return "".join(path(d) for d in paths)
 
 
 # Smart home: devices on the hub's tiles (K3-Home-A). Light, lamp, thermostat and blind
@@ -174,12 +146,9 @@ SETTINGS_AREAS = [
     ("system", gear() + '<circle cx="12" cy="12" r="3"/>'),
     ("info", '<circle cx="12" cy="12" r="8.5"/>' + path("M12 11v5.2") + path("M12 7.8v0.1")),
 ]
-EXTERNAL = ["M9 6h9v9", "M18 6L7 17"]
 
 
 # name, size, stroke width, body, [(suffix, colour)]
-BOTH = [("", LIGHT), ("-dark", DARK)]
-LIGHT_ONLY = [("", LIGHT)]
 ICONS = [
     ("wifi-32", 32, 1.7, strokes(WIFI), LIGHT_ONLY),
     ("wifi-off-32", 32, 1.7, strokes(WIFI_OFF), LIGHT_ONLY),
@@ -188,26 +157,9 @@ ICONS = [
     ("wifi-off-36", 36, 1.6, strokes(WIFI_OFF), LIGHT_ONLY),
     ("wifi-44", 44, 1.5, strokes(WIFI), LIGHT_ONLY),
     ("wifi-off-44", 44, 1.5, strokes(WIFI_OFF), LIGHT_ONLY),
-    ("check-44", 44, 1.5, strokes(CHECK), LIGHT_ONLY),
-    ("back-26", 26, 2.4, strokes(BACK), LIGHT_ONLY),
-    # Back link of a page header, in the colour of secondary text (GlassStyle.textSecondary).
-    ("back-18", 18, 2.4, strokes(BACK), [("", "rgba(255,255,255,0.72)")]),
-    ("plus-22", 22, 2, strokes(PLUS), BOTH),
-    ("refresh-22", 22, 2, strokes(REFRESH), BOTH),
-    ("check-18", 18, 2.6, strokes(CHECK), LIGHT_ONLY),
-    ("check-24", 24, 2.4, strokes(CHECK), BOTH),
-    ("shift-24", 24, 1.9, strokes(SHIFT), BOTH),
-    ("keyboard-24", 24, 1.9, KEYBOARD, BOTH),
-    ("t9-22", 22, 1.9, T9_GRID, BOTH),
-    ("delete-24", 24, 1.9, strokes(DELETE), BOTH),
-    ("space-22", 22, 1.9, strokes(SPACE), [("", "rgba(255,255,255,0.72)"), ("-dark", LOCK_DARK)]),
-    ("lock-24", 24, 1.8, LOCK, [("", LOCK_LIGHT), ("-dark", LOCK_DARK)]),
     ("signal-1-30", 30, 2, signal(1), BOTH),
     ("signal-2-30", 30, 2, signal(2), BOTH),
     ("signal-3-30", 30, 2, signal(3), BOTH),
-    ("chevron-18", 18, 2.4, strokes(CHEVRON), [("", "rgba(255,255,255,0.50)"), ("-dark", LOCK_DARK)]),
-    ("choice-18", 18, 2.4, strokes(CHECK), [("", "rgba(255,255,255,0.50)"), ("-dark", LOCK_DARK)]),
-    ("alert-20", 20, 2, ALERT_BODY, [("", ERROR)]),
     ("row-backlight", 30, 1.6, ROW_BACKLIGHT, BOTH),
     ("row-eyeComfort", 30, 1.6, ROW_EYE, BOTH),
     ("row-picture", 30, 1.6, ROW_PICTURE, BOTH),
@@ -231,10 +183,7 @@ ICONS = [
     ("row-source-mobile", 30, 1.6, MOBILE, BOTH),
     # Home in the panel's list of inputs.
     ("row-source-home", 30, 1.6, path("M4 11.5L12 5l8 6.5") + path("M6.5 10v9h11v-9"), BOTH),
-    ("alert-44", 44, 1.5, ALERT_LARGE, LIGHT_ONLY),
     ("screen-off-44", 44, 1.5, SCREEN_OFF, LIGHT_ONLY),
-    ("refresh-44", 44, 1.5, strokes(REFRESH), LIGHT_ONLY),
-    ("spinner-44", 44, 2.18, path("M4.3 4.3a10.9 10.9 0 0 1 15.4 0"), BOTH),
     ("source-gamepad", 40, 1.5, GAMEPAD, BOTH),
     ("source-box", 40, 1.5, BOX, BOTH),
     ("source-pc", 40, 1.5, PC, BOTH),
@@ -258,17 +207,13 @@ ICONS = [
     ("detail-source-satellite", 56, 1.3, SATELLITE, LIGHT_ONLY),
     ("detail-source-camera", 56, 1.3, CAMERA, LIGHT_ONLY),
     ("detail-source-mobile", 56, 1.3, MOBILE, LIGHT_ONLY),
-    ("notice-info", 34, 1.5, '<circle cx="12" cy="12" r="8.5"/>' + path("M12 16.2v-5M12 7.8v0.1"), LIGHT_ONLY),
     ("notice-headphones", 34, 1.5, path("M4.5 15v-3a7.5 7.5 0 0 1 15 0v3") + '<rect x="4" y="14" width="4" height="6" rx="1.5"/><rect x="16" y="14" width="4" height="6" rx="1.5"/>', LIGHT_ONLY),
     ("notice-usb", 34, 1.5, path("M9 3.5h6v5H9z") + path("M7 8.5h10v7a5 5 0 0 1-10 0z") + path("M11 5.5v1M13 5.5v1"), LIGHT_ONLY),
     ("notice-device", 34, 1.5, PC, LIGHT_ONLY),
-    ("notice-update", 34, 1.5, strokes(REFRESH), LIGHT_ONLY),
     ("notice-moon", 34, 1.5, path("M19.5 14.2A8 8 0 1 1 9.8 4.5a6.4 6.4 0 0 0 9.7 9.7z"), LIGHT_ONLY),
     ("source-alert", 40, 1.5, '<circle cx="12" cy="12" r="8.5"/>' + path("M12 7.8v5M12 16.2v0.1"), BOTH),
     ("row-smartHome", 30, 1.6, HOME, BOTH),
     ("hub-home", 44, 1.5, HOME, LIGHT_ONLY),
-    ("minus-28", 28, 2, strokes(["M5 12h14"]), BOTH),
-    ("plus-28", 28, 2, strokes(PLUS), BOTH),
     ("volume-0-30", 30, 1.7, SPEAKER, LIGHT_ONLY),
     ("volume-1-30", 30, 1.7, SPEAKER + WAVE_NEAR, LIGHT_ONLY),
     ("volume-2-30", 30, 1.7, SPEAKER + WAVE_NEAR + WAVE_FAR, LIGHT_ONLY),
@@ -276,7 +221,6 @@ ICONS = [
     ("volume-muted-26", 26, 1.7, MUTED, LIGHT_ONLY),
     ("volume-soundbar-30", 30, 1.7, SOUNDBAR, LIGHT_ONLY),
     ("volume-headphones-30", 30, 1.7, HEADPHONES, LIGHT_ONLY),
-    ("external-18", 18, 2.4, strokes(EXTERNAL), [("", "rgba(255,255,255,0.50)"), ("-dark", LOCK_DARK)]),
     ("row-allSettings", 30, 1.6, dict(SETTINGS_AREAS)["system"], BOTH),
 ] + [(f"settings-{name}", 28, 1.7, body, BOTH) for name, body in SETTINGS_AREAS] + [
     (f"device-{name}", 36, 1.5, body, BOTH) for name, body in DEVICES] + [
@@ -285,93 +229,8 @@ ICONS = [
 
 # Edge light of the smaller glass controls, as the hand-off's inset shadows. Drawn
 # as nine-patches, so that 50 keys stay one batched texture instead of 50 shaders.
-GLASS_EDGE = "inset 0 1px 0 rgba(170,178,196,0.40), inset 0 0 0 1px rgba(170,178,196,0.10)"
-FIELD_EDGE = "inset 0 1px 2px rgba(0,0,0,0.25), inset 0 0 0 1px rgba(255,255,255,0.16)"
-EDGES = [(f"edge-{radius}", radius, GLASS_EDGE) for radius in (16, 17, 20, 22, 26, 28, 32, 34, 36, 44)]
-EDGES.append(("edge-field-26", 26, FIELD_EDGE))
-
-
-# Soft outer shadows as nine-patches. The CSS shadow only exists outside the box, and a
-# texture costs a fraction of the per-pixel erf shader on this GPU.
-SHADOW_BOX = 400
-SHADOW_MARGIN = 180
-SHADOWS = [("shadow-panel", 30, 80, 0.35), ("shadow-modal", 40, 100, 0.45)]
-
-
-def render_shadows():
-    side = SHADOW_BOX + 2 * SHADOW_MARGIN
-    for name, offset, blur, alpha in SHADOWS:
-        page = ('<!doctype html><body style="margin:0;background:transparent">'
-                f'<div style="position:absolute;left:{SHADOW_MARGIN}px;top:{SHADOW_MARGIN}px;'
-                f'width:{SHADOW_BOX}px;height:{SHADOW_BOX}px;border-radius:48px;'
-                f'box-shadow:0 {offset}px {blur}px rgba(0,0,0,{alpha})"></div></body>')
-        with tempfile.TemporaryDirectory() as folder:
-            source = pathlib.Path(folder) / "shadow.html"
-            sheet = pathlib.Path(folder) / "shadow.png"
-            source.write_text(page)
-            subprocess.run([CHROME, "--headless=new", "--disable-gpu", "--hide-scrollbars",
-                            "--force-device-scale-factor=1", "--default-background-color=00000000",
-                            f"--user-data-dir={folder}/profile", f"--window-size={side},{side}",
-                            f"--screenshot={sheet}", source.as_uri()],
-                           check=True, capture_output=True)
-            Image.open(sheet).convert("RGBA").save(OUTPUT / f"{name}.png", optimize=True)
-
-
-def main(prefixes=()):
-    """Without arguments every file is written anew; with name prefixes only those."""
-    def wanted(name):
-        return not prefixes or any(name.startswith(prefix) for prefix in prefixes)
-
-    entries = [(name + suffix, size, width, body, colour)
-               for name, size, width, body, variants in ICONS
-               for suffix, colour in variants]
-    icon_count = len(entries)
-    rows = (icon_count + len(EDGES) + COLUMNS - 1) // COLUMNS
-    cells = []
-    for index, (_, size, width, body, colour) in enumerate(entries):
-        left = (index % COLUMNS) * CELL
-        top = (index // COLUMNS) * CELL
-        cells.append(
-            f'<svg style="position:absolute;left:{left}px;top:{top}px;color:{html.escape(colour)}" '
-            f'width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-            f'stroke-width="{width}" stroke-linecap="round" stroke-linejoin="round">{body}</svg>')
-    for index, (_, radius, shadow) in enumerate(EDGES, icon_count):
-        left = (index % COLUMNS) * CELL
-        top = (index // COLUMNS) * CELL
-        side = 2 * radius + 3
-        cells.append(f'<div style="position:absolute;left:{left}px;top:{top}px;width:{side}px;'
-                     f'height:{side}px;border-radius:{radius}px;box-shadow:{shadow}"></div>')
-    page = ('<!doctype html><body style="margin:0;background:transparent">' +
-            "".join(cells) + "</body>")
-
-    OUTPUT.mkdir(exist_ok=True)
-    with tempfile.TemporaryDirectory() as folder:
-        source = pathlib.Path(folder) / "icons.html"
-        sheet = pathlib.Path(folder) / "icons.png"
-        source.write_text(page)
-        subprocess.run([CHROME, "--headless=new", "--disable-gpu", "--hide-scrollbars",
-                        "--force-device-scale-factor=1", "--default-background-color=00000000",
-                        f"--user-data-dir={folder}/profile",
-                        f"--window-size={COLUMNS * CELL},{rows * CELL}",
-                        f"--screenshot={sheet}", source.as_uri()],
-                       check=True, capture_output=True)
-        image = Image.open(sheet).convert("RGBA")
-        for index, (name, size, *_rest) in enumerate(entries):
-            left = (index % COLUMNS) * CELL
-            top = (index // COLUMNS) * CELL
-            if wanted(name):
-                image.crop((left, top, left + size, top + size)).save(OUTPUT / f"{name}.png", optimize=True)
-        for index, (name, radius, _) in enumerate(EDGES, icon_count):
-            left = (index % COLUMNS) * CELL
-            top = (index // COLUMNS) * CELL
-            side = 2 * radius + 3
-            if wanted(name):
-                image.crop((left, top, left + side, top + side)).save(OUTPUT / f"{name}.png", optimize=True)
-    if not prefixes:
-        render_shadows()
-    print(f"{len(entries)} icons, {len(EDGES)} edges and {len(SHADOWS)} shadows in {OUTPUT}")
 
 
 if __name__ == "__main__":
     import sys
-    main(tuple(sys.argv[1:]))
+    render(ICONS, OUTPUT, tuple(sys.argv[1:]))

@@ -28,7 +28,7 @@ Item {
     property real subtitleSize: 17
     property int colorDuration: 120
 
-    // Icon at the left: a picture pair from module/icons/row-<name>(-dark).png, drawn by
+    // Icon at the left: a picture pair icons/row-<name>(-dark).png from the app, drawn by
     // build-icons.py. iconOnly centres it and drops the text (panel shortcuts).
     property string iconPng: ""
     property bool iconOnly: false

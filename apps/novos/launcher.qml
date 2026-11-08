@@ -526,7 +526,7 @@ StarfishSystemUIWindow {
                 closeWindow(true);
             } else if (focusedSource.appId) {
                 service.call("luna://com.webos.applicationManager", "/launch",
-                             GlassStyle.launchRequest(focusedSource.appId));
+                             NovosSettings.launchRequest(focusedSource.appId));
                 closeWindow(false);
             }
         }

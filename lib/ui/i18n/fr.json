@@ -1,0 +1,44 @@
+{
+  "global": {
+    "back": "Retour",
+    "cancel": "Annuler",
+    "close": "Fermer",
+    "done": "Terminé",
+    "next": "Suivant",
+    "no": "Non",
+    "not_now": "Pas maintenant",
+    "off": "Désactivé",
+    "ok": "OK",
+    "on": "Activé",
+    "open": "Ouvrir",
+    "remove": "Supprimer",
+    "retry": "Réessayer",
+    "save": "Enregistrer",
+    "settings": "Paramètres",
+    "yes": "Oui"
+  },
+  "keyboard": {
+    "hint.multi_tap": "Appuyez sur 2–9 de la télécommande jusqu'à obtenir la bonne lettre.",
+    "key.delete": "Effacer",
+    "key.space": "Espace",
+    "label.key": "Touche {digit}",
+    "label.multi_tap": "Appuis multiples",
+    "mode.qwertz": "QWERTZ",
+    "mode.t9": "T9",
+    "speech.digit_key": "{digit}, {letters}",
+    "speech.mode_qwertz": "Clavier QWERTZ",
+    "speech.mode_t9": "Pavé T9"
+  },
+  "popover": {
+    "button.confirm": "Confirmer",
+    "button.timer_off": "Désactiver la minuterie",
+    "label.hour": "Heure",
+    "label.minute": "Minute",
+    "speech.confirm_time": "Confirmer, {time}",
+    "speech.hour": "Heure, {hour}",
+    "speech.minute": "Minute, {minute}",
+    "speech.selected": "sélectionné",
+    "speech.time": "{hour} h {minute_padded}",
+    "speech.time_hour": "{hour} h"
+  }
+}

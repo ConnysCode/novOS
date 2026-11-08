@@ -18,6 +18,7 @@ PANEL=${2:-}
 STATE=${3:-}
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 INSTALL=$HERE/install
+LIB=$(CDPATH= cd -- "$HERE/../../lib/ui" && pwd)
 
 # novos-uninstall.sh with the list of LG files inside. Also used by novos-on-tv.sh.
 uninstall_script() {
@@ -59,14 +60,17 @@ entry source-picker.qml InputPicker.qml
 entry launcher.qml StoreStreamer.qml
 entry volume-view.qml StarfishVolumeView.qml
 
-mkdir -p "$OUT/module" "$OUT/launcher" "$OUT/bin"
-for file in "$HERE"/module/*.qml "$HERE"/module/*.js "$HERE/module/qmldir" "$HERE/module/vt-feed.py"; do
-    state < "$file" > "$OUT/module/$(basename "$file")"
+mkdir -p "$OUT/launcher" "$OUT/bin"
+# lib/ui and our module/ become one folder, see lib/ui/qmldir.
+python3 -I "$LIB/stage.py" "$HERE/module" "$OUT/module"
+for file in "$OUT"/module/*.qml "$OUT"/module/*.js; do
+    state < "$file" > "$file.new"
+    mv "$file.new" "$file"
 done
+state < "$HERE/module/vt-feed.py" > "$OUT/module/vt-feed.py"
 cp "$HERE/module/output/libnovos-video-backdrop.so" "$OUT/module/"
-cp -R "$HERE/module/icons" "$HERE/module/i18n" "$OUT/module/"
 cp -R "$HERE/launcher/backgrounds" "$OUT/launcher/"
-cp "$HERE"/fonts/novos-inter-*.ttf "$OUT/"
+cp "$LIB"/fonts/novos-inter-*.ttf "$OUT/"
 state < "$HERE/banner-relay.py" > "$OUT/banner-relay.py"
 cp "$HERE/toast-filter.inc" "$HERE/settings-redirect.inc" "$HERE/launcher-home-key.inc" "$HERE/fullscreen-home.inc" "$HERE/splash-hide.inc" "$HERE/launcher-home.inc" "$HERE/launcher-stays.inc" \
     "$INSTALL/lg-targets.txt" "$OUT/"
