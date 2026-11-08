@@ -14,7 +14,7 @@ import sys
 
 CLOCK_TICKS = 100          # USER_HZ of the TV's kernel
 MARKS = ["window.create", "launch", "exit", "foreground", "glass.picture", "open.animation", "open.done",
-         "script", "settings.request", "loader.subpages", "loader.flow", "loader.settings", "close"]
+         "script", "settings.request", "page.open", "page.built", "loader.subpages", "loader.flow", "loader.settings", "close"]
 
 
 def read_log(path):

@@ -20,96 +20,97 @@ Item {
 
     signal rowClicked(int row)
 
-    layer.enabled: true
-    layer.effect: EdgeFade {
-        topFade: 56 / page.height * page.unit
-        bottomFade: 96 / page.height * page.unit
-        bottomGap: 8 / page.height * page.unit
+    // The list fades out at an end with more; only the two strips are textures.
+    EdgeFadeView {
+        anchors.fill: parent
+        topFade: 56 * page.unit
+        bottomFade: 96 * page.unit
+        bottomGap: 8 * page.unit
         topAmount: page.scroll > 0 ? 1 : 0
         bottomAmount: page.scroll < page.limit ? 1 : 0
-    }
 
-    Item {
-        width: parent.width
-        y: -page.scroll * page.unit
+        Item {
+            width: parent.width
+            y: -page.scroll * page.unit
 
-        Behavior on y {
-            NumberAnimation {
-                duration: page.duration
-                easing.type: Easing.Bezier
-                easing.bezierCurve: page.curve
+            Behavior on y {
+                NumberAnimation {
+                    duration: page.duration
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: page.curve
+                }
             }
-        }
 
-        Repeater {
-            model: page.maxApps
+            Repeater {
+                model: page.maxApps
 
-            Item {
-                id: appRow
-                readonly property var app: page.apps[index] || ({ title: "", detail: "", iconPath: "" })
-                readonly property bool focused: page.focusedIndex === index
-                visible: index < page.apps.length
-                x: 28 * page.unit
-                y: index * page.pitch * page.unit
-                width: 544 * page.unit
-                height: 96 * page.unit
-                scale: focused ? GlassStyle.focusScale : 1
+                Item {
+                    id: appRow
+                    readonly property var app: page.apps[index] || ({ title: "", detail: "", iconPath: "" })
+                    readonly property bool focused: page.focusedIndex === index
+                    visible: index < page.apps.length
+                    x: 28 * page.unit
+                    y: index * page.pitch * page.unit
+                    width: 544 * page.unit
+                    height: 96 * page.unit
+                    scale: focused ? GlassStyle.focusScale : 1
 
-                Behavior on scale {
-                    NumberAnimation {
-                        duration: page.duration
-                        easing.type: Easing.Bezier
-                        easing.bezierCurve: page.curve
+                    Behavior on scale {
+                        NumberAnimation {
+                            duration: page.duration
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: page.curve
+                        }
                     }
-                }
 
-                AppIcon {
-                    x: 20 * page.unit
-                    y: 12 * page.unit
-                    width: 72 * page.unit
-                    height: 72 * page.unit
-                    cornerRadius: 18 * page.unit
-                    source: appRow.app.iconPath
-                    focused: appRow.focused
-                }
+                    AppIcon {
+                        x: 20 * page.unit
+                        y: 12 * page.unit
+                        width: 72 * page.unit
+                        height: 72 * page.unit
+                        cornerRadius: 18 * page.unit
+                        source: appRow.app.iconPath
+                        focused: appRow.focused
+                    }
 
-                Text {
-                    x: 108 * page.unit
-                    y: (appRow.app.detail === "" ? 34 : 22) * page.unit
-                    width: 382 * page.unit
-                    height: 28 * page.unit
-                    verticalAlignment: Text.AlignVCenter
-                    elide: Text.ElideRight
-                    text: appRow.app.title
-                    color: appRow.focused ? GlassStyle.focusText : "#ffffff"
-                    font.family: page.rowFont
-                    font.pixelSize: 22 * page.unit
-                    font.hintingPreference: Font.PreferNoHinting
-                }
+                    Text {
+                        x: 108 * page.unit
+                        y: (appRow.app.detail === "" ? 34 : 22) * page.unit
+                        width: 382 * page.unit
+                        height: 28 * page.unit
+                        verticalAlignment: Text.AlignVCenter
+                        elide: Text.ElideRight
+                        text: appRow.app.title
+                        color: appRow.focused ? GlassStyle.focusText : "#ffffff"
+                        font.family: page.rowFont
+                        font.pixelSize: 22 * page.unit
+                        font.hintingPreference: Font.PreferNoHinting
+                    }
 
-                Text {
-                    x: 108 * page.unit
-                    y: 52 * page.unit
-                    width: 382 * page.unit
-                    height: 22 * page.unit
-                    verticalAlignment: Text.AlignVCenter
-                    elide: Text.ElideRight
-                    text: appRow.app.detail
-                    color: appRow.focused ? GlassStyle.focusSecondary : GlassStyle.textDetail
-                    font.family: page.valueFont
-                    font.pixelSize: 17 * page.unit
-                    font.hintingPreference: Font.PreferNoHinting
-                }
+                    Text {
+                        x: 108 * page.unit
+                        y: 52 * page.unit
+                        width: 382 * page.unit
+                        height: 22 * page.unit
+                        verticalAlignment: Text.AlignVCenter
+                        elide: Text.ElideRight
+                        text: appRow.app.detail
+                        color: appRow.focused ? GlassStyle.focusSecondary : GlassStyle.textDetail
+                        font.family: page.valueFont
+                        font.pixelSize: 17 * page.unit
+                        font.hintingPreference: Font.PreferNoHinting
+                    }
 
-                Image {
-                    x: 506 * page.unit
-                    anchors.verticalCenter: parent.verticalCenter
-                    source: Qt.resolvedUrl(appRow.focused ? "icons/chevron-18-dark.png" : "icons/chevron-18.png")
-                }
+                    Image {
+                        x: 506 * page.unit
+                        anchors.verticalCenter: parent.verticalCenter
+                        source: Qt.resolvedUrl(appRow.focused ? "icons/chevron-18-dark.png" : "icons/chevron-18.png")
+                    }
 
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: page.rowClicked(index)
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: page.rowClicked(index)
+                    }
                 }
             }
         }

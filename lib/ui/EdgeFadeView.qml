@@ -20,6 +20,7 @@ Item {
 
     property real topFade: 0
     property real bottomFade: 0
+    property real bottomGap: 0                // px at the very bottom that stay clear while fading
     property real topAmount: 0
     property real bottomAmount: 0
     property bool fading: true                // false: a plain clipped list, no strips
@@ -30,7 +31,7 @@ Item {
     Behavior on bottomAmount { NumberAnimation { duration: GlassStyle.listFadeDuration } }
 
     readonly property real topStrip: fading ? Math.min(topFade, height / 2) : 0
-    readonly property real bottomStrip: fading ? Math.min(bottomFade, height / 2) : 0
+    readonly property real bottomStrip: fading ? Math.min(bottomFade + bottomGap, height / 2) : 0
 
     Item {
         id: middle
@@ -60,6 +61,7 @@ Item {
             visible: band > 0
             property real amount: isTop ? view.topAmount : view.bottomAmount
             property real fromTop: isTop ? 1 : 0
+            property real gap: isTop || band <= 0 ? 0 : Math.min(1, view.bottomGap / band)
             property variant source: ShaderEffectSource {
                 sourceItem: inner
                 sourceRect: Qt.rect(0, isTop ? 0 : view.height - band, view.width, band)
@@ -75,9 +77,11 @@ Item {
                 uniform sampler2D source;
                 uniform lowp float amount;
                 uniform lowp float fromTop;
+                uniform highp float gap;
 
                 void main() {
-                    lowp float ramp = mix(1.0 - qt_TexCoord0.y, qt_TexCoord0.y, fromTop);
+                    highp float outward = mix(1.0 - qt_TexCoord0.y, qt_TexCoord0.y, fromTop);
+                    lowp float ramp = clamp((outward - gap) / max(1.0 - gap, 0.0001), 0.0, 1.0);
                     gl_FragColor = texture2D(source, qt_TexCoord0) * qt_Opacity * mix(1.0, ramp, amount);
                 }"
         }

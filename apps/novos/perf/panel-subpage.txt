@@ -1,0 +1,12 @@
+# Into a subpage the usual way: down onto the first category, rest, right opens its page,
+# then up and down inside and back. Right only on a category row: nothing is written.
+# seconds: 11
+wait 600
+key down 800
+phase open-page
+key right 1200
+phase page-hold
+hold down 1000
+hold up 1000
+phase back
+key back 1000

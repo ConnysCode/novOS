@@ -135,6 +135,12 @@ StarfishSystemUIWindow {
         // the panel even a trace of opacity would show on dark glass.
         property bool pagesWarm: false
         readonly property real warmOffset: 3000 * unit
+        readonly property int warmDuration: 120
+        // Subpages built so far: when the focus has rested on the row that opens one, or once
+        // it opened. The rest stays unbuilt (docs/performance-plan.md).
+        property var pagesWanted: []
+        onFocusIndexChanged: pageWarm.restart()
+        onPageChanged: pageWarm.restart()
         readonly property bool modalActive: modalLoader.item !== null && modalLoader.item.active
         property bool settingsNeeded: false
         readonly property bool settingsActive: settingsLoader.item !== null && settingsLoader.item.active
@@ -1250,8 +1256,10 @@ StarfishSystemUIWindow {
 
         function openPage(name) {
             if (name === "accessibility") name = "access";
+            PerfProbe.mark("page.open", name);
+            var started = PerfProbe.now();
             subpagesLoader.asynchronous = false;
-            pagesNeeded = true;
+            wantPage(name);
             overviewFocus = focusIndex;
             var pageRows = rowsOfPage(name);
             var focus = 0;
@@ -1259,7 +1267,36 @@ StarfishSystemUIWindow {
                 if (pageRows[i].active) focus = i;
             }
             changePage(name, focus);
+            PerfProbe.cost("page.open", started, name);
             if (name === "network") withFlow(function (flow) { flow.prepareList(); }, false);
+        }
+
+        function wantPage(name) {
+            if (pagesWanted.indexOf(name) >= 0) return;
+            pagesNeeded = true;
+            pagesWanted = pagesWanted.concat([name]);
+        }
+
+        // The subpage the focused row leads to, "" for none.
+        function pageBehind(row) {
+            if (!row) return "";
+            if (page === "overview" && opensPage(row)) return row.key === "accessibility" ? "access" : row.key;
+            if (row.key === "language") return "languages";
+            if (row.key === "device" && row.deviceId) return "sourceDetail";
+            if (page === "apps") return "appDetail";
+            return "";
+        }
+
+        // Once the focus rests on a row with a page behind it, that page is built in the
+        // background, so that opening it usually finds it standing.
+        Timer {
+            id: pageWarm
+            interval: panel.focusDuration + panel.popoverDuration
+            onTriggered: {
+                if (!panel.panelShown || panel.closing) return;
+                var name = panel.pageBehind(panel.focusedRow);
+                if (name !== "") panel.wantPage(name);
+            }
         }
 
         function opensPage(row) {
@@ -2098,7 +2135,7 @@ StarfishSystemUIWindow {
                 }
 
                 Timer {
-                    interval: 120
+                    interval: panel.warmDuration
                     running: subpagesLoader.status === Loader.Ready
                     onTriggered: panel.pagesWarm = true
                 }
@@ -2118,12 +2155,14 @@ StarfishSystemUIWindow {
                                     id: subpage
                                     readonly property bool isActive: panel.page === modelData.key
                                     readonly property string pageKey: modelData.key
+                                    readonly property bool wanted: panel.pagesWanted.indexOf(modelData.key) >= 0
+                                    property bool warm: false
                                     width: pageContent.width
                                     height: pageContent.height
                                     x: (isActive ? 0 : panel.pageShift) * panel.unit
                                     opacity: isActive ? 1 : 0.004
-                                    visible: isActive || opacity > 0.01 || !panel.pagesWarm
-                                    transform: Translate { x: subpage.isActive || panel.pagesWarm ? 0 : panel.warmOffset }
+                                    visible: isActive || opacity > 0.01 || (pageLoader.status === Loader.Ready && !warm)
+                                    transform: Translate { x: subpage.isActive || subpage.warm ? 0 : panel.warmOffset }
 
                                     Behavior on x {
                                         NumberAnimation {
@@ -2140,367 +2179,391 @@ StarfishSystemUIWindow {
                                         }
                                     }
 
-                                    // Everything except the rows, which step back on their own.
-                                    Item {
+                                    // The page itself: built when the focus rests on the row that opens it (in the
+                                    // background) or when it opens (then only this page, at once). Built all together
+                                    // they stopped the picture for 330 ms and more (docs/performance-plan.md).
+                                    Loader {
+                                        id: pageLoader
                                         anchors.fill: parent
-                                        opacity: panel.stepBack
-
-                                    PageHeader {
-                                        x: panel.leftEdge
-                                        y: 34 * panel.unit
-                                        width: parent.width - 2 * panel.leftEdge
-                                        unit: panel.unit
-                                        back: modelData.back || I18n.t("global", "settings")
-                                        title: modelData.title
-                                        subtitle: modelData.key === "languages" ? I18n.t("panel", "detail.menu_language") :
-                                                  modelData.key === "apps" ? panel.countText("detail.app_count", panel.apps.length) :
-                                                  modelData.key === "picture" ?
-                                                  I18n.t("panel", "detail.content_range", { range: panel.dynamicRange === "hdr" ? "HDR" :
-                                                            (panel.dynamicRange === "sdr" ? "SDR" : panel.dynamicRange) }) : ""
-                                    }
-
-                                    Repeater {
-                                        model: panel.labelsOf(modelData)
-                                        SectionTitle {
-                                            x: panel.leftEdge
-                                            y: modelData.y * panel.unit
-                                            height: 24 * panel.unit
-                                            unit: panel.unit
-                                            text: modelData.text
+                                        active: subpage.wanted || subpage.isActive
+                                        asynchronous: !subpage.isActive
+                                        onLoaded: {
+                                            PerfProbe.mark("page.built", subpage.pageKey);
+                                            warmTimer.restart();
                                         }
-                                    }
+                                        sourceComponent: Component {
+                                            Item {
+                                            // Everything except the rows, which step back on their own.
+                                            Item {
+                                                anchors.fill: parent
+                                                opacity: panel.stepBack
 
-                                    Repeater {
-                                        model: panel.infoRowsOf(subpage.pageKey)
-
-                                        Item {
-                                            x: 48 * panel.unit
-                                            y: modelData.y * panel.unit
-                                            width: 504 * panel.unit
-                                            height: 56 * panel.unit
-
-                                            Text {
-                                                height: parent.height
-                                                verticalAlignment: Text.AlignVCenter
-                                                text: modelData.label
-                                                color: panel.textSecondary
-                                                font.family: GlassStyle.valueFont
-                                                font.pixelSize: 22 * panel.unit
-                                                font.hintingPreference: Font.PreferNoHinting
+                                            PageHeader {
+                                                x: panel.leftEdge
+                                                y: 34 * panel.unit
+                                                width: parent.width - 2 * panel.leftEdge
+                                                unit: panel.unit
+                                                back: modelData.back || I18n.t("global", "settings")
+                                                title: modelData.title
+                                                subtitle: modelData.key === "languages" ? I18n.t("panel", "detail.menu_language") :
+                                                          modelData.key === "apps" ? panel.countText("detail.app_count", panel.apps.length) :
+                                                          modelData.key === "picture" ?
+                                                          I18n.t("panel", "detail.content_range", { range: panel.dynamicRange === "hdr" ? "HDR" :
+                                                                    (panel.dynamicRange === "sdr" ? "SDR" : panel.dynamicRange) }) : ""
                                             }
 
-                                            Text {
-                                                anchors.right: parent.right
-                                                height: parent.height
-                                                verticalAlignment: Text.AlignVCenter
-                                                text: modelData.value
-                                                color: panel.textPrimary
-                                                font.family: GlassStyle.rowFont
-                                                font.pixelSize: 22 * panel.unit
-                                                font.hintingPreference: Font.PreferNoHinting
+                                            Repeater {
+                                                model: panel.labelsOf(modelData)
+                                                SectionTitle {
+                                                    x: panel.leftEdge
+                                                    y: modelData.y * panel.unit
+                                                    height: 24 * panel.unit
+                                                    unit: panel.unit
+                                                    text: modelData.text
+                                                }
                                             }
-                                        }
-                                    }
 
-                                        // Shown instead of the speed row while Audio-Guidance is off.
-                            Item {
-                                x: 48 * panel.unit
-                                y: 250 * panel.unit
-                                width: 504 * panel.unit
-                                height: 80 * panel.unit
-                                visible: subpage.pageKey === "access" && panel.audioGuidance !== "on"
+                                            Repeater {
+                                                model: panel.infoRowsOf(subpage.pageKey)
 
-                                Text {
-                                    y: 12 * panel.unit
-                                    height: 28 * panel.unit
-                                    verticalAlignment: Text.AlignVCenter
-                                    text: settingsStore.title("option.audioGuidanceSpeed")
-                                    color: "#66ffffff"
-                                    font.family: panel.rowFamily
-                                    font.pixelSize: 22 * panel.unit
-                                    font.hintingPreference: Font.PreferNoHinting
-                                }
+                                                Item {
+                                                    x: 48 * panel.unit
+                                                    y: modelData.y * panel.unit
+                                                    width: 504 * panel.unit
+                                                    height: 56 * panel.unit
 
-                                Text {
-                                    y: 42 * panel.unit
-                                    height: 22 * panel.unit
-                                    verticalAlignment: Text.AlignVCenter
-                                    text: I18n.t("panel", "detail.needs_setting", { name: settingsStore.title("option.audioGuidance") })
-                                    color: GlassStyle.textDetail
-                                    font.family: panel.valueFamily
-                                    font.pixelSize: 17 * panel.unit
-                                    font.hintingPreference: Font.PreferNoHinting
-                                }
+                                                    Text {
+                                                        height: parent.height
+                                                        verticalAlignment: Text.AlignVCenter
+                                                        text: modelData.label
+                                                        color: panel.textSecondary
+                                                        font.family: GlassStyle.valueFont
+                                                        font.pixelSize: 22 * panel.unit
+                                                        font.hintingPreference: Font.PreferNoHinting
+                                                    }
 
-                                Text {
-                                    anchors.right: parent.right
-                                    anchors.rightMargin: 34 * panel.unit
-                                    height: parent.height
-                                    verticalAlignment: Text.AlignVCenter
-                                    text: panel.rowValue("guidanceSpeed")
-                                    color: "#66ffffff"
-                                    font.family: panel.valueFamily
-                                    font.pixelSize: 18 * panel.unit
-                                    font.hintingPreference: Font.PreferNoHinting
-                                }
-                            }
+                                                    Text {
+                                                        anchors.right: parent.right
+                                                        height: parent.height
+                                                        verticalAlignment: Text.AlignVCenter
+                                                        text: modelData.value
+                                                        color: panel.textPrimary
+                                                        font.family: GlassStyle.rowFont
+                                                        font.pixelSize: 22 * panel.unit
+                                                        font.hintingPreference: Font.PreferNoHinting
+                                                    }
+                                                }
+                                            }
 
-                                    // App name and icon of the detail page.
+                                                // Shown instead of the speed row while Audio-Guidance is off.
                                     Item {
-                                        anchors.fill: parent
-                                        visible: modelData.key === "appDetail"
+                                        x: 48 * panel.unit
+                                        y: 250 * panel.unit
+                                        width: 504 * panel.unit
+                                        height: 80 * panel.unit
+                                        visible: subpage.pageKey === "access" && panel.audioGuidance !== "on"
 
-                                        AppIcon {
-                                            x: 48 * panel.unit
-                                            y: 160 * panel.unit
-                                            width: 128 * panel.unit
-                                            height: 128 * panel.unit
-                                            cornerRadius: 32 * panel.unit
-                                            source: panel.selectedApp ? panel.selectedApp.iconPath : ""
+                                        Text {
+                                            y: 12 * panel.unit
+                                            height: 28 * panel.unit
+                                            verticalAlignment: Text.AlignVCenter
+                                            text: settingsStore.title("option.audioGuidanceSpeed")
+                                            color: "#66ffffff"
+                                            font.family: panel.rowFamily
+                                            font.pixelSize: 22 * panel.unit
+                                            font.hintingPreference: Font.PreferNoHinting
                                         }
 
-                                        Column {
-                                            x: 200 * panel.unit
-                                            y: 224 * panel.unit - height / 2
-                                            width: 352 * panel.unit
-                                            spacing: 4 * panel.unit
+                                        Text {
+                                            y: 42 * panel.unit
+                                            height: 22 * panel.unit
+                                            verticalAlignment: Text.AlignVCenter
+                                            text: I18n.t("panel", "detail.needs_setting", { name: settingsStore.title("option.audioGuidance") })
+                                            color: GlassStyle.textDetail
+                                            font.family: panel.valueFamily
+                                            font.pixelSize: 17 * panel.unit
+                                            font.hintingPreference: Font.PreferNoHinting
+                                        }
 
-                                            Text {
-                                                width: parent.width
-                                                wrapMode: Text.WordWrap
-                                                maximumLineCount: 2
-                                                elide: Text.ElideRight
-                                                text: panel.selectedApp ? panel.selectedApp.title : ""
-                                                color: panel.textPrimary
-                                                font.family: GlassStyle.titleFont
-                                                font.pixelSize: 28 * panel.unit
-                                                font.letterSpacing: -0.28 * panel.unit
-                                                font.hintingPreference: Font.PreferNoHinting
-                                            }
-
-                                            Text {
-                                                width: parent.width
-                                                wrapMode: Text.WordWrap
-                                                visible: panel.selectedApp !== null && !panel.selectedApp.removable
-                                                text: I18n.t("panel", "detail.preinstalled_fixed")
-                                                color: panel.textSecondary
-                                                font.family: GlassStyle.valueFont
-                                                font.pixelSize: 18 * panel.unit
-                                                font.hintingPreference: Font.PreferNoHinting
-                                            }
+                                        Text {
+                                            anchors.right: parent.right
+                                            anchors.rightMargin: 34 * panel.unit
+                                            height: parent.height
+                                            verticalAlignment: Text.AlignVCenter
+                                            text: panel.rowValue("guidanceSpeed")
+                                            color: "#66ffffff"
+                                            font.family: panel.valueFamily
+                                            font.pixelSize: 18 * panel.unit
+                                            font.hintingPreference: Font.PreferNoHinting
                                         }
                                     }
 
-                                    // Icon, name and port in the head of a device's page.
-                                    Item {
-                                        anchors.fill: parent
-                                        visible: modelData.key === "sourceDetail"
+                                            // App name and icon of the detail page.
+                                            Item {
+                                                anchors.fill: parent
+                                                visible: modelData.key === "appDetail"
 
-                                        GlassControl {
-                                            x: 48 * panel.unit
-                                            y: 160 * panel.unit
-                                            width: 128 * panel.unit
-                                            height: 128 * panel.unit
-                                            unit: panel.unit
-                                            radius: 32
-                                            fill: "#1affffff"
+                                                AppIcon {
+                                                    x: 48 * panel.unit
+                                                    y: 160 * panel.unit
+                                                    width: 128 * panel.unit
+                                                    height: 128 * panel.unit
+                                                    cornerRadius: 32 * panel.unit
+                                                    source: panel.selectedApp ? panel.selectedApp.iconPath : ""
+                                                }
 
-                                            Image {
-                                                anchors.centerIn: parent
-                                                opacity: panel.detailDevice && !panel.detailDevice.hdmiPlugIn ? 0.55 : 1
-                                                source: panel.detailDevice ?
-                                                        Qt.resolvedUrl("module/icons/detail-" +
-                                                                       SourceList.deviceIcon(panel.detailDevice) + ".png") : ""
+                                                Column {
+                                                    x: 200 * panel.unit
+                                                    y: 224 * panel.unit - height / 2
+                                                    width: 352 * panel.unit
+                                                    spacing: 4 * panel.unit
+
+                                                    Text {
+                                                        width: parent.width
+                                                        wrapMode: Text.WordWrap
+                                                        maximumLineCount: 2
+                                                        elide: Text.ElideRight
+                                                        text: panel.selectedApp ? panel.selectedApp.title : ""
+                                                        color: panel.textPrimary
+                                                        font.family: GlassStyle.titleFont
+                                                        font.pixelSize: 28 * panel.unit
+                                                        font.letterSpacing: -0.28 * panel.unit
+                                                        font.hintingPreference: Font.PreferNoHinting
+                                                    }
+
+                                                    Text {
+                                                        width: parent.width
+                                                        wrapMode: Text.WordWrap
+                                                        visible: panel.selectedApp !== null && !panel.selectedApp.removable
+                                                        text: I18n.t("panel", "detail.preinstalled_fixed")
+                                                        color: panel.textSecondary
+                                                        font.family: GlassStyle.valueFont
+                                                        font.pixelSize: 18 * panel.unit
+                                                        font.hintingPreference: Font.PreferNoHinting
+                                                    }
+                                                }
                                             }
-                                        }
 
-                                        Column {
-                                            x: 200 * panel.unit
-                                            y: 224 * panel.unit - height / 2
-                                            width: 352 * panel.unit
-                                            spacing: 4 * panel.unit
+                                            // Icon, name and port in the head of a device's page.
+                                            Item {
+                                                anchors.fill: parent
+                                                visible: modelData.key === "sourceDetail"
 
-                                            Text {
-                                                width: parent.width
-                                                wrapMode: Text.WordWrap
-                                                maximumLineCount: 2
-                                                elide: Text.ElideRight
-                                                text: panel.detailDevice ? SourceList.deviceName(panel.detailDevice) : ""
-                                                color: panel.textPrimary
-                                                font.family: GlassStyle.titleFont
-                                                font.pixelSize: 28 * panel.unit
-                                                font.letterSpacing: -0.28 * panel.unit
-                                                font.hintingPreference: Font.PreferNoHinting
+                                                GlassControl {
+                                                    x: 48 * panel.unit
+                                                    y: 160 * panel.unit
+                                                    width: 128 * panel.unit
+                                                    height: 128 * panel.unit
+                                                    unit: panel.unit
+                                                    radius: 32
+                                                    fill: "#1affffff"
+
+                                                    Image {
+                                                        anchors.centerIn: parent
+                                                        opacity: panel.detailDevice && !panel.detailDevice.hdmiPlugIn ? 0.55 : 1
+                                                        source: panel.detailDevice ?
+                                                                Qt.resolvedUrl("module/icons/detail-" +
+                                                                               SourceList.deviceIcon(panel.detailDevice) + ".png") : ""
+                                                    }
+                                                }
+
+                                                Column {
+                                                    x: 200 * panel.unit
+                                                    y: 224 * panel.unit - height / 2
+                                                    width: 352 * panel.unit
+                                                    spacing: 4 * panel.unit
+
+                                                    Text {
+                                                        width: parent.width
+                                                        wrapMode: Text.WordWrap
+                                                        maximumLineCount: 2
+                                                        elide: Text.ElideRight
+                                                        text: panel.detailDevice ? SourceList.deviceName(panel.detailDevice) : ""
+                                                        color: panel.textPrimary
+                                                        font.family: GlassStyle.titleFont
+                                                        font.pixelSize: 28 * panel.unit
+                                                        font.letterSpacing: -0.28 * panel.unit
+                                                        font.hintingPreference: Font.PreferNoHinting
+                                                    }
+
+                                                    Text {
+                                                        width: parent.width
+                                                        text: panel.deviceHeadline(panel.detailDevice)
+                                                        color: panel.textSecondary
+                                                        font.family: GlassStyle.valueFont
+                                                        font.pixelSize: 18 * panel.unit
+                                                        font.hintingPreference: Font.PreferNoHinting
+                                                    }
+                                                }
                                             }
 
-                                            Text {
-                                                width: parent.width
-                                                text: panel.deviceHeadline(panel.detailDevice)
-                                                color: panel.textSecondary
-                                                font.family: GlassStyle.valueFont
-                                                font.pixelSize: 18 * panel.unit
-                                                font.hintingPreference: Font.PreferNoHinting
-                                            }
-                                        }
-                                    }
+                                            // The scrolling list of the apps page, built for this page only.
+                                            Repeater {
+                                                model: subpage.pageKey === "apps" ? 1 : 0
 
-                                    // The scrolling list of the apps page, built for this page only.
+                                                AppsPage {
+                                                    y: panel.appsTop * panel.unit
+                                                    width: subpage.width
+                                                    height: panel.appsHeight * panel.unit
+                                                    visible: subpage.opacity > 0.01
+                                                    unit: panel.unit
+                                                    rowFont: panel.rowFamily
+                                                    valueFont: panel.valueFamily
+                                                    apps: panel.apps
+                                                    focusedIndex: subpage.isActive ? panel.appIndex : -1
+                                                    scroll: panel.appScroll
+                                                    limit: panel.appLimit
+                                                    pitch: panel.appPitch
+                                                    duration: panel.focusDuration
+                                                    curve: panel.standardCurve
+                                                    onRowClicked: {
+                                                        panel.appIndex = row;
+                                                        panel.moveApp(0);
+                                                        panel.openApp();
+                                                    }
+                                                }
+                                            }
+
+                                            // The language list, built for this page only.
                                     Repeater {
-                                        model: subpage.pageKey === "apps" ? 1 : 0
+                                        model: subpage.pageKey === "languages" ? 1 : 0
 
-                                        AppsPage {
-                                            y: panel.appsTop * panel.unit
+                                        LanguagePage {
+                                            y: panel.languagesTop * panel.unit
                                             width: subpage.width
-                                            height: panel.appsHeight * panel.unit
+                                            height: panel.languagesHeight * panel.unit
                                             visible: subpage.opacity > 0.01
                                             unit: panel.unit
                                             rowFont: panel.rowFamily
                                             valueFont: panel.valueFamily
-                                            apps: panel.apps
-                                            focusedIndex: subpage.isActive ? panel.appIndex : -1
-                                            scroll: panel.appScroll
-                                            limit: panel.appLimit
-                                            pitch: panel.appPitch
+                                            languages: panel.languages
+                                            selected: panel.languageCode
+                                            focusedIndex: subpage.isActive ? panel.languageIndex : -1
+                                            scroll: panel.languageScroll
+                                            limit: panel.languageLimit
+                                            pitch: panel.languagePitch
                                             duration: panel.focusDuration
                                             curve: panel.standardCurve
                                             onRowClicked: {
-                                                panel.appIndex = row;
-                                                panel.moveApp(0);
-                                                panel.openApp();
+                                                panel.languageIndex = row;
+                                                panel.moveLanguage(0);
+                                                panel.selectLanguage();
                                             }
                                         }
                                     }
 
-                                    // The language list, built for this page only.
-                            Repeater {
-                                model: subpage.pageKey === "languages" ? 1 : 0
+                                    // Status and connection values of the network page.
+                                            Item {
+                                                anchors.fill: parent
+                                                visible: modelData.key === "network"
 
-                                LanguagePage {
-                                    y: panel.languagesTop * panel.unit
-                                    width: subpage.width
-                                    height: panel.languagesHeight * panel.unit
-                                    visible: subpage.opacity > 0.01
-                                    unit: panel.unit
-                                    rowFont: panel.rowFamily
-                                    valueFont: panel.valueFamily
-                                    languages: panel.languages
-                                    selected: panel.languageCode
-                                    focusedIndex: subpage.isActive ? panel.languageIndex : -1
-                                    scroll: panel.languageScroll
-                                    limit: panel.languageLimit
-                                    pitch: panel.languagePitch
-                                    duration: panel.focusDuration
-                                    curve: panel.standardCurve
-                                    onRowClicked: {
-                                        panel.languageIndex = row;
-                                        panel.moveLanguage(0);
-                                        panel.selectLanguage();
-                                    }
-                                }
-                            }
+                                                GlassControl {
+                                                    x: 28 * panel.unit
+                                                    y: 136 * panel.unit
+                                                    width: 544 * panel.unit
+                                                    height: 112 * panel.unit
+                                                    unit: panel.unit
+                                                    radius: 26
+                                                    fill: "#1affffff"
 
-                            // Status and connection values of the network page.
-                                    Item {
-                                        anchors.fill: parent
-                                        visible: modelData.key === "network"
+                                                    GlassControl {
+                                                        x: 20 * panel.unit
+                                                        y: 24 * panel.unit
+                                                        width: 64 * panel.unit
+                                                        height: width
+                                                        unit: panel.unit
+                                                        radius: 32
+                                                        fill: "#24ffffff"
 
-                                        GlassControl {
-                                            x: 28 * panel.unit
-                                            y: 136 * panel.unit
-                                            width: 544 * panel.unit
-                                            height: 112 * panel.unit
-                                            unit: panel.unit
-                                            radius: 26
-                                            fill: "#1affffff"
+                                                        Image {
+                                                            anchors.centerIn: parent
+                                                            source: panel.networkStatus.icon === undefined ? "" :
+                                                                    Qt.resolvedUrl("module/icons/" + panel.networkStatus.icon + ".png")
+                                                        }
+                                                    }
 
-                                            GlassControl {
-                                                x: 20 * panel.unit
-                                                y: 24 * panel.unit
-                                                width: 64 * panel.unit
-                                                height: width
-                                                unit: panel.unit
-                                                radius: 32
-                                                fill: "#24ffffff"
+                                                    Text {
+                                                        id: networkTitle
+                                                        x: 102 * panel.unit
+                                                        y: 16 * panel.unit
+                                                        width: parent.width - x - 20 * panel.unit
+                                                        height: 30 * panel.unit
+                                                        verticalAlignment: Text.AlignVCenter
+                                                        elide: Text.ElideRight
+                                                        text: panel.networkStatus.title
+                                                        color: panel.textPrimary
+                                                        font.family: GlassStyle.rowFont
+                                                        font.pixelSize: 24 * panel.unit
+                                                        font.hintingPreference: Font.PreferNoHinting
+                                                    }
 
-                                                Image {
-                                                    anchors.centerIn: parent
-                                                    source: panel.networkStatus.icon === undefined ? "" :
-                                                            Qt.resolvedUrl("module/icons/" + panel.networkStatus.icon + ".png")
+                                                    Text {
+                                                        x: 102 * panel.unit
+                                                        y: 48 * panel.unit
+                                                        width: parent.width - x - 20 * panel.unit
+                                                        wrapMode: Text.WordWrap
+                                                        maximumLineCount: 2
+                                                        elide: Text.ElideRight
+                                                        text: panel.networkStatus.detail
+                                                        color: panel.textSecondary
+                                                        font.family: GlassStyle.valueFont
+                                                        font.pixelSize: 18 * panel.unit
+                                                        font.hintingPreference: Font.PreferNoHinting
+                                                    }
+                                                }
+
+                                    // Shown instead of the row when there is nothing to forget.
+                                                Item {
+                                                    x: 48 * panel.unit
+                                                    y: (panel.networkState === "wired" ? 632 : 620) * panel.unit
+                                                    width: 504 * panel.unit
+                                                    height: 80 * panel.unit
+                                                    visible: panel.networkRows.length < 2
+
+                                                    Text {
+                                                        y: 12 * panel.unit
+                                                        height: 28 * panel.unit
+                                                        verticalAlignment: Text.AlignVCenter
+                                                        text: I18n.t("panel", "row.forget_network")
+                                                        color: "#66ffffff"
+                                                        font.family: GlassStyle.rowFont
+                                                        font.pixelSize: 22 * panel.unit
+                                                        font.hintingPreference: Font.PreferNoHinting
+                                                    }
+
+                                                    Text {
+                                                        y: 42 * panel.unit
+                                                        height: 22 * panel.unit
+                                                        verticalAlignment: Text.AlignVCenter
+                                                        text: panel.networkState === "wired" ?
+                                                              I18n.t("panel", "detail.forget_wired") :
+                                                              I18n.t("panel", "detail.forget_none")
+                                                        color: "#66ffffff"
+                                                        font.family: GlassStyle.valueFont
+                                                        font.pixelSize: 17 * panel.unit
+                                                        font.hintingPreference: Font.PreferNoHinting
+                                                    }
                                                 }
                                             }
-
-                                            Text {
-                                                id: networkTitle
-                                                x: 102 * panel.unit
-                                                y: 16 * panel.unit
-                                                width: parent.width - x - 20 * panel.unit
-                                                height: 30 * panel.unit
-                                                verticalAlignment: Text.AlignVCenter
-                                                elide: Text.ElideRight
-                                                text: panel.networkStatus.title
-                                                color: panel.textPrimary
-                                                font.family: GlassStyle.rowFont
-                                                font.pixelSize: 24 * panel.unit
-                                                font.hintingPreference: Font.PreferNoHinting
                                             }
 
-                                            Text {
-                                                x: 102 * panel.unit
-                                                y: 48 * panel.unit
-                                                width: parent.width - x - 20 * panel.unit
-                                                wrapMode: Text.WordWrap
-                                                maximumLineCount: 2
-                                                elide: Text.ElideRight
-                                                text: panel.networkStatus.detail
-                                                color: panel.textSecondary
-                                                font.family: GlassStyle.valueFont
-                                                font.pixelSize: 18 * panel.unit
-                                                font.hintingPreference: Font.PreferNoHinting
+                                            Item {
+                                                anchors.fill: parent
+                                                readonly property bool isActive: subpage.isActive
+                                                Repeater {
+                                                    model: modelData.key === "apps" || modelData.key === "languages" ? [] : panel.rowsOfPage(modelData.key)
+                                                    delegate: rowDelegate
+                                                }
                                             }
-                                        }
-
-                            // Shown instead of the row when there is nothing to forget.
-                                        Item {
-                                            x: 48 * panel.unit
-                                            y: (panel.networkState === "wired" ? 632 : 620) * panel.unit
-                                            width: 504 * panel.unit
-                                            height: 80 * panel.unit
-                                            visible: panel.networkRows.length < 2
-
-                                            Text {
-                                                y: 12 * panel.unit
-                                                height: 28 * panel.unit
-                                                verticalAlignment: Text.AlignVCenter
-                                                text: I18n.t("panel", "row.forget_network")
-                                                color: "#66ffffff"
-                                                font.family: GlassStyle.rowFont
-                                                font.pixelSize: 22 * panel.unit
-                                                font.hintingPreference: Font.PreferNoHinting
-                                            }
-
-                                            Text {
-                                                y: 42 * panel.unit
-                                                height: 22 * panel.unit
-                                                verticalAlignment: Text.AlignVCenter
-                                                text: panel.networkState === "wired" ?
-                                                      I18n.t("panel", "detail.forget_wired") :
-                                                      I18n.t("panel", "detail.forget_none")
-                                                color: "#66ffffff"
-                                                font.family: GlassStyle.valueFont
-                                                font.pixelSize: 17 * panel.unit
-                                                font.hintingPreference: Font.PreferNoHinting
                                             }
                                         }
                                     }
-                                    }
 
-                                    Item {
-                                        anchors.fill: parent
-                                        readonly property bool isActive: subpage.isActive
-                                        Repeater {
-                                            model: modelData.key === "apps" || modelData.key === "languages" ? [] : panel.rowsOfPage(modelData.key)
-                                            delegate: rowDelegate
-                                        }
+                                    // A new page is drawn once off screen, so that its first real frame is not its first.
+                                    Timer {
+                                        id: warmTimer
+                                        interval: panel.warmDuration
+                                        onTriggered: subpage.warm = true
                                     }
                                 }
                             }
