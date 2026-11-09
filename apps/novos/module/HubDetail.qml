@@ -117,13 +117,16 @@ FocusScope {
 
     Rectangle {
         anchors.fill: parent
-        color: "#8c040608"
+        color: GlassStyle.scrimColor
+        opacity: GlassStyle.modalScrim
     }
 
+    // The card lies on the dimmed hub, so its glass takes the same dimming.
     ImageGlass {
         id: cardGlass
         sourceItem: detail.backdropItem
         unit: detail.unit
+        veil: GlassStyle.modalScrim
         area: Qt.rect(card.x, card.y, card.width, card.height)
         visible: false
     }

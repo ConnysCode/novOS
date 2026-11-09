@@ -11,6 +11,9 @@ Item {
     property real unit: 1
     property rect area: Qt.rect(0, 0, 0, 0)
     property real margin: 56 * unit
+    // A uniform dark layer between sourceItem and the glass, see GlassStyle.gradeShader.
+    // Scrims that vary across the screen belong into sourceItem instead.
+    property real veil: 0
 
     readonly property variant texture: graded
     readonly property rect crop: Qt.rect(area.x - margin, area.y - margin,
@@ -58,6 +61,7 @@ Item {
         anchors.fill: parent
         visible: false
         property variant source: blurredTexture
+        property real veil: glass.veil
         fragmentShader: GlassStyle.gradeShader
     }
 

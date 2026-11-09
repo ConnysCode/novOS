@@ -43,6 +43,11 @@ QtObject {
     readonly property int listFadeDuration: 180            // a list end fades in or out
     readonly property int pressDuration: 40
     readonly property real dimmedOpacity: 0.4              // what steps back behind a popover
+    // Dark layers over the picture. Glass lies on top of them and samples them too, as
+    // backdrop-filter does: a surface on a dimmed picture must not glow from the undimmed one.
+    readonly property color scrimColor: "#040608"
+    readonly property real contentScrim: 0.18              // behind the panel; the grade holds it
+    readonly property real modalScrim: 0.55                // behind a modal
     readonly property int switchDuration: 260               // the knob of a switch springs over
     readonly property var switchCurve: [0.34, 1.36, 0.5, 1, 1, 1]
     // Type, in logical px.
@@ -56,6 +61,22 @@ QtObject {
     property alias blur: values.blur
     property alias keyboardMode: values.keyboardMode
     readonly property real edgeGain: Math.max(0.5, Math.min(2.5, Math.pow(referenceBlur / blur, 0.7)))
+
+    // Two dark layers of strength a and b darken as one of this strength.
+    function stackScrims(a, b) {
+        return 1 - (1 - a) * (1 - b);
+    }
+
+    // The veil a glass needs over a scrim of this strength, beyond the contentScrim that
+    // its grade already holds. A weaker scrim gets none: the grade never brightens.
+    function veilBeyondContent(total) {
+        return Math.max(0, 1 - (1 - total) / (1 - contentScrim));
+    }
+
+    // A scrimColor layer of this strength, for gradients.
+    function scrim(strength) {
+        return Qt.rgba(scrimColor.r, scrimColor.g, scrimColor.b, strength);
+    }
 
     // Inter in the three cuts of the hand-off, loaded once for every window. An app's build
     // puts fonts/novos-inter-*.ttf next to the folder that holds these files.
@@ -211,10 +232,13 @@ QtObject {
                     gl_FragColor = vec4(color * alpha, alpha) * shape * qt_Opacity;
                 }"
 
+    // veil: a dark layer between the picture and the glass that the source does not hold
+    // yet, such as the dimming behind a modal. Every ShaderEffect with it sets veil.
     readonly property string gradeShader: "
             varying highp vec2 qt_TexCoord0;
             uniform lowp float qt_Opacity;
             uniform sampler2D source;
+            uniform lowp float veil;
 
             const lowp vec3 scrim = vec3(0.0157, 0.0235, 0.0314);
             const lowp vec3 luma = vec3(0.2126, 0.7152, 0.0722);
@@ -224,6 +248,7 @@ QtObject {
             void main() {
                 lowp vec3 color = texture2D(source, qt_TexCoord0).rgb;
                 color = mix(color, scrim, 0.18);
+                color = mix(color, scrim, veil);
                 color = clamp(mix(vec3(dot(color, luma)), color, 1.8), 0.0, 1.0);
 
                 // Bright content keeps its hue but stops short of white,

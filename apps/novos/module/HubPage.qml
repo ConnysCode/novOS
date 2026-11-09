@@ -316,7 +316,7 @@ FocusScope {
         color: "#02040a"
     }
 
-    // What the glass blurs.
+    // What the glass blurs: the picture with its scrims, as the eye sees it.
     Item {
         id: backdrop
         anchors.fill: parent
@@ -332,6 +332,11 @@ FocusScope {
             source: hub.backgroundSource
             sourceSize: Qt.size(1920, 1080)
             fillMode: Image.PreserveAspectCrop
+        }
+
+        BackdropScrim {
+            anchors.fill: parent
+            unit: hub.unit
         }
     }
 
@@ -349,24 +354,9 @@ FocusScope {
         visible: false
     }
 
-    // Scrims: from the left behind the stage, and from the top behind the clock.
-    Rectangle {
+    BackdropScrim {
         anchors.fill: parent
-        gradient: Gradient {
-            orientation: Gradient.Horizontal
-            GradientStop { position: 0; color: "#9e040608" }
-            GradientStop { position: 0.55; color: "#4d040608" }
-            GradientStop { position: 1; color: "#33040608" }
-        }
-    }
-
-    Rectangle {
-        width: parent.width
-        height: 220 * hub.unit
-        gradient: Gradient {
-            GradientStop { position: 0; color: "#73040608" }
-            GradientStop { position: 1; color: "#00040608" }
-        }
+        unit: hub.unit
     }
 
     Column {

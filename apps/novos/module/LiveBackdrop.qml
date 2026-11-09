@@ -17,6 +17,9 @@ Item {
     property bool shown: false                  // start video once the window stands
     property bool closing: false
     property string framePrefix: "/tmp/novos-quicksettings-frame-"
+    // Dimming between the picture and the glass beyond the content scrim, such as behind
+    // a modal. Applied after the temporal smoothing, so it changes at once.
+    property real veil: 0
 
     readonly property variant texture: gradedBackdrop
     readonly property rect crop: Qt.rect(area.x - margin, area.y - margin,
@@ -267,6 +270,7 @@ Item {
         height: temporalBlend.height
         visible: false
         property variant source: smoothedBackdrop
+        property real veil: chain.veil
         fragmentShader: GlassStyle.gradeShader
     }
 
