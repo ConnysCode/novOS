@@ -29,7 +29,8 @@ TARGETS = [("QuickSettings.qml", "/usr/lib/qml/QuickSettings/QuickSettings.qml")
 # Stubs of the release's scripts: they only note their call. start and stop also play the
 # mounts, so that setupd sees novOS run and stop.
 STUBS = {
-    "make-overlays.sh": 'echo "make-overlays $1" >> "$NOVOS_SETUPD_SANDBOX/calls"\n',
+    "make-overlays.sh": 'echo "make-overlays $1" >> "$NOVOS_SETUPD_SANDBOX/calls"\n'
+                        '[ ! -e "$NOVOS_SETUPD_SANDBOX/fail-overlays" ] || exit 3\n',
     "novos-start.sh": 'echo "start $* restore=${NOVOS_RESTORE:-1}" >> "$NOVOS_SETUPD_SANDBOX/calls"\n'
                       'echo "/var/x /usr/lib/qml/QuickSettings/QuickSettings.qml none bind 0 0" > "$NOVOS_SETUPD_SANDBOX/proc/mounts"\n',
     "novos-stop.sh": 'echo "stop $*" >> "$NOVOS_SETUPD_SANDBOX/calls"\n: > "$NOVOS_SETUPD_SANDBOX/proc/mounts"\n',
@@ -215,6 +216,30 @@ class SetupdTest(unittest.TestCase):
         code, lines = self.run_setupd("rollback")
         self.assertEqual(code, 0, lines)
         self.assertEqual(self.current(), "1.0.0")
+
+    def test_install_again_after_rollback(self):
+        self.run_setupd("install", self.publish("1.0.0"))
+        newer = self.publish("1.1.0")
+        self.run_setupd("install", newer)
+        self.run_setupd("rollback")
+        self.assertEqual(self.current(), "1.0.0")
+        overlays = len([c for c in self.calls() if c.startswith("make-overlays")])
+        code, lines = self.run_setupd("install", newer)
+        self.assertEqual(code, 0, lines)
+        self.assertEqual(self.current(), "1.1.0")
+        # The same signed release is switched to, not unpacked again.
+        self.assertEqual(len([c for c in self.calls() if c.startswith("make-overlays")]), overlays)
+
+    def test_error_after_stop_starts_novos_again(self):
+        self.run_setupd("install", self.publish("1.0.0"), "--start")
+        open(os.path.join(self.sandbox, "fail-overlays"), "w").close()
+        code, lines = self.run_setupd("install", self.publish("1.1.0"))
+        self.assertEqual(code, 1)
+        self.assertIn("make-overlays.sh failed", self.error_of(lines)[0])
+        self.assertEqual(self.current(), "1.0.0")
+        self.assertEqual(self.calls()[-2:][0].split()[0], "make-overlays")
+        self.assertEqual(self.calls()[-1], "start manual restore=1")
+        self.assertTrue(self.setupd.running())
 
     def test_changed_lg_file_refused(self):
         url = self.publish("1.0.0")

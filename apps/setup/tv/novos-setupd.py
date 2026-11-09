@@ -520,10 +520,19 @@ def install(report, source, allow_downgrade=False, start=False, before_start=Non
             run_script(report, "novos-stop.sh", "--no-restart")
             if running():
                 raise SetupError("novOS still runs after the stop, nothing was changed")
-            mismatched = lg_mismatches(manifest["lg_targets"])
-            if mismatched:
-                raise SetupError("LG's files differ from what the release was built for: %s" % mismatched[0])
-        place_release(report, folder, manifest)
+        try:
+            if was_running:
+                mismatched = lg_mismatches(manifest["lg_targets"])
+                if mismatched:
+                    raise SetupError("LG's files differ from what the release was built for: %s" % mismatched[0])
+            place_release(report, folder, manifest)
+        except (SetupError, release.ReleaseError, OSError, ValueError, KeyError):
+            # Whatever went wrong after the stop: novOS runs again as it did, then the error.
+            if was_running:
+                report.step("starting novOS %s again" % current_release(), key="start")
+                with contextlib.suppress(SetupError, OSError):
+                    run_script(report, "novos-start.sh", "manual")
+            raise
         if was_running or start:
             if before_start:
                 before_start()
@@ -553,7 +562,15 @@ def place_release(report, folder, manifest):
     new = os.path.join(RELEASES, version)
     partial = os.path.join(RELEASES, ".partial")
     if os.path.exists(new):
-        raise SetupError("release %s is there already" % version)
+        if version == current_release():
+            raise SetupError("novOS %s is installed already" % version)
+        # Left from before a rollback: the same signed release is switched to as it is, a
+        # different one with that name is replaced.
+        if same_file(os.path.join(new, "manifest.json"), os.path.join(folder, "manifest.json")):
+            report.step("novOS %s is there already, from the same signed release" % version, key="unpack")
+            switch_to(report, version)
+            return
+        shutil.rmtree(new)
     os.makedirs(RELEASES, exist_ok=True)
     os.makedirs(STATE, exist_ok=True)
     shutil.rmtree(partial, ignore_errors=True)
@@ -571,6 +588,21 @@ def place_release(report, folder, manifest):
     shutil.copy(os.path.join(folder, "manifest.json"), os.path.join(partial, "manifest.json"))
     shutil.copy(os.path.join(folder, "manifest.json.sig"), os.path.join(partial, "manifest.json.sig"))
     os.rename(partial, new)
+    switch_to(report, version)
+
+
+def same_file(first, second):
+    try:
+        with open(first, "rb") as one, open(second, "rb") as two:
+            return one.read() == two.read()
+    except OSError:
+        return False
+
+
+def switch_to(report, version):
+    """Points current to releases/<version>, which is complete, and keeps the one before."""
+    new = os.path.join(RELEASES, version)
+    os.makedirs(STATE, exist_ok=True)
     if not os.path.exists(STATE + "/novos.conf"):
         shutil.copy(os.path.join(new, "bin", "novos.conf"), STATE + "/novos.conf")
     if not os.path.exists(STATE + "/debug.ini"):
