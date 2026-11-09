@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="@LANG@">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>novOS</title>
+<!-- The upload page novOS serves while the TV shows its code (bin/novos-upload.py).
+     Design: "Upload-Seite im Browser · kommt vom Fernseher" (Web-Upload-Mobil-1 … 5,
+     Web-Upload-Desktop-*). The fonts come from the TV, the page needs no internet. -->
+<style>
+@font-face { font-family: "Inter"; font-weight: 700; src: url("@BASE@/font/title.ttf"); }
+@font-face { font-family: "Inter"; font-weight: 600; src: url("@BASE@/font/row.ttf"); }
+@font-face { font-family: "Inter"; font-weight: 400; src: url("@BASE@/font/value.ttf"); }
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: #04060C; color: #FFFFFF; }
+body {
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased; min-height: 100vh; position: relative; overflow-x: hidden;
+}
+/* The horizon: a dark planet edge with a warm light, faint grain against banding. */
+.sky { position: fixed; inset: 0; overflow: hidden; pointer-events: none;
+  background: radial-gradient(ellipse 70% 60% at 70% 0%, #0B1322 0%, #04060C 70%); }
+.planet { position: absolute; left: 69%; top: 51%; width: 1500px; height: 1500px; transform: translateX(-50%);
+  border-radius: 50%; background: radial-gradient(circle at 50% 0%, #0D1B33 0%, #08101F 22%, #04060C 46%);
+  box-shadow: 0 0 0 1.5px rgba(176, 204, 245, 0.38), 0 -6px 40px 4px rgba(110, 150, 220, 0.22),
+              0 -30px 200px 40px rgba(70, 110, 190, 0.12); }
+.sun { position: absolute; left: 69%; top: 51%; width: 440px; height: 150px; transform: translate(-50%, -50%);
+  border-radius: 50%; background: radial-gradient(ellipse at 50% 50%, rgba(255, 222, 186, 0.42) 0%,
+  rgba(255, 196, 150, 0.14) 38%, rgba(0, 0, 0, 0) 70%); animation: sun 7s ease-in-out infinite; }
+.line { position: absolute; left: 69%; top: 51%; width: 123px; height: 3px; transform: translate(-50%, -50%);
+  border-radius: 2px; filter: blur(1px); background: linear-gradient(90deg, rgba(255, 240, 220, 0) 0%,
+  rgba(255, 244, 230, 0.85) 50%, rgba(255, 240, 220, 0) 100%); }
+.fade { position: absolute; left: 0; right: 0; bottom: 0; height: 32%;
+  background: linear-gradient(180deg, rgba(4, 6, 12, 0) 0%, #04060C 85%); }
+.grain { position: absolute; inset: 0; opacity: 0.06; mix-blend-mode: overlay; background-image:
+  url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.55 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"); }
+@keyframes sun { 0%, 100% { opacity: 0.86; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .sun { animation: none; } }
+
+header { position: relative; display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 20px 0 20px; height: 54px; }
+.mark { display: inline-flex; align-items: baseline; font-size: 24px; line-height: 1; letter-spacing: -0.035em; }
+.mark b { font-weight: 700; }
+.mark span { font-weight: 400; color: rgba(255, 255, 255, 0.72); }
+.tv { height: 36px; padding: 0 14px 0 10px; border-radius: 18px; display: inline-flex; align-items: center; gap: 8px;
+  font-size: 15px; font-weight: 600; color: rgba(255, 255, 255, 0.90); background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12); max-width: 60%; overflow: hidden; white-space: nowrap; }
+.tv i { width: 8px; height: 8px; border-radius: 4px; background: #4C9DFF; flex: 0 0 8px; }
+
+main { position: relative; padding: 30px 16px 120px 16px; max-width: 390px; margin: 0 auto; }
+.intro { padding: 0 4px; }
+h1 { margin: 0; font-size: 32px; line-height: 38px; font-weight: 700; letter-spacing: -0.03em; text-wrap: balance; }
+.intro p { margin: 10px 0 0 0; font-size: 17px; line-height: 25px; color: rgba(255, 255, 255, 0.84); }
+
+/* The glass card, as on the TV: gradient, blur, light at the top edge, outer shadow. */
+.card { position: relative; margin-top: 24px; padding: 14px; border-radius: 30px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.20) 0%, rgba(255, 255, 255, 0.07) 45%, rgba(255, 255, 255, 0.13) 100%);
+  -webkit-backdrop-filter: blur(84px) saturate(180%); backdrop-filter: blur(84px) saturate(180%);
+  box-shadow: inset 0 1.5px 0 rgba(170, 178, 196, 0.50), inset 0 0 0 1.25px rgba(170, 178, 196, 0.13), 0 30px 80px rgba(0, 0, 0, 0.45); }
+.card::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0px, rgba(255, 255, 255, 0) 12px); }
+
+.zone { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; min-height: 220px; padding: 24px; border-radius: 20px; cursor: pointer;
+  background: rgba(255, 255, 255, 0.05); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.22);
+  transition: background-color 180ms ease, box-shadow 180ms ease; }
+.zone.over { background: rgba(255, 255, 255, 0.12); box-shadow: inset 0 0 0 2px #FFFFFF, 0 0 0 6px rgba(255, 255, 255, 0.10); }
+.zone.error { box-shadow: inset 0 0 0 1.5px rgba(255, 154, 144, 0.70); }
+.zone.row { min-height: 0; padding: 14px; align-items: stretch; text-align: left; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); }
+.zone.done { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); }
+.zone input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.badge { flex: 0 0 56px; width: 56px; height: 56px; border-radius: 28px; display: flex; align-items: center;
+  justify-content: center; background: rgba(255, 255, 255, 0.12); color: #FFFFFF; }
+.over .badge { background: rgba(255, 255, 255, 0.24); }
+.error .badge { background: rgba(255, 154, 144, 0.20); color: #FFB3AB; }
+.done .badge { background: #4C9DFF; }
+.big { margin-top: 16px; font-size: 19px; line-height: 26px; font-weight: 700; }
+.small { margin-top: 4px; max-width: 300px; font-size: 16px; line-height: 23px; color: rgba(255, 255, 255, 0.78); }
+
+.file { display: flex; align-items: center; gap: 14px; }
+.thumb { position: relative; flex: 0 0 64px; width: 64px; height: 64px; border-radius: 16px; overflow: hidden;
+  background: #11161F; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); }
+.thumb img, .thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.length { position: absolute; left: 6px; bottom: 6px; height: 20px; padding: 0 6px; border-radius: 10px;
+  display: flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 700; background: rgba(0, 0, 0, 0.55); }
+.facts { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.facts b, .facts span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.facts b { font-size: 18px; line-height: 24px; font-weight: 700; }
+.facts span { font-size: 16px; line-height: 22px; color: rgba(255, 255, 255, 0.74); }
+.change { flex: 0 0 auto; height: 40px; padding: 0 14px; border-radius: 20px; display: flex; align-items: center;
+  font-size: 16px; font-weight: 600; background: rgba(255, 255, 255, 0.12); }
+.bar { display: block; margin-top: 16px; height: 8px; border-radius: 4px; overflow: hidden; background: rgba(255, 255, 255, 0.16); }
+.bar i { display: block; height: 100%; width: 0; border-radius: 4px; background: #FFFFFF; transition: width 200ms ease; }
+.state { margin-top: 8px; display: flex; justify-content: space-between; font-size: 16px; line-height: 22px;
+  color: rgba(255, 255, 255, 0.80); font-variant-numeric: tabular-nums; }
+.state span { display: inline-flex; align-items: center; gap: 8px; }
+.state b { font-weight: 700; color: #FFFFFF; }
+.spin { width: 14px; height: 14px; border-radius: 50%; border: 2.5px solid rgba(255, 255, 255, 0.22);
+  border-top-color: #FFFFFF; animation: spin 900ms linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.rules { margin: 14px 4px 0 4px; font-size: 15px; line-height: 22px; color: rgba(255, 255, 255, 0.70); }
+button { font: inherit; border: 0; margin: 16px 0 0 0; width: 100%; height: 56px; border-radius: 28px;
+  display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 600; cursor: pointer; }
+button.primary { color: #0B0C10; background: rgba(255, 255, 255, 0.95); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28); }
+button.secondary { color: #FFFFFF; background: rgba(255, 255, 255, 0.12); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); }
+button:disabled { cursor: default; color: rgba(255, 255, 255, 0.45); background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.10); }
+button:focus-visible, .zone:focus-visible { outline: 3px solid #FFFFFF; outline-offset: 4px; }
+footer { position: absolute; left: 20px; right: 20px; bottom: 28px; margin: 0; font-size: 15px; line-height: 22px;
+  color: rgba(255, 255, 255, 0.66); }
+[hidden] { display: none !important; }
+
+/* Desktop: the same card in the middle, larger, a file can also be dropped on it. */
+@media (min-width: 720px) {
+  header { padding: 28px 64px 0 64px; height: 64px; }
+  .mark { font-size: 28px; }
+  main { max-width: 900px; padding-top: 86px; display: flex; flex-direction: column; align-items: center; }
+  .intro { text-align: center; }
+  h1 { font-size: 44px; line-height: 50px; }
+  .intro p { margin-top: 12px; font-size: 19px; line-height: 28px; }
+  .card { width: 600px; margin-top: 36px; padding: 24px; border-radius: 36px; }
+  .zone { min-height: 260px; border-radius: 24px; }
+  .zone .badge { width: 64px; height: 64px; border-radius: 32px; flex-basis: 64px; }
+  .big { font-size: 20px; }
+  button { margin-top: 20px; }
+  .planet { width: 4200px; height: 4200px; top: 62%; left: 50%; }
+  .sun { width: 900px; height: 220px; top: 62%; left: 50%; }
+  .line { top: 62%; left: 50%; }
+  footer { text-align: center; }
+}
+</style>
+</head>
+<body>
+<div class="sky" aria-hidden="true"><div class="planet"></div><div class="sun"></div><div class="line"></div><div class="fade"></div><div class="grain"></div></div>
+<header>
+  <span class="mark" aria-label="novOS"><b>nov</b><span>OS</span></span>
+  <span class="tv"><i aria-hidden="true"></i><span id="tv"></span></span>
+</header>
+<main>
+  <div class="intro">
+    <h1 id="title"></h1>
+    <p id="intro"></p>
+  </div>
+  <section class="card">
+    <label class="zone" id="zone" tabindex="0">
+      <span id="empty">
+        <span class="badge" id="badge"></span>
+      </span>
+      <span class="big" id="big"></span>
+      <span class="small" id="small"></span>
+      <span class="file" id="file" hidden>
+        <span class="thumb" id="thumb"></span>
+        <span class="facts"><b id="name"></b><span id="kind"></span></span>
+        <span class="change" id="change"></span>
+      </span>
+      <span id="progress" hidden>
+        <span class="bar"><i id="fill"></i></span>
+        <span class="state"><span><span class="spin" aria-hidden="true"></span><span id="amount"></span></span><b id="percent"></b></span>
+      </span>
+      <input type="file" id="picker" accept="video/*,image/jpeg,image/png,image/heic,image/heif">
+    </label>
+    <p class="rules" id="rules"></p>
+    <button id="action" class="primary" disabled></button>
+  </section>
+</main>
+<footer id="footer"></footer>
+<script>
+var T = @TEXTS@;
+var BASE = "@BASE@", FPS = @FPS@, SOURCE = @SOURCE@, LIMIT = @LIMIT@;
+var desktop = window.matchMedia("(min-width: 720px)");
+var $ = function (id) { return document.getElementById(id); };
+var ICONS = {
+  up: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V5"/><path d="M7.5 9.5L12 5l4.5 4.5"/><path d="M5 19.5h14"/></svg>',
+  done: '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  error: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5"/><path d="M12 16.5v0.1"/><circle cx="12" cy="12" r="9"/></svg>',
+  play: '<svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5l11 6.5-11 6.5z"/></svg>'
+};
+function say(key, values) {
+  return String(T[key] || key).replace(/\{(\w+)\}/g, function (all, name) { return values && name in values ? values[name] : all; });
+}
+function mb(bytes) { return (Math.round(bytes / 104857.6) / 10).toLocaleString(document.documentElement.lang); }
+function clock(seconds) { var s = Math.round(seconds); return Math.floor(s / 60) + ":" + ("0" + s % 60).slice(-2); }
+var isVideo = function (file) { return /^video\//.test(file.type) || /\.(mp4|m4v|mov|webm)$/i.test(file.name); };
+var isImage = function (file) { return /^image\/(jpeg|png|heic|heif)$/.test(file.type) || /\.(jpe?g|png|heic|heif)$/i.test(file.name); };
+
+// One state for the card: empty, chosen, sending, done, error.
+var state = { phase: "empty", file: null, error: "", errorText: "", done: 0, total: 0, unit: "bytes" };
+var cancelled = false, current = null;
+
+function render() {
+  var phase = state.phase, zone = $("zone");
+  zone.className = "zone" + (phase === "chosen" || phase === "sending" ? " row" : "") +
+    (phase === "error" ? " error" : "") + (phase === "done" ? " done" : "") + (dragging ? " over" : "");
+  var plain = phase === "empty" || phase === "done" || phase === "error";
+  $("empty").hidden = $("big").hidden = $("small").hidden = !plain;
+  $("file").hidden = plain;
+  $("progress").hidden = phase !== "sending";
+  $("change").hidden = phase !== "chosen";
+  $("rules").hidden = phase !== "empty" && phase !== "chosen";
+  if (phase === "empty") {
+    $("badge").innerHTML = ICONS.up;
+    $("big").textContent = dragging ? T.drop : (desktop.matches ? T.pickDesktop : T.pick);
+    $("small").textContent = T.kinds;
+  } else if (phase === "done") {
+    $("badge").innerHTML = ICONS.done;
+    $("big").textContent = T.doneTitle;
+    $("small").textContent = T.doneText;
+  } else if (phase === "error") {
+    $("badge").innerHTML = ICONS.error;
+    $("big").textContent = state.error;
+    $("small").textContent = state.errorText;
+  }
+  if (phase === "sending") {
+    var share = state.total > 0 ? state.done / state.total : 0;
+    $("fill").style.width = Math.round(share * 100) + "%";
+    $("percent").textContent = Math.round(share * 100) + " %";
+    $("amount").textContent = state.unit === "prepare" ? T.preparing :
+      (state.unit === "frames" ? T.sending : say("progress", { done: mb(state.done), total: mb(state.total) }));
+  }
+  var action = $("action");
+  action.disabled = phase === "empty";
+  action.className = phase === "sending" || phase === "done" ? "secondary" : "primary";
+  action.textContent = phase === "sending" ? T.cancel : phase === "done" ? T.another :
+    phase === "error" ? T.other : T.upload;
+}
+
+function choose(file) {
+  if (!file) return;
+  state.file = file;
+  if (file.size > LIMIT) return fail("tooBig", { name: file.name, size: mb(file.size) });
+  if (!isVideo(file) && !isImage(file)) return fail("type", { name: file.name });
+  state.phase = "chosen";
+  var thumb = $("thumb"), url = URL.createObjectURL(file);
+  thumb.innerHTML = "";
+  if (isVideo(file)) {
+    var video = document.createElement("video");
+    video.muted = true; video.playsInline = true; video.preload = "metadata"; video.src = url + "#t=0.1";
+    video.onloadedmetadata = function () {
+      var badge = document.createElement("span");
+      badge.className = "length";
+      badge.innerHTML = ICONS.play + clock(video.duration || 0);
+      thumb.appendChild(badge);
+    };
+    thumb.appendChild(video);
+  } else {
+    var image = document.createElement("img");
+    image.alt = "";
+    image.src = url;
+    thumb.appendChild(image);
+  }
+  $("name").textContent = file.name;
+  $("kind").textContent = (isVideo(file) ? T.video : T.photo) + " · " + mb(file.size) + " MB";
+  render();
+}
+
+function fail(code, values) {
+  state.phase = "error";
+  state.error = say("error_" + code, values);
+  state.errorText = say("error_" + code + "_text", values);
+  render();
+}
+
+function put(path, body, headers, progress) {
+  return new Promise(function (done, failed) {
+    var request = new XMLHttpRequest();
+    current = request;
+    request.open("PUT", BASE + path);
+    for (var name in headers || {}) request.setRequestHeader(name, headers[name]);
+    if (progress) request.upload.onprogress = progress;
+    request.onload = function () {
+      var answer = {};
+      try { answer = JSON.parse(request.responseText || "{}"); } catch (error) {}
+      if (request.status === 200) done(answer);
+      else failed(request.status === 404 ? "gone" : (answer.error || "broken"));
+    };
+    request.onerror = function () { failed(cancelled ? "cancelled" : "broken"); };
+    request.onabort = function () { failed("cancelled"); };
+    request.send(body);
+  });
+}
+function wait(target, name) { return new Promise(function (done) { target.addEventListener(name, done, { once: true }); }); }
+function check() { if (cancelled) throw "cancelled"; }
+
+// 16-bit PCM WAV of a rendered AudioBuffer.
+function wav(buffer) {
+  var channels = buffer.numberOfChannels, frames = buffer.length, rate = buffer.sampleRate;
+  var bytes = new DataView(new ArrayBuffer(44 + frames * channels * 2));
+  var text = function (at, value) { for (var i = 0; i < value.length; i++) bytes.setUint8(at + i, value.charCodeAt(i)); };
+  text(0, "RIFF"); bytes.setUint32(4, 36 + frames * channels * 2, true); text(8, "WAVE"); text(12, "fmt ");
+  bytes.setUint32(16, 16, true); bytes.setUint16(20, 1, true); bytes.setUint16(22, channels, true);
+  bytes.setUint32(24, rate, true); bytes.setUint32(28, rate * channels * 2, true);
+  bytes.setUint16(32, channels * 2, true); bytes.setUint16(34, 16, true); text(36, "data");
+  bytes.setUint32(40, frames * channels * 2, true);
+  var data = [], at = 44;
+  for (var c = 0; c < channels; c++) data.push(buffer.getChannelData(c));
+  for (var f = 0; f < frames; f++) {
+    for (var k = 0; k < channels; k++) {
+      var sample = Math.max(-1, Math.min(1, data[k][f]));
+      bytes.setInt16(at, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+      at += 2;
+    }
+  }
+  return new Blob([bytes], { type: "audio/wav" });
+}
+async function sound(file, seconds) {
+  try {
+    var context = new OfflineAudioContext(2, Math.ceil(seconds * 44100), 44100);
+    var buffer = await context.decodeAudioData(await file.arrayBuffer());
+    var source = context.createBufferSource();
+    source.buffer = buffer;
+    source.connect(context.destination);
+    source.start();
+    return wav(await context.startRendering());
+  } catch (error) {
+    return null;    // no sound track, or none the browser can read
+  }
+}
+
+// The TV cannot play video files: frames and the sound go up instead (bin/novos-upload.py).
+async function sendVideo(file) {
+  state.unit = "prepare"; state.done = 0; state.total = 1; render();
+  var video = document.createElement("video");
+  video.muted = true; video.playsInline = true; video.preload = "auto";
+  video.src = URL.createObjectURL(file);
+  await wait(video, "loadeddata");
+  var seconds = Math.min(video.duration || 0, SOURCE / 1000);
+  var count = Math.max(1, Math.floor(seconds * FPS));
+  var track = await sound(file, seconds);
+  check();
+  var scale = Math.min(1280 / video.videoWidth, 720 / video.videoHeight, 1);
+  var canvas = document.createElement("canvas");
+  canvas.width = Math.round(video.videoWidth * scale);
+  canvas.height = Math.round(video.videoHeight * scale);
+  var paint = canvas.getContext("2d");
+  var begun = await put("/video?name=" + encodeURIComponent(file.name) + "&frames=" + count + "&full=" +
+                        Math.round(seconds * 1000) + "&sound=" + (track ? 1 : 0));
+  state.id = begun.id; state.unit = "frames"; state.total = count; render();
+  var batch = [];
+  for (var n = 0; n < count; n++) {
+    check();
+    video.currentTime = Math.max(0.001, n / FPS);
+    await wait(video, "seeked");
+    paint.drawImage(video, 0, 0, canvas.width, canvas.height);
+    batch.push(await new Promise(function (done) { canvas.toBlob(done, "image/jpeg", 0.8); }));
+    if (batch.length === FPS || n === count - 1) {
+      await put("/frames?id=" + begun.id + "&from=" + (n + 1 - batch.length), new Blob(batch),
+                { "X-Sizes": batch.map(function (blob) { return blob.size; }).join(",") });
+      batch = [];
+      state.done = n + 1; render();
+    }
+  }
+  if (track) await put("/sound?id=" + begun.id, track);
+  await put("/finish?id=" + begun.id);
+}
+
+// HEIC and HEIF become JPEG here; the TV shows JPEG and PNG.
+async function sendImage(file) {
+  var body = file, name = file.name;
+  if (!/^image\/(jpeg|png)$/.test(file.type) && !/\.(jpe?g|png)$/i.test(file.name)) {
+    var image = new Image();
+    image.src = URL.createObjectURL(file);
+    await image.decode();
+    var canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+    canvas.getContext("2d").drawImage(image, 0, 0);
+    body = await new Promise(function (done) { canvas.toBlob(done, "image/jpeg", 0.9); });
+    name = file.name.replace(/\.[^.]*$/, "") + ".jpg";
+  }
+  state.unit = "bytes"; state.done = 0; state.total = body.size; render();
+  await put("/image?name=" + encodeURIComponent(name), body, null, function (event) {
+    state.done = event.loaded; state.total = event.total || body.size; render();
+  });
+}
+
+async function send() {
+  var file = state.file;
+  cancelled = false; state.id = "";
+  state.phase = "sending"; render();
+  try {
+    if (isVideo(file)) await sendVideo(file); else await sendImage(file);
+    state.phase = "done"; render();
+  } catch (problem) {
+    if (state.id) put("/cancel?id=" + state.id).catch(function () {});
+    if (problem === "cancelled") { state.phase = "chosen"; render(); return; }
+    var code = { size: "tooBig", type: "type", space: "space", gone: "gone" }[problem] || "broken";
+    fail(code, { name: file.name, size: mb(file.size) });
+  }
+}
+
+$("action").onclick = function () {
+  if (state.phase === "chosen") send();
+  else if (state.phase === "sending") { cancelled = true; if (current) current.abort(); }
+  else if (state.phase === "done" || state.phase === "error") $("picker").click();
+};
+$("picker").onchange = function () { choose(this.files[0]); this.value = ""; };
+$("zone").onkeydown = function (event) { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); $("picker").click(); } };
+$("zone").addEventListener("click", function (event) { if (state.phase === "sending") event.preventDefault(); });
+var dragging = false;
+$("zone").addEventListener("dragover", function (event) {
+  event.preventDefault();
+  if (state.phase === "sending") return;
+  if (!dragging) { dragging = true; state.phase = state.phase === "error" || state.phase === "done" ? "empty" : state.phase; render(); }
+});
+$("zone").addEventListener("dragleave", function () { dragging = false; render(); });
+$("zone").addEventListener("drop", function (event) {
+  event.preventDefault();
+  dragging = false;
+  if (state.phase !== "sending" && event.dataTransfer.files.length) choose(event.dataTransfer.files[0]); else render();
+});
+desktop.addEventListener ? desktop.addEventListener("change", render) : desktop.addListener(render);
+
+$("tv").textContent = T.tv;
+$("title").textContent = T.title;
+$("intro").textContent = say("intro", { tv: T.tv });
+$("rules").textContent = T.rules;
+$("change").textContent = T.change;
+$("footer").textContent = T.footer;
+render();
+</script>
+</body>
+</html>

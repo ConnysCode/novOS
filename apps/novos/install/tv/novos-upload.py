@@ -27,7 +27,6 @@ below 150 MB free on the data partition.
 """
 
 import binascii
-import html
 import json
 import os
 import random
@@ -415,158 +414,104 @@ def wav_part(source, target, start, length):
     write_bytes(target, header + pcm)
 
 
-# ---- The page -------------------------------------------------------------------------
+# ---- The page ----------------------------------------------------------------------
+# novos-upload.html next to this file (Web-Upload-Mobil-* and Web-Upload-Desktop-* in the
+# design). The service fills in the language, these texts, the TV's name and its address.
 
 TEXTS = {
-    "de": {"title": "Ausschalt-Video", "intro": "Video oder Bild für den Fernseher auswählen.", "upload": "Hochladen",
-           "prepare": "Wird vorbereitet", "busy": "Wird hochgeladen", "done": "Fertig", "error": "Fehler",
-           "choose": "Erst eine Datei auswählen.", "type": "Nur Videos, JPEG oder PNG.", "size": "Größer als 200 MB."},
-    "en": {"title": "Power-off video", "intro": "Choose a video or picture for the TV.", "upload": "Upload",
-           "prepare": "Preparing", "busy": "Uploading", "done": "Done", "error": "Error",
-           "choose": "Choose a file first.", "type": "Only videos, JPEG or PNG.", "size": "Larger than 200 MB."},
-    "es": {"title": "Vídeo de apagado", "intro": "Elige un vídeo o una imagen para el TV.", "upload": "Subir",
-           "prepare": "Preparando", "busy": "Subiendo", "done": "Listo", "error": "Error",
-           "choose": "Primero elige un archivo.", "type": "Solo vídeos, JPEG o PNG.", "size": "Más de 200 MB."},
-    "fr": {"title": "Vidéo d'extinction", "intro": "Choisis une vidéo ou une image pour le téléviseur.",
-           "upload": "Envoyer", "prepare": "Préparation", "busy": "Envoi", "done": "Terminé", "error": "Erreur",
-           "choose": "Choisis d'abord un fichier.", "type": "Uniquement des vidéos, JPEG ou PNG.",
-           "size": "Plus de 200 Mo."},
+    "de": {
+        "title": "Fürs Ausschalten hochladen", "intro": "Ein Video oder Foto, das „{tv}“ beim Ausschalten zeigt.",
+        "pick": "Datei auswählen", "pickDesktop": "Datei hierher ziehen oder auswählen",
+        "drop": "Loslassen zum Auswählen", "kinds": "Video oder Foto",
+        "rules": "MP4, MOV, JPG, PNG oder HEIC · bis 200 MB. Längere Videos schneidest du am Fernseher zu.",
+        "upload": "Hochladen", "change": "Ändern", "cancel": "Abbrechen", "video": "Video", "photo": "Foto",
+        "progress": "{done} von {total} MB", "preparing": "Wird vorbereitet", "sending": "Wird übertragen",
+        "doneTitle": "Ist auf dem Fernseher", "doneText": "Schneide es dort zu und übernimm es mit OK.",
+        "another": "Weitere Datei hochladen", "other": "Andere Datei wählen",
+        "error_tooBig": "Diese Datei ist zu groß", "error_tooBig_text": "{name} hat {size} MB, erlaubt sind 200 MB.",
+        "error_type": "Diese Datei geht nicht", "error_type_text": "Nur Videos, JPG, PNG oder HEIC.",
+        "error_space": "Kein Platz mehr", "error_space_text": "Lösch am Fernseher ein eigenes Video und versuch es noch einmal.",
+        "error_gone": "Der Code ist abgelaufen", "error_gone_text": "Öffne die Seite am Fernseher neu und scanne den neuen Code.",
+        "error_broken": "Übertragung abgebrochen", "error_broken_text": "Prüf das WLAN und versuch es noch einmal.",
+        "footer": "Diese Seite kommt direkt von deinem Fernseher und ist nur in deinem WLAN erreichbar.",
+        "tv": "Fernseher"},
+    "en": {
+        "title": "Upload for switching off", "intro": "A video or photo that “{tv}” shows when it switches off.",
+        "pick": "Choose a file", "pickDesktop": "Drag a file here or choose one",
+        "drop": "Drop to choose", "kinds": "Video or photo",
+        "rules": "MP4, MOV, JPG, PNG or HEIC · up to 200 MB. You trim longer videos on the TV.",
+        "upload": "Upload", "change": "Change", "cancel": "Cancel", "video": "Video", "photo": "Photo",
+        "progress": "{done} of {total} MB", "preparing": "Preparing", "sending": "Transferring",
+        "doneTitle": "It is on the TV", "doneText": "Trim it there and apply it with OK.",
+        "another": "Upload another file", "other": "Choose another file",
+        "error_tooBig": "This file is too large", "error_tooBig_text": "{name} has {size} MB, 200 MB are allowed.",
+        "error_type": "This file does not work", "error_type_text": "Only videos, JPG, PNG or HEIC.",
+        "error_space": "No space left", "error_space_text": "Delete one of your videos on the TV and try again.",
+        "error_gone": "The code has expired", "error_gone_text": "Open the page on the TV again and scan the new code.",
+        "error_broken": "The transfer broke off", "error_broken_text": "Check the Wi-Fi and try again.",
+        "footer": "This page comes straight from your TV and works only in your Wi-Fi.",
+        "tv": "TV"},
+    "es": {
+        "title": "Subir para el apagado", "intro": "Un vídeo o una foto que «{tv}» muestra al apagarse.",
+        "pick": "Elegir archivo", "pickDesktop": "Arrastra un archivo aquí o elígelo",
+        "drop": "Suelta para elegir", "kinds": "Vídeo o foto",
+        "rules": "MP4, MOV, JPG, PNG o HEIC · hasta 200 MB. Los vídeos largos los recortas en el TV.",
+        "upload": "Subir", "change": "Cambiar", "cancel": "Cancelar", "video": "Vídeo", "photo": "Foto",
+        "progress": "{done} de {total} MB", "preparing": "Preparando", "sending": "Transfiriendo",
+        "doneTitle": "Ya está en el TV", "doneText": "Recórtalo allí y aplícalo con OK.",
+        "another": "Subir otro archivo", "other": "Elegir otro archivo",
+        "error_tooBig": "Este archivo es demasiado grande", "error_tooBig_text": "{name} tiene {size} MB, se permiten 200 MB.",
+        "error_type": "Este archivo no sirve", "error_type_text": "Solo vídeos, JPG, PNG o HEIC.",
+        "error_space": "No queda espacio", "error_space_text": "Elimina uno de tus vídeos en el TV y vuelve a intentarlo.",
+        "error_gone": "El código ha caducado", "error_gone_text": "Vuelve a abrir la página en el TV y escanea el código nuevo.",
+        "error_broken": "La transferencia se interrumpió", "error_broken_text": "Comprueba la Wi-Fi y vuelve a intentarlo.",
+        "footer": "Esta página viene directamente de tu TV y solo funciona en tu Wi-Fi.",
+        "tv": "TV"},
+    "fr": {
+        "title": "Envoyer pour l’extinction", "intro": "Une vidéo ou une photo que « {tv} » affiche à l’extinction.",
+        "pick": "Choisir un fichier", "pickDesktop": "Glissez un fichier ici ou choisissez-en un",
+        "drop": "Relâchez pour choisir", "kinds": "Vidéo ou photo",
+        "rules": "MP4, MOV, JPG, PNG ou HEIC · jusqu’à 200 Mo. Les vidéos plus longues se découpent sur le téléviseur.",
+        "upload": "Envoyer", "change": "Changer", "cancel": "Annuler", "video": "Vidéo", "photo": "Photo",
+        "progress": "{done} sur {total} Mo", "preparing": "Préparation", "sending": "Transfert",
+        "doneTitle": "C’est sur le téléviseur", "doneText": "Découpez-la là-bas et validez avec OK.",
+        "another": "Envoyer un autre fichier", "other": "Choisir un autre fichier",
+        "error_tooBig": "Ce fichier est trop volumineux", "error_tooBig_text": "{name} fait {size} Mo, 200 Mo sont autorisés.",
+        "error_type": "Ce fichier ne convient pas", "error_type_text": "Uniquement des vidéos, JPG, PNG ou HEIC.",
+        "error_space": "Plus de place", "error_space_text": "Supprimez une de vos vidéos sur le téléviseur et réessayez.",
+        "error_gone": "Le code a expiré", "error_gone_text": "Rouvrez la page sur le téléviseur et scannez le nouveau code.",
+        "error_broken": "Le transfert a été interrompu", "error_broken_text": "Vérifiez le Wi-Fi et réessayez.",
+        "footer": "Cette page vient directement de votre téléviseur et ne fonctionne que sur votre Wi-Fi.",
+        "tv": "Téléviseur"},
 }
 
-ERRORS = {
-    "de": {"space": "Kein Platz mehr auf dem Fernseher.", "broken": "Übertragung abgebrochen."},
-    "en": {"space": "No space left on the TV.", "broken": "The transfer broke off."},
-    "es": {"space": "No queda espacio en el TV.", "broken": "La transferencia se interrumpió."},
-    "fr": {"space": "Plus de place sur le téléviseur.", "broken": "Le transfert a été interrompu."},
-}
+HERE = os.path.dirname(os.path.abspath(__file__))
+FONTS = {"title": "novos-inter-title.ttf", "row": "novos-inter-row.ttf", "value": "novos-inter-value.ttf"}
 
-# Plain on purpose: a heading, a sentence, the file picker, one button, one status line.
-PAGE = """<!doctype html>
-<html lang="{lang}">
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width">
-<title>novOS</title>
-<h1>{title}</h1>
-<p>{intro}</p>
-<p><input type="file" id="files" multiple accept="video/*,image/jpeg,image/png"></p>
-<p><button id="send">{upload}</button></p>
-<p id="status"></p>
-<script>
-var texts = {texts};
-var base = "{base}";
-var FPS = {fps}, SOURCE = {source}, LIMIT = {limit};
-var line = document.getElementById("status");   // not "status": that is window.status
-function show(text) {{ line.textContent = text; }}
-function put(path, body, headers) {{
-  return new Promise(function (done, failed) {{
-    var request = new XMLHttpRequest();
-    request.open("PUT", base + path);
-    for (var name in headers || {{}}) request.setRequestHeader(name, headers[name]);
-    request.onload = function () {{
-      if (request.status === 200) done(JSON.parse(request.responseText));
-      else failed(request.responseText || String(request.status));
-    }};
-    request.onerror = function () {{ failed(""); }};
-    request.send(body);
-  }});
-}}
-function wait(target, name) {{
-  return new Promise(function (done) {{ target.addEventListener(name, done, {{ once: true }}); }});
-}}
-// 16-bit PCM WAV of a rendered AudioBuffer.
-function wav(buffer) {{
-  var channels = buffer.numberOfChannels, frames = buffer.length, rate = buffer.sampleRate;
-  var bytes = new DataView(new ArrayBuffer(44 + frames * channels * 2));
-  function text(at, value) {{ for (var i = 0; i < value.length; i++) bytes.setUint8(at + i, value.charCodeAt(i)); }}
-  text(0, "RIFF"); bytes.setUint32(4, 36 + frames * channels * 2, true); text(8, "WAVE"); text(12, "fmt ");
-  bytes.setUint32(16, 16, true); bytes.setUint16(20, 1, true); bytes.setUint16(22, channels, true);
-  bytes.setUint32(24, rate, true); bytes.setUint32(28, rate * channels * 2, true);
-  bytes.setUint16(32, channels * 2, true); bytes.setUint16(34, 16, true); text(36, "data");
-  bytes.setUint32(40, frames * channels * 2, true);
-  var data = [];
-  for (var c = 0; c < channels; c++) data.push(buffer.getChannelData(c));
-  var at = 44;
-  for (var f = 0; f < frames; f++) {{
-    for (var k = 0; k < channels; k++) {{
-      var sample = Math.max(-1, Math.min(1, data[k][f]));
-      bytes.setInt16(at, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
-      at += 2;
-    }}
-  }}
-  return new Blob([bytes], {{ type: "audio/wav" }});
-}}
-async function sound(file, seconds) {{
-  try {{
-    var context = new OfflineAudioContext(2, Math.ceil(seconds * 44100), 44100);
-    var buffer = await context.decodeAudioData(await file.arrayBuffer());
-    var source = context.createBufferSource();
-    source.buffer = buffer;
-    source.connect(context.destination);
-    source.start();
-    return wav(await context.startRendering());
-  }} catch (error) {{
-    return null;    // no sound track, or none the browser can read
-  }}
-}}
-// The TV cannot play video files: frames and sound go up instead.
-async function sendVideo(file) {{
-  show(texts.prepare + " " + file.name);
-  var video = document.createElement("video");
-  video.muted = true;
-  video.playsInline = true;
-  video.preload = "auto";
-  video.src = URL.createObjectURL(file);
-  await wait(video, "loadeddata");
-  var seconds = Math.min(video.duration || 0, SOURCE / 1000);
-  var count = Math.max(1, Math.floor(seconds * FPS));
-  var track = await sound(file, seconds);
-  var scale = Math.min(1280 / video.videoWidth, 720 / video.videoHeight, 1);
-  var canvas = document.createElement("canvas");
-  canvas.width = Math.round(video.videoWidth * scale);
-  canvas.height = Math.round(video.videoHeight * scale);
-  var paint = canvas.getContext("2d");
-  var begun = await put("/video?name=" + encodeURIComponent(file.name) + "&frames=" + count + "&full=" +
-                        Math.round(seconds * 1000) + "&sound=" + (track ? 1 : 0));
-  var batch = [];
-  for (var n = 0; n < count; n++) {{
-    video.currentTime = Math.max(0.001, n / FPS);
-    await wait(video, "seeked");
-    paint.drawImage(video, 0, 0, canvas.width, canvas.height);
-    batch.push(await new Promise(function (done) {{ canvas.toBlob(done, "image/jpeg", 0.8); }}));
-    if (batch.length === FPS || n === count - 1) {{
-      await put("/frames?id=" + begun.id + "&from=" + (n + 1 - batch.length), new Blob(batch),
-                {{ "X-Sizes": batch.map(function (blob) {{ return blob.size; }}).join(",") }});
-      batch = [];
-      show(texts.busy + " " + file.name + " " + Math.round(100 * (n + 1) / count) + " %");
-    }}
-  }}
-  if (track) await put("/sound?id=" + begun.id, track);
-  await put("/finish?id=" + begun.id);
-}}
-document.getElementById("send").onclick = async function () {{
-  var files = document.getElementById("files").files;
-  if (!files.length) {{ show(texts.choose); return; }}
-  for (var i = 0; i < files.length; i++) {{
-    var file = files[i];
-    try {{
-      if (file.size > LIMIT) throw texts.size;
-      if (/^video\\//.test(file.type) || /\\.(mp4|m4v|mov|webm)$/i.test(file.name)) {{
-        await sendVideo(file);
-      }} else if (/^image\\/(jpeg|png)$/.test(file.type) || /\\.(jpe?g|png)$/i.test(file.name)) {{
-        await put("/image?name=" + encodeURIComponent(file.name), file);
-      }} else {{
-        throw texts.type;
-      }}
-      show(texts.done + ": " + file.name);
-    }} catch (error) {{
-      show(texts.error + ": " + file.name + " " + error);
-      return;
-    }}
-  }}
-}};
-</script>
-</html>
-"""
+
+def tv_name():
+    """The name of the TV from LG's settings, through the supervisor's luna helper."""
+    try:
+        text = subprocess.run(["python3", os.path.join(HERE, "novos-supervisor.py"), "call",
+                               "luna://com.webos.settingsservice/getSystemSettings",
+                               json.dumps({"category": "network", "keys": ["deviceName"]})],
+                              capture_output=True, text=True, timeout=10).stdout
+        name = json.loads(text or "{}").get("settings", {}).get("deviceName", "")
+        return str(name)[:40]
+    except (OSError, ValueError, subprocess.SubprocessError, AttributeError):
+        return ""
+
+
+def page_html(lang, base, name):
+    with open(os.path.join(HERE, "novos-upload.html"), encoding="utf-8") as file:
+        page = file.read()
+    texts = dict(TEXTS[lang])
+    if name:
+        texts["tv"] = name
+    # JSON inside <script>: no closing tag may come out of a name.
+    words = json.dumps(texts, ensure_ascii=False).replace("</", "<\\/")
+    return (page.replace("@LANG@", lang).replace("@BASE@", base).replace("@TEXTS@", words)
+                .replace("@FPS@", str(FPS)).replace("@SOURCE@", str(SOURCE_LIMIT)).replace("@LIMIT@", str(FILE_LIMIT)))
 
 
 def language(header):
@@ -605,6 +550,7 @@ class Service:
         self.written = 0.0
         self.revision = 0            # counts the changes of index.json in this run
         self.receiving = {}          # id -> the entry of a video whose frames come in
+        self.name = ""               # the TV's name, for the page
         self.server = None
 
     # State for the TV, at most a few times a second while bytes arrive.
@@ -643,7 +589,7 @@ class Service:
         os.makedirs(self.media, exist_ok=True)
         stat = os.statvfs(self.media)
         if self.used() + length > MEDIA_LIMIT or stat.f_bavail * stat.f_frsize - length < KEEP_FREE:
-            raise Refused(507, ERRORS[lang]["space"])
+            raise Refused(507, "space")
 
     def new_id(self):
         time.sleep(0.002)
@@ -660,6 +606,7 @@ class Service:
                 # Short enough to type on a computer, without letters that look alike.
                 self.token = "".join(random.SystemRandom().choice(CODE_LETTERS) for _ in range(5))
                 host = address()
+                self.name = tv_name()
                 self.url = "http://%s:%d/%s" % (host, self.port, self.token) if host else ""
                 if self.url:
                     self.qr = "%s/qr-%s.png" % (self.folder, self.token)
@@ -716,9 +663,9 @@ class Service:
     def receive_image(self, handler, name, length, lang):
         extension = os.path.splitext(name)[1].lower()
         if extension not in IMAGE_TYPES:
-            raise Refused(415, TEXTS[lang]["type"])
+            raise Refused(415, "type")
         if length <= 0 or length > FILE_LIMIT:
-            raise Refused(413, TEXTS[lang]["size"])
+            raise Refused(413, "size")
         self.room_for(length, lang)
         entry_id = self.new_id()
         target = os.path.join(self.media, entry_id + extension)
@@ -751,12 +698,12 @@ class Service:
     def receive_frames(self, handler, entry_id, first, sizes, length, lang):
         entry = self.receiving.get(entry_id)
         if entry is None or sum(sizes) != length or first < 0 or first + len(sizes) > entry["frames"]:
-            raise Refused(400, ERRORS[lang]["broken"])
+            raise Refused(400, "broken")
         folder = os.path.join(self.media, entry["folder"])
         for offset, size in enumerate(sizes):
             data = handler.rfile.read(size)
             if len(data) < size or not data.startswith(b"\xff\xd8"):
-                raise Refused(400, ERRORS[lang]["broken"])
+                raise Refused(400, "broken")
             write_bytes(os.path.join(folder, "%04d.jpg" % (first + offset)), data)
         with self.lock:
             self.upload["done"] = max(self.upload.get("done", 0), first + len(sizes))
@@ -767,7 +714,7 @@ class Service:
     def receive_sound(self, handler, entry_id, length, lang):
         entry = self.receiving.get(entry_id)
         if entry is None or length <= 0 or length > 16 * 1024 * 1024:
-            raise Refused(400, ERRORS[lang]["broken"])
+            raise Refused(400, "broken")
         folder = os.path.join(self.media, entry["folder"])
         self.save_body(handler, os.path.join(folder, "full.wav"), length, lang, counted=False)
         try:
@@ -779,7 +726,7 @@ class Service:
     def finish_video(self, entry_id, lang):
         entry = self.receiving.pop(entry_id, None)
         if entry is None:
-            raise Refused(400, ERRORS[lang]["broken"])
+            raise Refused(400, "broken")
         folder = os.path.join(self.media, entry["folder"])
         present = len([name for name in os.listdir(folder) if name.endswith(".jpg")])
         if present < entry["frames"]:
@@ -787,11 +734,21 @@ class Service:
             with self.lock:
                 self.phase, self.error = "error", "broken"
                 self.publish()
-            raise Refused(400, ERRORS[lang]["broken"])
+            raise Refused(400, "broken")
         if entry["sound"] and not os.path.exists(os.path.join(folder, "play.wav")):
             entry["sound"] = False
         self.finished(entry)
         return {"id": entry_id, "kind": "video"}
+
+    def cancel_video(self, entry_id):
+        """The page stopped a video half way: its frames go."""
+        entry = self.receiving.pop(entry_id, None)
+        if entry is not None:
+            shutil.rmtree(os.path.join(self.media, entry["folder"]), ignore_errors=True)
+            with self.lock:
+                self.phase, self.upload = "waiting", {}
+                self.publish()
+        return {"id": entry_id}
 
     def started(self, name, length):
         with self.lock:
@@ -825,7 +782,7 @@ class Service:
             with self.lock:
                 self.phase, self.error = "error", "broken"
                 self.publish()
-            raise Refused(400, ERRORS[lang]["broken"])
+            raise Refused(400, "broken")
         os.replace(partial, target)
 
     def finished(self, entry):
@@ -868,14 +825,20 @@ class Service:
                 found = self.valid()
                 if found is None:
                     return
-                if found[0] not in ([], [""]):
+                parts = found[0]
+                if len(parts) == 2 and parts[0] == "font" and parts[1][:-4] in FONTS:
+                    # The TV's own Inter cuts, beside the release's bin folder.
+                    try:
+                        with open(os.path.join(HERE, "..", FONTS[parts[1][:-4]]), "rb") as file:
+                            self.answer(200, "font/ttf", file.read())
+                    except OSError:
+                        self.answer(404, "text/plain", b"")
+                    return
+                if parts not in ([], [""]):
                     self.answer(404, "text/plain", b"")
                     return
                 lang = language(self.headers.get("Accept-Language"))
-                words = TEXTS[lang]
-                page = PAGE.format(lang=lang, title=html.escape(words["title"]), intro=html.escape(words["intro"]),
-                                   upload=html.escape(words["upload"]), texts=json.dumps(words),
-                                   base="/" + service.token, fps=FPS, source=SOURCE_LIMIT, limit=FILE_LIMIT)
+                page = page_html(lang, "/" + service.token, service.name)
                 self.answer(200, "text/html; charset=utf-8", page.encode("utf-8"))
 
             def do_PUT(self):
@@ -902,15 +865,17 @@ class Service:
                         result = service.receive_sound(self, query.get("id", ""), length, lang)
                     elif parts == ["finish"]:
                         result = service.finish_video(query.get("id", ""), lang)
+                    elif parts == ["cancel"]:
+                        result = service.cancel_video(query.get("id", ""))
                     else:
-                        raise Refused(404, "")
+                        raise Refused(404, "unknown")
                 except Refused as refused:
                     self.close_connection = True
-                    self.answer(refused.status, "text/plain; charset=utf-8", refused.message.encode("utf-8"))
+                    self.answer(refused.status, "application/json", json.dumps({"error": refused.message}).encode("utf-8"))
                     return
                 except (ValueError, OSError):
                     self.close_connection = True
-                    self.answer(400, "text/plain; charset=utf-8", ERRORS[lang]["broken"].encode("utf-8"))
+                    self.answer(400, "application/json", json.dumps({"error": "broken"}).encode("utf-8"))
                     return
                 self.answer(200, "application/json", json.dumps(result).encode("utf-8"))
 
