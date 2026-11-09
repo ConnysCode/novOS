@@ -245,7 +245,7 @@ function rowVisible(row, ctx, depth) {
     }
     if (row.type === "choice" && choiceOptions(row, ctx).length === 0) return false;
     // A single value as its own row, like one output on the sound output page.
-    if (row.type === "option" && key) {
+    if (row.type === "option" && key && key.indexOf("novos.") !== 0) {
         var listed = (ctx.desc(key) || {}).values;
         var values = listed && listed.arrayExt ? listed.arrayExt : [];
         var found = false;
@@ -430,6 +430,8 @@ function resolveRow(row, ctx) {
         focusable: row.focusable !== false,
         external: row.type === "lgApp",
         danger: row.danger === true,
+        thumb: row.thumb || "",
+        preview: row.preview || null,
         row: row
     };
     if (row.type === "toggle") resolved.on = toggleOn(row, ctx);
@@ -493,8 +495,13 @@ function resolvePage(store, i18n, areaId, pageId, param) {
             else rows.push(resolveRow(row, ctx));
         }
         if (rows.length === 0) continue;
+        var keys = [];
+        for (var k = 0; k < (section.keys || []).length; k++) {
+            keys.push({ cap: section.keys[k].cap, text: ctx.t(section.keys[k].text) });
+        }
         sections.push({ title: section.title ? ctx.t(section.title) : "", rows: rows,
-                        note: section.note ? ctx.t(call(section.note, ctx)) : "" });
+                        note: section.note ? ctx.t(call(section.note, ctx)) : "",
+                        columns: section.columns || 0, keys: keys });
         all = all.concat(rows);
     }
     var title = typeof page.title === "function" ? page.title(ctx) : ctx.t(page.title);

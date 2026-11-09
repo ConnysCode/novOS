@@ -21,6 +21,7 @@ OUTPUT = pathlib.Path(__file__).parent / "icons"
 WIFI = ["M3.5 9.5a12 12 0 0 1 17 0", "M6.5 12.8a7.5 7.5 0 0 1 11 0",
         "M9.5 16a3 3 0 0 1 5 0", "M12 19.2v0.1"]
 WIFI_OFF = WIFI + ["M4 4l16 16"]
+PLAY = '<path d="M8 5.5l11 6.5-11 6.5z" fill="currentColor"/>'
 LAN = ["M5 6.5h14v9h-3.5v3h-7v-3H5z", "M9 10.5v2M12 10.5v2M15 10.5v2"]
 
 def signal(level):
@@ -222,6 +223,9 @@ ICONS = [
     ("volume-soundbar-30", 30, 1.7, SOUNDBAR, LIGHT_ONLY),
     ("volume-headphones-30", 30, 1.7, HEADPHONES, LIGHT_ONLY),
     ("row-allSettings", 30, 1.6, dict(SETTINGS_AREAS)["system"], BOTH),
+    # The play key: in the key hint under the shutdown videos and in their preview pill.
+    ("play-14", 14, 1.8, PLAY, LIGHT_ONLY),
+    ("play-18", 18, 1.8, PLAY, LIGHT_ONLY),
 ] + [(f"settings-{name}", 28, 1.7, body, BOTH) for name, body in SETTINGS_AREAS] + [
     (f"device-{name}", 36, 1.5, body, BOTH) for name, body in DEVICES] + [
     (f"device-{name}-48", 48, 1.5, body, LIGHT_ONLY) for name, body in DEVICES]

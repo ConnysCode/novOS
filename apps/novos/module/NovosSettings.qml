@@ -9,6 +9,7 @@ QtObject {
 
     property alias hideInputBanner: values.hideInputBanner
     property alias demoDevices: values.demoDevices
+    property alias shutdownScreen: values.shutdownScreen
 
     // LG's Home starts its preview with this role, and its input apps then leave out their
     // banner. It lasts until the next launch of that input, and touches a few of LG's
@@ -26,5 +27,8 @@ QtObject {
         fileName: "/tmp/novos-debug.ini"
         property bool hideInputBanner: true
         property bool demoDevices: false     // the smart home hub's made-up home
+        // An id of ShutdownScreens.js. The overlay of LG's MasterBrand.qml reads the line
+        // "shutdownScreen=<id>" from this file at power off.
+        property string shutdownScreen: "lg"
     }
 }

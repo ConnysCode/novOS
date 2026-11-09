@@ -78,6 +78,8 @@ cp "$LIB"/fonts/novos-inter-*.ttf "$OUT/"
 state < "$HERE/banner-relay.py" > "$OUT/banner-relay.py"
 cp "$HERE/toast-filter.inc" "$HERE/settings-redirect.inc" "$HERE/launcher-home-key.inc" "$HERE/fullscreen-home.inc" "$HERE/splash-hide.inc" "$HERE/launcher-home.inc" "$HERE/launcher-stays.inc" \
     "$INSTALL/lg-targets.txt" "$OUT/"
+# The overlay of LG's MasterBrand.qml loads our shutdown screen from this release.
+sed -e "s#@PANEL@#$PANEL#g" "$HERE/shutdown-screen.inc" | state > "$OUT/shutdown-screen.inc"
 for file in "$INSTALL"/tv/*; do [ ! -f "$file" ] || cp "$file" "$OUT/bin/"; done
 # What novos-updater.py checks the setup's updater with, and the keys it trusts.
 mkdir -p "$OUT/bin/release"

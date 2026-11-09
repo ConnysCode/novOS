@@ -155,7 +155,7 @@ selfcheck() {
         esac
     done
     for file in selfcheck.qml selfcheck-keys.qml; do
-        sed "s#@RELEASE@#$check/release#g" "$BIN/$file" > "$check/$file"
+        sed -e "s#@RELEASE@#$check/release#g" -e "s#@REAL@#$real#g" "$BIN/$file" > "$check/$file"
     done
     lg_dir=$(dirname "$(awk '$1 == "Services.qml" { print $2 }' "$PANEL/lg-targets.txt")")
     for file in "$lg_dir"/*; do ln -s "$file" "$check/notification/"; done
@@ -186,6 +186,14 @@ selfcheck() {
     ln -s "$real/StarfishFullscreenContainer.qml" "$check/compositor/views/fullscreen/StarfishFullscreenContainer.qml"
     ln -s "$real/StarfishImageSplash.qml" "$check/compositor/views/StarfishImageSplash.qml"
     ln -s "$check/release/StarfishVolumeView.qml" "$check/compositor/views/StarfishVolumeView.qml"
+    # LG's MasterBrand.qml loads Device/ and Dummy/ beside it: its folder from symlinks, with
+    # our copy in place of LG's.
+    brand=$(awk '$1 == "MasterBrand.qml" { print $2 }' "$PANEL/lg-targets.txt")
+    mkdir -p "$check/masterbrand"
+    for file in "$(dirname "$brand")"/*; do
+        [ "${file##*/}" = MasterBrand.qml ] || ln -s "$file" "$check/masterbrand/"
+    done
+    ln -s "$check/release/MasterBrand.qml" "$check/masterbrand/MasterBrand.qml"
     # The window runs as LG's StoreStreamer: no key opens that before the mount. As the
     # quick menu it collided with a menu the user had open, and nothing was checked.
     attempt=0

@@ -135,6 +135,7 @@ Item {
         if (!settings.store.values.novos) settings.store.values.novos = {};
         settings.store.values.novos.hideInputBanner = NovosSettings.hideInputBanner;
         settings.store.values.novos.keyboardMode = GlassStyle.keyboardMode;
+        settings.store.values.novos.shutdownScreen = NovosSettings.shutdownScreen;
         settings.store.values.novos.updateChannel = settings.store.state.updateChannel || "stable";
         settings.store.values.novos.blockUpdates = settings.store.state.blockUpdates === true ? "on" : "off";
     }
@@ -142,6 +143,7 @@ Item {
     function writeNovos(name, value) {
         if (name === "hideInputBanner") NovosSettings.hideInputBanner = value === true || value === "on";
         else if (name === "keyboardMode") GlassStyle.keyboardMode = String(value);
+        else if (name === "shutdownScreen") NovosSettings.shutdownScreen = String(value);
         else if (name === "updateChannel") {
             // The updater stores it; a check of the new channel follows its answer.
             settings.store.state.updateChannel = String(value);

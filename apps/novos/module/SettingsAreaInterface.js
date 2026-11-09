@@ -1,4 +1,5 @@
 .pragma library
+.import "ShutdownScreens.js" as ShutdownScreens
 
 // Area 06 "Oberfläche" of the settings modal. LG's part comes from "System ›
 // Zusätzliche Einstellungen" (Home settings, screen saver, pointer options); the
@@ -42,6 +43,26 @@ function powerOnOptions(ctx) {
     return options;
 }
 
+// One tile per entry of ShutdownScreens.js: name, maker and length, the picture as thumb.
+function shutdownTiles() {
+    var rows = [];
+    for (var i = 0; i < ShutdownScreens.entries.length; i++) {
+        var entry = ShutdownScreens.entries[i];
+        rows.push({ id: "shutdown:" + entry.id, type: "option", key: "novos.shutdownScreen", option: entry.id,
+                    title: "value.shutdown_screen." + entry.id, thumb: "shutdown:" + entry.id,
+                    preview: { action: "previewShutdown", params: { id: entry.id } },
+                    subtitle: (function (shown) {
+                        return function (ctx) {
+                            var seconds = Math.round(shown.duration / 1000);
+                            return ctx.t("detail.shutdown_video." + shown.source,
+                                         { length: ctx.t(seconds === 1 ? "value.second" : "value.seconds",
+                                                         { count: seconds }) });
+                        };
+                    })(entry) });
+    }
+    return rows;
+}
+
 var area = {
     id: "interface",
     icon: "interface",
@@ -78,6 +99,15 @@ var area = {
                 ]
             },
             {
+                // What the TV shows when it switches off (K3-Ausschalt-1), see ShutdownScreens.js.
+                title: "section.power_off",
+                rows: [
+                    { id: "shutdownVideo", type: "page", page: "shutdownVideo", title: "row.shutdown_video",
+                      value: function (ctx) { return ctx.label("novos.shutdownScreen", ctx.val("novos.shutdownScreen")); },
+                      search: "search.shutdown_video" }
+                ]
+            },
+            {
                 title: "section.keyboard",
                 rows: [
                     { id: "keyboardMode", type: "choice", key: "novos.keyboardMode", values: ["qwertz", "t9"],
@@ -104,6 +134,19 @@ var area = {
         ]
     },
     pages: {
+        // K3-Ausschalt-2-Auswahl: tiles in three columns, the check marks the active one.
+        // OK chooses, the play key plays the preview over the whole screen.
+        shutdownVideo: {
+            id: "shutdownVideo",
+            title: "page.shutdown_video",
+            sections: [
+                {
+                    columns: 3,
+                    keys: [{ cap: "play", text: "hint.play_preview" }, { cap: "OK", text: "hint.ok_choose" }],
+                    rows: shutdownTiles()
+                }
+            ]
+        },
         hints: {
             id: "hints",
             title: "page.hints",

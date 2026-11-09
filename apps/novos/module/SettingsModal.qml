@@ -54,6 +54,9 @@ Item {
     readonly property real sectionGap: 32
     readonly property real sectionTitle: 30    // 20 px label and 10 px to the list
     readonly property real listGap: 28
+    readonly property real tileWidth: 360         // K3-Ausschalt-2: 8 + 203 picture + 12 + text + 14
+    readonly property real tileHeight: 287
+    readonly property real tileGap: 12
     readonly property int pageDuration: GlassStyle.pageDuration
     readonly property real pageShift: GlassStyle.pageShift
 
@@ -183,6 +186,10 @@ Item {
         var items = [];
         var rowY = [];
         var rowH = [];
+        var rowX = [];
+        var rowW = [];
+        var rowCol = [];      // column in a grid of tiles, -1 for a plain row
+        var rowCols = [];     // columns of that grid
         var y = 0;
         // Head block of Über novOS: word mark, version, what it runs on.
         if (current.hero) {
@@ -196,13 +203,42 @@ Item {
                 items.push({ kind: "section", y: y, text: section.title });
                 y += sectionTitle;
             }
-            for (var r = 0; r < section.rows.length; r++) {
-                var row = section.rows[r];
-                var height = rowHeight(row);
-                items.push({ kind: "row", y: y, h: height, row: row, index: rowY.length });
-                rowY.push(y);
-                rowH.push(height);
-                y += height + (r < section.rows.length - 1 ? rowGap : 0);
+            if (section.columns > 0) {
+                // Tiles (K3-Ausschalt-2): columns of tileWidth spread over the pane.
+                var columns = section.columns;
+                var step = tileWidth + (paneWidth - columns * tileWidth) / Math.max(1, columns - 1);
+                for (var t = 0; t < section.rows.length; t++) {
+                    var column = t % columns;
+                    if (t > 0 && column === 0) y += tileHeight + tileGap;
+                    var tile = section.rows[t];
+                    items.push({ kind: "tile", x: column * step, y: y, w: tileWidth, h: tileHeight, row: tile,
+                                 index: rowY.length });
+                    rowX.push(column * step);
+                    rowW.push(tileWidth);
+                    rowY.push(y);
+                    rowH.push(tileHeight);
+                    rowCol.push(column);
+                    rowCols.push(columns);
+                }
+                if (section.rows.length > 0) y += tileHeight;
+            } else {
+                for (var r = 0; r < section.rows.length; r++) {
+                    var row = section.rows[r];
+                    var height = rowHeight(row);
+                    items.push({ kind: "row", y: y, h: height, row: row, index: rowY.length });
+                    rowX.push(0);
+                    rowW.push(paneWidth);
+                    rowY.push(y);
+                    rowH.push(height);
+                    rowCol.push(-1);
+                    rowCols.push(0);
+                    y += height + (r < section.rows.length - 1 ? rowGap : 0);
+                }
+            }
+            // The keys of the page and what they do, under the tiles.
+            if (section.keys && section.keys.length > 0) {
+                items.push({ kind: "keys", y: y + 20, h: 30, keys: section.keys });
+                y += 20 + 30;
             }
             if (section.note) {
                 items.push({ kind: "note", y: y + 14, text: section.note });
@@ -214,7 +250,8 @@ Item {
             y += 14 + 52;
         }
         PerfProbe.cost("modal.layout", started, items.length + " items");
-        return { items: items, rowY: rowY, rowH: rowH, height: y };
+        return { items: items, rowY: rowY, rowH: rowH, rowX: rowX, rowW: rowW, rowCol: rowCol, rowCols: rowCols,
+                 height: y };
     }
 
     readonly property real headerHeight: (stack.length > 0 ? 34 : 0) + 48 + (page.subtitle !== "" ? 30 : 0)
@@ -273,8 +310,12 @@ Item {
             return Qt.rect(tabX, tabY(sideIndex - 1), tabWidth, tabHeight);
         }
         if (layout.rowY.length === 0) return Qt.rect(paneX, listTop, paneWidth, 68);
-        return Qt.rect(paneX, listTop + layout.rowY[focusIndex] - scroll, paneWidth, layout.rowH[focusIndex]);
+        return Qt.rect(paneX + layout.rowX[focusIndex], listTop + layout.rowY[focusIndex] - scroll,
+                       layout.rowW[focusIndex], layout.rowH[focusIndex]);
     }
+
+    readonly property bool focusOnTile: zone === "content" && layout.rowCol.length > focusIndex &&
+                                        layout.rowCol[focusIndex] >= 0
 
     function tabY(index) {
         return tabsY + index * tabPitch + (index > separatorAfter ? 21 : 0);
@@ -319,6 +360,9 @@ Item {
                          JSON.stringify({ category: "picture", settings: { applyToAllInput: "picture" } }));
         } else if (name === "resetPicture") {
             resetPicture(context);
+        } else if (name === "previewShutdown") {
+            shutdownPreview.screenId = params && params.id ? params.id : NovosSettings.shutdownScreen;
+            shutdownPreview.play();
         } else if (name === "applySoundToAll") {
             settingsStore.call("luna://com.webos.settingsservice", "/setSystemSettings",
                          JSON.stringify({ category: "sound", settings: { applyToAllInputSSM: "sound" } }));
@@ -370,6 +414,11 @@ Item {
     }
 
     function handleKey(key, autoRepeat) {
+        if (shutdownPreview.shown) {
+            // Any key ends the preview; Back is taken by back() on its release.
+            if (!Remote.isBack(key)) endPreview();
+            return;
+        }
         if (zone === "sidebar") sidebarKey(key, autoRepeat);
         else if (zone === "search") {
             if (!searchPage.handleKey(key, autoRepeat)) {
@@ -494,9 +543,29 @@ Item {
         if (index >= 0 && index < page.rows.length) focusIndex = index;
     }
 
+    // In a grid of tiles: up and down by one line of tiles, to the last tile of a shorter
+    // line; left and right along a line.
+    function moveInGrid(key) {
+        var column = layout.rowCol[focusIndex];
+        var columns = layout.rowCols[focusIndex];
+        var count = layout.rowCol.length;
+        var target = -1;
+        if (key === Qt.Key_Up && focusIndex - columns >= 0) target = focusIndex - columns;
+        else if (key === Qt.Key_Down && focusIndex - column + columns < count) {
+            target = Math.min(focusIndex + columns, count - 1);
+        } else if (key === Qt.Key_Right && column < columns - 1 && focusIndex + 1 < count) target = focusIndex + 1;
+        else if (key === Qt.Key_Left && column > 0) target = focusIndex - 1;
+        if (target >= 0 && layout.rowCol[target] >= 0 && page.rows[target].focusable) focusIndex = target;
+        else if (key === Qt.Key_Left) toSidebar();
+    }
+
     function contentKey(key, autoRepeat) {
         var row = focusedRow;
-        if (key === Qt.Key_Up) {
+        if (focusOnTile && Remote.isArrow(key)) {
+            moveInGrid(key);
+        } else if (row && row.preview && Remote.isPlay(key)) {
+            if (!autoRepeat) runAction(row.preview.action, row.preview.params || {});
+        } else if (key === Qt.Key_Up) {
             moveFocus(-1);
         } else if (key === Qt.Key_Down) {
             moveFocus(1);
@@ -603,6 +672,10 @@ Item {
     // Back: one level up with the focus on the row we came from; on the top level into
     // the side bar; from the side bar the modal closes.
     function back() {
+        if (shutdownPreview.shown) {
+            endPreview();
+            return;
+        }
         if (zone === "sidebar") {
             close();
             return;
@@ -648,7 +721,7 @@ Item {
     }
 
     // Preview only: keys the modal presses by itself, one every 450 ms ("down", "ok", "back",
-    // "left", "right", "up" or a digit). The TV takes no injected keys.
+    // "left", "right", "up", "play" or a digit). The TV takes no injected keys.
     property var testKeys: []
 
     Timer {
@@ -660,7 +733,8 @@ Item {
             var keys = settings.testKeys.slice();
             var name = keys.shift();
             settings.testKeys = keys;
-            var map = { up: Qt.Key_Up, down: Qt.Key_Down, left: Qt.Key_Left, right: Qt.Key_Right, ok: Qt.Key_Return };
+            var map = { up: Qt.Key_Up, down: Qt.Key_Down, left: Qt.Key_Left, right: Qt.Key_Right, ok: Qt.Key_Return,
+                        play: Qt.Key_MediaPlay };
             if (name === "back") settings.back();
             else if (map[name] !== undefined) settings.handleKey(map[name], false);
             else if (/^[0-9]$/.test(name)) settings.handleKey(Qt.Key_0 + Number(name), false);
@@ -804,7 +878,7 @@ Item {
                 visible: settings.zone !== "content" || settings.page.rows.length > 0
                 unit: settings.unit
                 pressScale: settings.zone === "search" ? searchPage.focusScale : 1
-                radius: settings.zone === "search" ? searchPage.focusRadius : (settings.zone === "sidebar" ? (settings.sideIndex === 0 ? 26 : 22) : 26)
+                radius: settings.zone === "search" ? searchPage.focusRadius : (settings.zone === "sidebar" ? (settings.sideIndex === 0 ? 26 : 22) : (settings.focusOnTile ? 28 : 26))
             }
 
             Text {
@@ -969,6 +1043,91 @@ Item {
                 }
             }
         }
+    }
+
+    // K3-Ausschalt-3: a power-off video played once over the whole screen from its tile, with
+    // a pill that names it and a bar for the run. It ends by itself once black, or with any
+    // key; Back ends it at once. The TV stays on.
+    ShutdownScreen {
+        id: shutdownPreview
+
+        readonly property bool shown: running || ended.running
+        anchors.fill: parent
+        z: 100
+        visible: shown
+        unit: settings.unit
+        onFinished: ended.start()
+
+        GlassControl {
+            id: previewPill
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: 48 * settings.unit
+            width: previewLabel.width + 40 * settings.unit
+            height: 56 * settings.unit
+            unit: settings.unit
+            radius: 28
+            fill: "#29ffffff"
+            visible: shutdownPreview.running
+
+            Row {
+                id: previewLabel
+                x: 18 * settings.unit
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 12 * settings.unit
+
+                Image {
+                    anchors.verticalCenter: parent.verticalCenter
+                    source: Qt.resolvedUrl("icons/play-18.png")
+                }
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: Engine.text(I18n, "interface", "preview.title",
+                                      { name: Engine.text(I18n, "interface", "value.shutdown_screen." + shutdownPreview.screenId) })
+                    color: settings.textPrimary
+                    font.family: settings.titleFont
+                    font.pixelSize: 19 * settings.unit
+                }
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: Engine.text(I18n, "interface", "preview.back")
+                    color: settings.textSecondary
+                    font.family: settings.rowFont
+                    font.pixelSize: 19 * settings.unit
+                }
+            }
+        }
+
+        // The run as a thin bar, 72 px above the bottom.
+        Rectangle {
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: parent.height - (72 + 4) * settings.unit
+            width: 420 * settings.unit
+            height: 4 * settings.unit
+            radius: height / 2
+            color: "#29ffffff"
+            visible: shutdownPreview.running
+
+            Rectangle {
+                width: parent.width * shutdownPreview.progress
+                height: parent.height
+                radius: parent.radius
+                color: "#ccffffff"
+            }
+        }
+
+        // A moment of black before the modal comes back, as after the real one.
+        Timer {
+            id: ended
+            interval: GlassStyle.shutdownOutDuration
+            onTriggered: shutdownPreview.stop()
+        }
+    }
+
+    function endPreview() {
+        ended.stop();
+        shutdownPreview.stop();
     }
 
     function pathText() {

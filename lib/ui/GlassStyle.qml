@@ -51,7 +51,14 @@ QtObject {
     readonly property color scrimColor: "#040608"
     readonly property real contentScrim: 0.18              // behind the panel; the grade holds it
     readonly property real modalScrim: 0.55                // behind a modal
-    readonly property int switchDuration: 260               // the knob of a switch springs over
+    // The boot look on black (BootGlow): its light breathes, and switching off dims it.
+    readonly property int bootPulseDuration: 6000          // one breath of the light
+    readonly property real bootPulseLow: 0.85              // its opacity at the low point
+    readonly property real bootPulseSwell: 1.04            // its size at the high point
+    readonly property real shutdownDim: 0.55               // light and wordmark when switching off
+    readonly property int shutdownInDuration: 400          // picture to the dimmed boot look
+    readonly property int shutdownOutDuration: 500         // the boot look to black; the entry holds the rest
+    readonly property int switchDuration: 260              // the knob of a switch springs over
     readonly property var switchCurve: [0.34, 1.36, 0.5, 1, 1, 1]
     // Type, in logical px.
     readonly property int titleSize: 32                    // page title in the panel

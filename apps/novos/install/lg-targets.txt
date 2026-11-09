@@ -11,6 +11,7 @@ StarfishImageSplash.qml /usr/lib/qml/WebOSCompositor/views/StarfishImageSplash.q
 StarfishSystemUIManager.qml /usr/lib/qml/WebOSCompositor/views/systemUi/StarfishSystemUIManager.qml d87c00ac4b06a62c8428ac653a27ac23e55318442bd82fadd8b4f5e188ed39d5
 StarfishViewStateController.qml /usr/lib/qml/WebOSCompositor/controllers/StarfishViewStateController.qml 7cb7409439e6586ec1d59b3cf7f67238c15512617413560652c1b041aebda6dd
 StarfishVolumeView.qml /usr/lib/qml/WebOSCompositor/views/StarfishVolumeView.qml e82a5221ae3c27a3940a2f966d8acd79b7b86168bbeaffec3b8075aafc5f03b4
+MasterBrand.qml /usr/lib/qml/MasterBrand/MasterBrand.qml f0b97e956d4b6635af36bf71964563d32d854a42290b013b7e05acf9461eee1d
 appLaunch.js /usr/lib/qml/KeyFilters/appLaunch.js 7975fbb56c38cf36e2b79965ff23e30f7c45052436c117bf9e1531f738f21943
 settings-index.multi.html /usr/palm/applications/com.palm.app.settings/index.multi.html 3982b61426b84ddbf25d6a77f8d2b331c853e0a8dcfccf636558a3018a323cd1
 settings-index.html /usr/palm/applications/com.palm.app.settings/index.html 9d52af46b11876787bc160ad1041971633057651dfacfba392f295482328f3a9

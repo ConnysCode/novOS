@@ -10,7 +10,7 @@ import SystemUIComponent 1.0
 // surface-manager caches components by URL, so every check runs from a folder of its
 // own in /tmp: novos-start.sh copies this file there and fills in @RELEASE@ with a mirror
 // of the release whose windows import releases/<version>/module, never the cached
-// current/module of the release that ran before.
+// current/module of the release that ran before, and @REAL@ with releases/<version>.
 StarfishSystemUIWindow {
     id: checkWindow
 
@@ -26,7 +26,10 @@ StarfishSystemUIWindow {
         Qt.resolvedUrl("compositor/views/StarfishImageSplash.qml"),
         Qt.resolvedUrl("compositor/views/StarfishVolumeView.qml"),
         Qt.resolvedUrl("compositor/views/systemUi/StarfishSystemUIManager.qml"),
-        Qt.resolvedUrl("compositor/controllers/StarfishViewStateController.qml")
+        Qt.resolvedUrl("compositor/controllers/StarfishViewStateController.qml"),
+        Qt.resolvedUrl("masterbrand/MasterBrand.qml"),
+        // MasterBrand.qml loads it only at power off, so it is checked here on its own.
+        "file://@REAL@/module/ShutdownScreen.qml"
     ]
     property var components: []
     property int waited: 0

@@ -1,8 +1,8 @@
 #!/bin/sh
-# Derives the overlays of LG's systemUi.js, Notification/Services.qml and the compositor's
-# StarfishFullscreenContainer.qml, StarfishImageSplash.qml, StarfishSystemUIManager.qml and
-# StarfishViewStateController.qml on the TV, so that LG's files stay out of the
-# repository. Refuses unless all six are LG's originals, which also means: not mounted
+# Derives the overlays of LG's systemUi.js, Notification/Services.qml, MasterBrand.qml and the
+# compositor's StarfishFullscreenContainer.qml, StarfishImageSplash.qml,
+# StarfishSystemUIManager.qml and StarfishViewStateController.qml on the TV, so that LG's files stay out of the
+# repository. Refuses unless all of them are LG's originals, which also means: not mounted
 # over.
 #
 #   make-overlays.sh <release-dir>
@@ -86,6 +86,20 @@ echo "}" >> "$DIR/StarfishViewStateController.qml"
 expect 'novosLauncherOnHome' "$DIR/StarfishViewStateController.qml" 3
 expect 'if (views.starfishHome && !novosLauncherOnHome())' "$DIR/StarfishViewStateController.qml" 1
 expect 'if (views.starfishHome && !(userActivityTimer && novosLauncherOnHome()))' "$DIR/StarfishViewStateController.qml" 1
+# The picture at power off: the entry chosen in novOS's settings, else LG's logo as before.
+brand=$(original MasterBrand.qml)
+[ "$(tail -n 1 "$brand")" = "}" ] || { echo "$brand: last line is not the closing brace" >&2; exit 1; }
+[ "$(grep -c '^                logoAnimation.start();$' "$brand")" = 2 ] || {
+    echo "$brand: the two starts of the logo animation are not where they were" >&2
+    exit 1
+}
+sed -e 's/^                logoAnimation.start();$/                novosStartLogo(); \/\/ novOS/' -e '$d' \
+    "$brand" > "$DIR/MasterBrand.qml"
+cat "$DIR/shutdown-screen.inc" >> "$DIR/MasterBrand.qml"
+echo "}" >> "$DIR/MasterBrand.qml"
+expect 'novosStartLogo(); // novOS' "$DIR/MasterBrand.qml" 2
+expect 'function novosStartLogo' "$DIR/MasterBrand.qml" 1
+expect 'responseOffLogoRequest(true)' "$DIR/MasterBrand.qml" 3   # LG's, ours and the comment above ours
 # A long press of the gear key opens novOS's settings modal instead of LG's settings app.# The quick panel takes "settings" as its launch page; a second long press over LG's
 # app still closes LG's app as before.
 launch=$(original appLaunch.js)

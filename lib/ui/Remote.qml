@@ -13,6 +13,11 @@ QtObject {
         return key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select;
     }
 
+    // The play key of the remote; LG's remotes send play and play/pause.
+    function isPlay(key) {
+        return key === Qt.Key_MediaPlay || key === Qt.Key_MediaTogglePlayPause;
+    }
+
     function isArrow(key) {
         return key === Qt.Key_Up || key === Qt.Key_Down || key === Qt.Key_Left || key === Qt.Key_Right;
     }
