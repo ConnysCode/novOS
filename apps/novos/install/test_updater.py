@@ -58,10 +58,14 @@ class UpdaterTest(unittest.TestCase):
         shutil.rmtree(self.sandbox, ignore_errors=True)
         shutil.rmtree(self.server, ignore_errors=True)
 
-    def publish(self, version, channel, tamper=False):
+    def publish(self, version, channel, tamper=False, note=None):
         build = os.path.join(self.server, "build", version)
+        shutil.rmtree(build, ignore_errors=True)
         subprocess.check_call(["sh", os.path.join(CORE, "apps", "setup", "build-release.sh"), build],
                               env=dict(os.environ, SETUP_VERSION=version))
+        if note:
+            with open(os.path.join(build, "tv", "note"), "w") as handle:
+                handle.write(note + "\n")
         archive = os.path.join(self.server, "setup-%s.tar.xz" % version)
         with tarfile.open(archive, "w:xz") as bundle:
             bundle.add(build, arcname=version)
@@ -117,6 +121,23 @@ class UpdaterTest(unittest.TestCase):
         self.assertEqual(self.current(), "0.1.0-beta.3")
         kept = sorted(os.listdir(self.sandbox + "/var/lib/novos/updater"))
         self.assertEqual(kept, ["0.1.0-beta.2", "0.1.0-beta.3", "current"])
+
+    def test_same_version_published_again_is_unpacked_again(self):
+        self.publish("0.1.0-beta.1", "beta")
+        self.serve()
+        folder = self.sandbox + "/var/lib/novos/updater/0.1.0-beta.1"
+        with open(folder + "/tv/old-build", "w") as handle:
+            handle.write("from the first build\n")
+        self.serve()
+        # The same archive: the folder stays as it is.
+        self.assertTrue(os.path.isfile(folder + "/tv/old-build"))
+        # Published again under the same version (a new archive): unpacked anew.
+        self.publish("0.1.0-beta.1", "beta", note="second build")
+        code, args = self.serve()
+        self.assertEqual(code, 0)
+        self.assertFalse(os.path.exists(folder + "/tv/old-build"))
+        with open(folder + "/tv/note") as handle:
+            self.assertEqual(handle.read(), "second build\n")
 
     def test_offline_runs_the_last_one(self):
         self.publish("0.1.0-beta.1", "beta")

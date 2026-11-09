@@ -91,9 +91,15 @@ def fetch(name):
             manifest = release.fetch("beta", "setup", work)
         version = manifest["version"]
         target = os.path.join(UPDATER, version)
-        if not os.path.isfile(os.path.join(target, "tv", "novos-setupd.py")):
+        # A folder with this version is used again only if it came from this very archive:
+        # a release can be published again under the same version.
+        stamp = os.path.join(target, ".archive-sha256")
+        if not (os.path.isfile(os.path.join(target, "tv", "novos-setupd.py")) and
+                read_text(stamp) == manifest["archive"]["sha256"]):
             shutil.rmtree(target, ignore_errors=True)
             release.extract(os.path.join(work, manifest["archive"]["name"]), version, target)
+            with open(stamp, "w") as handle:
+                handle.write(manifest["archive"]["sha256"] + "\n")
         before = os.path.basename(os.path.realpath(os.path.join(UPDATER, "current")))
         link = os.path.join(UPDATER, "current.new")
         if os.path.lexists(link):
@@ -109,6 +115,14 @@ def fetch(name):
         return target
     finally:
         shutil.rmtree(work, ignore_errors=True)
+
+
+def read_text(path):
+    try:
+        with open(path) as handle:
+            return handle.read().strip()
+    except OSError:
+        return ""
 
 
 def cached():
