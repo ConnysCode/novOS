@@ -1,0 +1,286 @@
+{
+  "format": 1,
+  "app": "novos",
+  "releases": [
+    {
+      "version": "0.9.0-beta.8",
+      "channel": "beta",
+      "published": "2026-11-09T19:11:01Z",
+      "date": "2026-11-09",
+      "size": 18103340,
+      "restarts": 1,
+      "manifest": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.0-beta.8/novos-0.9.0-beta.8.manifest.json",
+      "signature": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.0-beta.8/novos-0.9.0-beta.8.manifest.json.sig",
+      "topics": {
+        "de": "Neue Update-Seite, frühere Versionen, Ausschalt-Video",
+        "en": "New update page, earlier versions, power-off video",
+        "es": "Nueva página de actualización, versiones anteriores, vídeo de apagado",
+        "fr": "Nouvelle page de mise à jour, versions précédentes, vidéo d’extinction"
+      },
+      "items": [
+        {
+          "title": {
+            "de": "Neue Seite novOS-Update",
+            "en": "New novOS update page",
+            "es": "Nueva página Actualización de novOS",
+            "fr": "Nouvelle page Mise à jour de novOS"
+          },
+          "text": {
+            "de": "Mit den Neuerungen jeder Version; Updates laden im Hintergrund, novOS fragt vor der Installation.",
+            "en": "With what is new in each version; updates download in the background and novOS asks before installing.",
+            "es": "Con las novedades de cada versión; las actualizaciones se descargan en segundo plano y novOS pregunta antes de instalar.",
+            "fr": "Avec les nouveautés de chaque version ; les mises à jour se téléchargent en arrière-plan et novOS demande avant l’installation."
+          }
+        },
+        {
+          "title": {
+            "de": "Frühere Versionen",
+            "en": "Earlier versions",
+            "es": "Versiones anteriores",
+            "fr": "Versions précédentes"
+          },
+          "text": {
+            "de": "Alle Versionen nachlesen und auf eine frühere zurückgehen, deine Einstellungen bleiben.",
+            "en": "Read every version and go back to an earlier one; your settings stay.",
+            "es": "Consulta todas las versiones y vuelve a una anterior; tus ajustes se mantienen.",
+            "fr": "Consultez toutes les versions et revenez à une précédente ; vos réglages restent."
+          }
+        },
+        {
+          "title": {
+            "de": "Nachts aktualisieren",
+            "en": "Update at night",
+            "es": "Actualizar de noche",
+            "fr": "Mettre à jour la nuit"
+          },
+          "text": {
+            "de": "Auf Wunsch installiert novOS Updates zwischen 2 und 5 Uhr, wenn der Fernseher aus ist.",
+            "en": "If you like, novOS installs updates between 2 and 5 a.m. while the TV is off.",
+            "es": "Si quieres, novOS instala las actualizaciones entre las 2 y las 5 con el televisor apagado.",
+            "fr": "Si vous le souhaitez, novOS installe les mises à jour entre 2 h et 5 h, téléviseur éteint."
+          }
+        },
+        {
+          "title": {
+            "de": "Ausschalt-Video",
+            "en": "Power-off video",
+            "es": "Vídeo de apagado",
+            "fr": "Vidéo d’extinction"
+          },
+          "text": {
+            "de": "Unter Oberfläche wählst du, was beim Ausschalten erscheint.",
+            "en": "Under Interface you pick what appears when the TV turns off.",
+            "es": "En Interfaz eliges lo que aparece al apagar.",
+            "fr": "Dans Interface, vous choisissez ce qui s’affiche à l’extinction."
+          }
+        }
+      ]
+    },
+    {
+      "version": "0.9.0-beta.7",
+      "channel": "beta",
+      "published": "2026-11-09T17:45:12Z",
+      "date": "2026-11-09",
+      "size": 18084160,
+      "restarts": 1,
+      "manifest": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.0-beta.7/novos-0.9.0-beta.7.manifest.json",
+      "signature": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.0-beta.7/novos-0.9.0-beta.7.manifest.json.sig",
+      "topics": {
+        "de": "Hinweise zu Updates, LG-Systemupdates",
+        "en": "Update notices, LG system updates",
+        "es": "Avisos de actualización, actualizaciones de LG",
+        "fr": "Avis de mise à jour, mises à jour LG"
+      },
+      "items": [
+        {
+          "title": {
+            "de": "Hinweise über dem Bild",
+            "en": "Notices over the picture",
+            "es": "Avisos sobre la imagen",
+            "fr": "Avis sur l’image"
+          },
+          "text": {
+            "de": "novOS meldet neue Versionen, zeigt den Download oben rechts und bestätigt die Installation.",
+            "en": "novOS announces new versions, shows the download at the top right and confirms the install.",
+            "es": "novOS avisa de versiones nuevas, muestra la descarga arriba a la derecha y confirma la instalación.",
+            "fr": "novOS annonce les nouvelles versions, affiche le téléchargement en haut à droite et confirme l’installation."
+          }
+        },
+        {
+          "title": {
+            "de": "LG-Systemupdates",
+            "en": "LG system updates",
+            "es": "Actualizaciones de LG",
+            "fr": "Mises à jour LG"
+          },
+          "text": {
+            "de": "Unter System › Software-Update sperrst oder erlaubst du LGs Updates und suchst nach ihnen.",
+            "en": "Under System › Software update you block or allow LG's updates and look for them.",
+            "es": "En Sistema › Actualización de software bloqueas o permites las actualizaciones de LG y las buscas.",
+            "fr": "Dans Système › Mise à jour logicielle, vous bloquez ou autorisez les mises à jour LG et les recherchez."
+          }
+        }
+      ]
+    },
+    {
+      "version": "0.9.0-beta.6",
+      "channel": "beta",
+      "published": "2026-11-09T16:19:13Z",
+      "date": "2026-11-09",
+      "size": 18076256,
+      "restarts": 1,
+      "manifest": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.0-beta.6/novos-0.9.0-beta.6.manifest.json",
+      "signature": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.0-beta.6/novos-0.9.0-beta.6.manifest.json.sig",
+      "topics": {
+        "de": "Verlässlichere Updates",
+        "en": "More reliable updates",
+        "es": "Actualizaciones más fiables",
+        "fr": "Mises à jour plus fiables"
+      },
+      "items": [
+        {
+          "title": {
+            "de": "Updates starten zuverlässig",
+            "en": "Updates start reliably",
+            "es": "Las actualizaciones arrancan bien",
+            "fr": "Les mises à jour démarrent"
+          },
+          "text": {
+            "de": "Eine neue Version wird vor dem Start gegen ihre eigenen Bausteine geprüft, nicht gegen die alten.",
+            "en": "A new version is checked against its own components before it starts, not against the old ones.",
+            "es": "Una versión nueva se comprueba con sus propios componentes antes de arrancar, no con los antiguos.",
+            "fr": "Une nouvelle version est vérifiée avec ses propres composants avant de démarrer, pas avec les anciens."
+          }
+        },
+        {
+          "title": {
+            "de": "Sicherer Rückweg",
+            "en": "Safe way back",
+            "es": "Vuelta segura",
+            "fr": "Retour sûr"
+          },
+          "text": {
+            "de": "Startet eine neue Version nicht, läuft sofort wieder die vorige.",
+            "en": "If a new version does not start, the one before runs again at once.",
+            "es": "Si una versión nueva no arranca, vuelve a funcionar enseguida la anterior.",
+            "fr": "Si une nouvelle version ne démarre pas, la précédente revient aussitôt."
+          }
+        }
+      ]
+    },
+    {
+      "version": "0.9.0-beta.5",
+      "channel": "beta",
+      "published": "2026-11-09T16:10:19Z",
+      "date": "2026-11-09",
+      "size": 18075952,
+      "restarts": 1,
+      "manifest": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.0-beta.5/novos-0.9.0-beta.5.manifest.json",
+      "signature": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.0-beta.5/novos-0.9.0-beta.5.manifest.json.sig",
+      "topics": {
+        "de": "Wie 0.9.0-beta.4",
+        "en": "Same as 0.9.0-beta.4",
+        "es": "Igual que 0.9.0-beta.4",
+        "fr": "Identique à 0.9.0-beta.4"
+      },
+      "items": [
+        {
+          "title": {
+            "de": "Gleicher Stand",
+            "en": "Same state",
+            "es": "Mismo estado",
+            "fr": "Même état"
+          },
+          "text": {
+            "de": "Wie 0.9.0-beta.4, als Ziel für das erste Update aus den Einstellungen.",
+            "en": "Same as 0.9.0-beta.4, as the target of the first update from the settings.",
+            "es": "Igual que 0.9.0-beta.4, como destino de la primera actualización desde los ajustes.",
+            "fr": "Identique à 0.9.0-beta.4, comme cible de la première mise à jour depuis les réglages."
+          }
+        }
+      ]
+    },
+    {
+      "version": "0.9.0-beta.4",
+      "channel": "beta",
+      "published": "2026-11-09T16:09:02Z",
+      "date": "2026-11-09",
+      "size": 18076152,
+      "restarts": 1,
+      "manifest": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.0-beta.4/novos-0.9.0-beta.4.manifest.json",
+      "signature": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.0-beta.4/novos-0.9.0-beta.4.manifest.json.sig",
+      "topics": {
+        "de": "Updates in den Einstellungen",
+        "en": "Updates in the settings",
+        "es": "Actualizaciones en los ajustes",
+        "fr": "Mises à jour dans les réglages"
+      },
+      "items": [
+        {
+          "title": {
+            "de": "novOS-Update",
+            "en": "novOS update",
+            "es": "Actualización de novOS",
+            "fr": "Mise à jour de novOS"
+          },
+          "text": {
+            "de": "Unter Über novOS suchst und installierst du neue Versionen und wählst Stabil oder Beta.",
+            "en": "Under About novOS you look for and install new versions and pick Stable or Beta.",
+            "es": "En Acerca de novOS buscas e instalas versiones nuevas y eliges Estable o Beta.",
+            "fr": "Dans À propos de novOS, vous recherchez et installez les nouvelles versions et choisissez Stable ou Bêta."
+          }
+        },
+        {
+          "title": {
+            "de": "Tägliche Suche",
+            "en": "Daily check",
+            "es": "Búsqueda diaria",
+            "fr": "Recherche quotidienne"
+          },
+          "text": {
+            "de": "novOS schaut einmal am Tag selbst nach, ob es etwas Neues gibt.",
+            "en": "Once a day novOS looks by itself whether there is something new.",
+            "es": "Una vez al día novOS comprueba por sí mismo si hay novedades.",
+            "fr": "Une fois par jour, novOS vérifie de lui-même s’il y a du nouveau."
+          }
+        }
+      ]
+    },
+    {
+      "version": "0.9.0-beta.3",
+      "channel": "beta",
+      "published": "2026-11-09T10:47:43Z",
+      "date": "",
+      "size": 18047084,
+      "restarts": 1,
+      "manifest": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.0-beta.3/novos-0.9.0-beta.3.manifest.json",
+      "signature": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.0-beta.3/novos-0.9.0-beta.3.manifest.json.sig",
+      "topics": {},
+      "items": []
+    },
+    {
+      "version": "0.9.0-beta.2",
+      "channel": "beta",
+      "published": "2026-11-09T10:38:24Z",
+      "date": "",
+      "size": 18046868,
+      "restarts": 1,
+      "manifest": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.0-beta.2/novos-0.9.0-beta.2.manifest.json",
+      "signature": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.0-beta.2/novos-0.9.0-beta.2.manifest.json.sig",
+      "topics": {},
+      "items": []
+    },
+    {
+      "version": "0.9.0-beta.1",
+      "channel": "beta",
+      "published": "2026-11-09T09:41:06Z",
+      "date": "",
+      "size": 18046788,
+      "restarts": 1,
+      "manifest": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.0-beta.1/novos-0.9.0-beta.1.manifest.json",
+      "signature": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.0-beta.1/novos-0.9.0-beta.1.manifest.json.sig",
+      "topics": {},
+      "items": []
+    }
+  ]
+}
