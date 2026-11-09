@@ -92,6 +92,15 @@ Left and right (or the channel keys) step through the slides on the TV.
 Comments that cite `docs/…` refer to the documentation of the separate
 research repository, which is not part of this one.
 
+## License
+
+novOS is free software under the GNU General Public License, version 3
+([`LICENSE`](LICENSE)). The Inter font and the background pictures keep their own
+licences, named below.
+
+novOS is an independent project and not a product of LG Electronics. LG and webOS are
+trademarks of their owners.
+
 ## Credits
 
 The interface font is Inter, under the SIL Open Font License
