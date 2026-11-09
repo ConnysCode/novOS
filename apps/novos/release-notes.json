@@ -1,4 +1,31 @@
 {
+  "0.9.1-beta.3": {
+    "date": "2026-11-09",
+    "level": "patch",
+    "topics": {
+      "de": "Update-Seite",
+      "en": "Update page",
+      "es": "Página de actualización",
+      "fr": "Page de mise à jour"
+    },
+    "items": [
+      {
+        "kind": "fix",
+        "title": {
+          "de": "Auswahl bei der Update-Suche",
+          "en": "Selection while searching for updates",
+          "es": "Selección al buscar actualizaciones",
+          "fr": "Sélection pendant la recherche de mises à jour"
+        },
+        "text": {
+          "de": "Während novOS nach Updates sucht, bleibt die Auswahl auf der Update-Karte statt nach unten zu springen.",
+          "en": "While novOS searches for updates, the selection stays on the update card instead of jumping down.",
+          "es": "Mientras novOS busca actualizaciones, la selección se queda en la tarjeta en lugar de saltar hacia abajo.",
+          "fr": "Pendant que novOS cherche des mises à jour, la sélection reste sur la carte au lieu de descendre."
+        }
+      }
+    ]
+  },
   "0.9.1-beta.2": {
     "date": "2026-11-09",
     "level": "patch",
