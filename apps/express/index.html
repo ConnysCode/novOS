@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="de" data-csrf="{{CSRF_TOKEN}}">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#04060c" />
+    <title>novOS einrichten</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <div class="sky" id="sky" aria-hidden="true">
+      <div class="sky-horizon"></div>
+      <div class="sky-sun"></div>
+      <div class="sky-line"></div>
+      <div class="sky-fade"></div>
+      <div class="sky-grain"></div>
+    </div>
+
+    <div class="page">
+      <nav class="nav" aria-label="Hauptnavigation">
+        <a class="wordmark" href="/" aria-label="novOS – Startseite">
+          <span>nov</span><span>OS</span>
+        </a>
+        <span class="nav-links">
+          <a href="#fragen">Hilfe</a>
+          <a href="https://github.com/ConnysCode/novOS" target="_blank" rel="noopener noreferrer">
+            GitHub
+            <svg class="icon-external" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M14 4.5h5.5V10" />
+              <path d="M19.5 4.5L11 13" />
+              <path d="M18 14v4.5a1 1 0 0 1-1 1H5.5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1H10" />
+            </svg>
+          </a>
+        </span>
+      </nav>
+
+      <main>
+        <div class="hero">
+          <div class="intro">
+            <p class="eyebrow">Express-Installation</p>
+            <h1>novOS auf deinem LG-Fernseher</h1>
+            <p class="lead">
+              Wähle deinen Fernseher aus der Liste. Dort öffnet sich der
+              Assistent, und du entscheidest mit der Fernbedienung.
+            </p>
+            <p class="facts">
+              <span>Kostenlos</span><span aria-hidden="true">·</span>
+              <span>Open Source</span><span aria-hidden="true">·</span>
+              <span>Jederzeit entfernbar</span>
+            </p>
+          </div>
+
+          <section class="card" id="card" aria-labelledby="card-title">
+            <div class="card-view" data-view="list">
+              <div class="card-header">
+                <h2 id="card-title">
+                  <span class="title-found">Fernseher <span class="wide-only">in deinem</span><span class="narrow-only">im</span> Netzwerk</span>
+                  <span class="title-empty">Kein Fernseher gefunden</span>
+                </h2>
+                <span class="card-status" id="scan-status">
+                  <span class="spinner" aria-hidden="true"></span><span class="wide-only">Suche läuft</span>
+                </span>
+                <button
+                  class="button button-secondary button-small"
+                  id="rescan-button"
+                  type="button"
+                  aria-label="Erneut suchen"
+                  hidden
+                >
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3" />
+                    <path d="M19.5 4.5v4h-4" />
+                  </svg>
+                  <span class="wide-only">Erneut suchen</span>
+                </button>
+              </div>
+
+              <ul class="device-list" id="device-list" aria-label="Gefundene Fernseher"></ul>
+
+              <div class="empty" id="empty" hidden>
+                <ul class="checklist">
+                  <li>
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path d="M3.5 9.5a12 12 0 0 1 17 0" />
+                      <path d="M6.5 12.8a7.5 7.5 0 0 1 11 0" />
+                      <path d="M9.5 16a3 3 0 0 1 5 0" />
+                      <path d="M12 19.2v0.1" />
+                    </svg>
+                    Fernseher und dieses Gerät sind im selben WLAN
+                  </li>
+                  <li>
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path d="M12 3.5v8" />
+                      <path d="M6.6 7a7.5 7.5 0 1 0 10.8 0" />
+                    </svg>
+                    Fernseher ist eingeschaltet, nicht nur im Standby
+                  </li>
+                  <li>
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <rect x="4.5" y="10.5" width="15" height="10" rx="2" />
+                      <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+                    </svg>
+                    Root-Zugriff per SSH ist eingerichtet
+                  </li>
+                </ul>
+              </div>
+
+              <p class="card-hint" id="ip-hint" hidden>
+                Fernseher fehlt?
+                <button class="text-link" id="ip-toggle" type="button" aria-controls="ip-form" aria-expanded="false">
+                  IP-Adresse eingeben
+                </button>
+              </p>
+
+              <form class="ip-form" id="ip-form" novalidate hidden>
+                <label for="ip-input">IP-Adresse des Fernsehers</label>
+                <div class="ip-row">
+                  <input
+                    id="ip-input"
+                    name="address"
+                    type="text"
+                    inputmode="decimal"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="192.168.178.20"
+                    aria-describedby="ip-help ip-error"
+                  />
+                  <button class="button button-primary button-tall" id="ip-submit" type="submit">Verbinden</button>
+                </div>
+                <p class="ip-help" id="ip-help">
+                  Du findest sie in den Netzwerkeinstellungen des Fernsehers oder
+                  in deinem Router.
+                </p>
+                <p class="ip-error" id="ip-error" role="alert"></p>
+              </form>
+
+              <p class="card-message" id="list-message" role="status"></p>
+            </div>
+
+            <div class="card-view" data-view="confirm" hidden>
+              <h2 class="card-title-large" id="confirm-title">Assistent öffnen?</h2>
+              <p class="card-copy">
+                Der Assistent legt sich über das laufende Bild. Öffne ihn nur,
+                wenn gerade niemand schaut. Installiert wird erst, wenn du es
+                am Fernseher bestätigst.
+              </p>
+              <div class="card-actions">
+                <button class="button button-primary" id="open-button" type="button">Assistent öffnen</button>
+                <button class="button button-secondary" id="cancel-button" type="button">Abbrechen</button>
+              </div>
+            </div>
+
+            <div class="card-view" data-view="starting" hidden>
+              <div class="card-header">
+                <h2>Assistent wird geöffnet</h2>
+                <span class="card-status">
+                  <span class="spinner" aria-hidden="true"></span>
+                  <span id="starting-target">Wartet auf den Fernseher</span>
+                </span>
+              </div>
+              <p class="card-copy">
+                novOS lädt den Assistenten auf den Fernseher und prüft, ob er
+                dort sichtbar ist. Das kann bis zu zwei Minuten dauern.
+              </p>
+            </div>
+
+            <div class="card-view" data-view="done" hidden>
+              <span class="done-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+              </span>
+              <h2 class="card-title-large" id="done-title">Der Assistent läuft</h2>
+              <p class="card-copy">
+                Fahre am Fernseher mit der Fernbedienung fort. Diese Seite
+                kannst du schließen.
+              </p>
+              <div class="card-actions">
+                <button class="button button-secondary" id="again-button" type="button">
+                  Weiteren Fernseher einrichten
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <section class="steps" aria-labelledby="steps-title">
+          <h2 class="section-title" id="steps-title">So läuft es ab</h2>
+          <ol>
+            <li>
+              <span class="step-head">
+                <span class="step-number">1</span>
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <rect x="2.5" y="4.5" width="19" height="12.5" rx="2" />
+                  <path d="M8.5 20.5h7" />
+                </svg>
+              </span>
+              <h3>Fernseher wählen</h3>
+              <p>Die Seite findet LG-Fernseher in deinem WLAN. Du wählst einen aus.</p>
+            </li>
+            <li>
+              <span class="step-head">
+                <span class="step-number">2</span>
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <rect x="2.5" y="4.5" width="19" height="12.5" rx="2" />
+                  <path d="M10.5 8.5l3.5 2.25-3.5 2.25z" />
+                  <path d="M8.5 20.5h7" />
+                </svg>
+              </span>
+              <h3>Assistent öffnen</h3>
+              <p>Ein Klick öffnet den novOS-Assistenten auf dem Fernseher.</p>
+            </li>
+            <li>
+              <span class="step-head">
+                <span class="step-number">3</span>
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <rect x="7.5" y="2.5" width="9" height="19" rx="4.5" />
+                  <circle cx="12" cy="8" r="1.8" />
+                  <path d="M10.5 13h3M10.5 16h3" />
+                </svg>
+              </span>
+              <h3>Am Fernseher entscheiden</h3>
+              <p>Mit der Fernbedienung gehst du die Schritte durch. Erst dort bestätigst du die Installation.</p>
+            </li>
+          </ol>
+        </section>
+
+        <section class="faq" id="fragen" aria-labelledby="faq-title">
+          <div>
+            <h2 class="section-title" id="faq-title">Fragen</h2>
+            <p class="faq-more">
+              Mehr im
+              <a class="text-link" href="https://github.com/ConnysCode/novOS" target="_blank" rel="noopener noreferrer">
+                Projekt auf GitHub
+                <svg class="icon-external" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M14 4.5h5.5V10" />
+                  <path d="M19.5 4.5L11 13" />
+                  <path d="M18 14v4.5a1 1 0 0 1-1 1H5.5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1H10" />
+                </svg>
+              </a>
+            </p>
+          </div>
+          <div class="faq-list">
+            <details open>
+              <summary>Was passiert mit meinen Apps und Einstellungen?</summary>
+              <p>
+                Apps, Konten, Senderliste, Bild- und Toneinstellungen bleiben.
+                novOS ersetzt den Startbildschirm, das Schnellmenü und die
+                Einstellungen.
+              </p>
+            </details>
+            <details>
+              <summary>Kann ich novOS wieder entfernen?</summary>
+              <p>
+                Ja. novOS überschreibt keine Systemdateien von LG. Beim
+                Entfernen kommt LGs Oberfläche vollständig zurück.
+              </p>
+            </details>
+            <details>
+              <summary>Welche Fernseher werden unterstützt?</summary>
+              <p>
+                Geprüft ist bisher der LG 55QNED816RE mit webOS 10.3.2. Für die
+                Einrichtung braucht der Fernseher Root-Zugriff per SSH.
+              </p>
+            </details>
+            <details>
+              <summary>Ist novOS von LG?</summary>
+              <p>
+                Nein. novOS ist ein unabhängiges Open-Source-Projekt und steht
+                in keiner Verbindung zu LG Electronics.
+              </p>
+            </details>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span class="footer-start">
+          <span class="wordmark wordmark-small" aria-label="novOS"><span>nov</span><span>OS</span></span>
+          <span>Unabhängiges Projekt, kein Produkt von LG Electronics.</span>
+        </span>
+        <span class="footer-links">
+          <a href="https://github.com/ConnysCode/novOS/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">Lizenz</a>
+          <a href="https://github.com/ConnysCode/novOS" target="_blank" rel="noopener noreferrer">GitHub</a>
+        </span>
+      </footer>
+    </div>
+  </body>
+</html>

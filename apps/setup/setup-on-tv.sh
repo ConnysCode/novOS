@@ -23,6 +23,7 @@ HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 LIB=$(CDPATH= cd -- "$HERE/../../lib" && pwd)
 APP=com.webos.app.quicksettings
 BRIDGE=/tmp/novos-setup
+TV=${NOVOS_TV_SSH_TARGET:-lg-tv}
 
 case "${1:-}" in
 key)
@@ -30,20 +31,20 @@ key)
     count=0
     for key in "$@"; do
         count=$((count + 1))
-        ssh lg-tv "printf '%s %s\n' \$(date +%s)-$$-$count $key > /tmp/novos-setup-keys"
+        ssh "$TV" "printf '%s %s\n' \$(date +%s)-$$-$count $key > /tmp/novos-setup-keys"
         sleep 0.6
     done
     exit 0 ;;
 state)
-    ssh lg-tv "cat $BRIDGE/state.json"; echo; exit 0 ;;
+    ssh "$TV" "cat $BRIDGE/state.json"; echo; exit 0 ;;
 perf)
-    ssh lg-tv "cat /tmp/novos-perf.ini" | sed -n 's/^log=//p' | sed 's/\\n/\n/g'; echo; exit 0 ;;
+    ssh "$TV" "cat /tmp/novos-perf.ini" | sed -n 's/^log=//p' | sed 's/\\n/\n/g'; echo; exit 0 ;;
 capture)
     request='{"path":"/tmp/novos-setup-capture.png","method":"'${3:-GRAPHIC}'","format":"PNG","width":1920,"height":1080}'
-    ssh -tt lg-tv "rm -f /tmp/novos-setup-capture.png; luna-send -n 1 -w 5000 luna://com.webos.service.capture/executeOneShot '$request'" >/dev/null 2>&1
-    scp -q lg-tv:/tmp/novos-setup-capture.png "$2"; echo "$2"; exit 0 ;;
+    ssh -tt "$TV" "rm -f /tmp/novos-setup-capture.png; luna-send -n 1 -w 5000 luna://com.webos.service.capture/executeOneShot '$request'" >/dev/null 2>&1
+    scp -q "$TV:/tmp/novos-setup-capture.png" "$2"; echo "$2"; exit 0 ;;
 stop)
-    ssh lg-tv "printf '[General]\ncommand=close\nserial=stop-%s\n' \$(date +%s) > $BRIDGE/command.ini; sleep 1; pkill -f 'novos-setupd.p[y] serve'; luna-send -n 1 -w 3000 luna://com.webos.service.systemUIManager/closeByAppId '{\"appId\":\"$APP\"}' >/dev/null 2>&1; true"
+    ssh "$TV" "printf '[General]\ncommand=close\nserial=stop-%s\n' \$(date +%s) > $BRIDGE/command.ini; sleep 1; pkill -f 'novos-setupd.p[y] serve'; luna-send -n 1 -w 3000 luna://com.webos.service.systemUIManager/closeByAppId '{\"appId\":\"$APP\"}' >/dev/null 2>&1; true"
     exit 0 ;;
 esac
 
@@ -68,9 +69,9 @@ mkdir "$STAGE/backgrounds" "$STAGE/tv"
 cp "$LIB"/backgrounds/*.jpg "$LIB/backgrounds/index.json" "$STAGE/backgrounds/"
 cp "$HERE/tv/novos-setupd.py" "$LIB/release/release.py" "$LIB/release/ed25519.py" "$LIB/release/trusted-keys.json" "$STAGE/tv/"
 
-ssh lg-tv "pkill -f 'novos-setupd.p[y] serve'; find /tmp/novos-setup-app -mindepth 1 -maxdepth 1 -type d -mmin +30 -exec rm -rf {} + 2>/dev/null; rm -rf $BRIDGE /tmp/novos-setup-keys /tmp/novos-perf.ini; mkdir -p $REMOTE $BRIDGE"
-scp -qr "$STAGE"/* "lg-tv:$REMOTE/"
-ssh lg-tv "setsid python3 $REMOTE/tv/novos-setupd.py serve --dir $BRIDGE --window file://$REMOTE/setup.qml --app $APP --idle 1800 ${CHANNEL:+--channel $CHANNEL} </dev/null >$BRIDGE/serve.log 2>&1 &"
+ssh "$TV" "pkill -f 'novos-setupd.p[y] serve'; find /tmp/novos-setup-app -mindepth 1 -maxdepth 1 -type d -mmin +30 -exec rm -rf {} + 2>/dev/null; rm -rf $BRIDGE /tmp/novos-setup-keys /tmp/novos-perf.ini; mkdir -p $REMOTE $BRIDGE"
+scp -qr "$STAGE"/* "$TV:$REMOTE/"
+ssh "$TV" "setsid python3 $REMOTE/tv/novos-setupd.py serve --dir $BRIDGE --window file://$REMOTE/setup.qml --app $APP --idle 1800 ${CHANNEL:+--channel $CHANNEL} </dev/null >$BRIDGE/serve.log 2>&1 &"
 LAUNCH='{"appId":"'$APP'","main":"file://'$REMOTE'/setup.qml","params":{"flow":"'$FLOW'"}}'
-ssh -tt lg-tv "luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/closeByAppId '{\"appId\":\"$APP\"}'; sleep 1; luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/launch '$LAUNCH'" >/dev/null 2>&1
+ssh -tt "$TV" "luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/closeByAppId '{\"appId\":\"$APP\"}'; sleep 1; luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/launch '$LAUNCH'" >/dev/null 2>&1
 echo "setup $FLOW${CHANNEL:+ ($CHANNEL)} running from $REMOTE"
