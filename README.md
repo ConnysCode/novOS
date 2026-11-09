@@ -87,6 +87,27 @@ current manifest. Nothing is installed unless the signature matches a key in
 apps/novos/novos-on-tv.sh install --from beta     # or stable, or a manifest URL
 ```
 
+#### Version numbers
+
+novOS, the setup and the `novos` program each count their own versions, all in the same way,
+following [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`, measured against the
+last stable release.
+
+- **PATCH** for fixes only, **MINOR** for new features, **MAJOR** for large changes, for example
+  a new way of installing.
+- **`-beta.N`** marks a pre-release *of* the version in front of it, so `0.9.4-beta.2` comes before
+  `0.9.4`. The first beta towards a version is `-beta.1`; every further beta towards the same
+  version counts `N` up, whether it brings fixes or features.
+- When a beta brings more than its version allows, the version moves up and the count starts
+  again: a feature on the way to `0.9.4` makes the next beta `0.10.0-beta.1`.
+- Once the betas have held, the same number goes out without the suffix as a stable release.
+- `level` in [`apps/novos/release-notes.json`](apps/novos/release-notes.json) says what a release
+  brings compared to the one before it, which matters between two betas of the same version:
+  `patch` shows only a short notice after the update, `minor` and `major` show "What's new".
+
+With `0.9.3` as the current stable release, a fix goes out as `0.9.4-beta.1`, a second fix as
+`0.9.4-beta.2`, and then `0.9.4` as stable. A new feature instead would start at `0.10.0-beta.1`.
+
 ### The setup's debug slides
 
 ```sh
