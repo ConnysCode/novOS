@@ -225,6 +225,17 @@ ICONS = [
     ("row-allSettings", 30, 1.6, dict(SETTINGS_AREAS)["system"], BOTH),
     # The preview pill of the shutdown videos.
     ("play-18", 18, 1.8, PLAY, LIGHT_ONLY),
+    # Novelties in "Neu in novOS" (K3-Neu-*), 28 px in a 56 px circle; -dark on the focus.
+    ("feature-film-28", 28, 1.7, '<rect x="3" y="4.5" width="18" height="15" rx="2.5"/>' +
+     path("M7 4.5v15M17 4.5v15M3 9h4M3 15h4M17 9h4M17 15h4"), BOTH),
+    ("feature-games-28", 28, 1.7, path("M7.2 7.5h9.6a4.2 4.2 0 0 1 4.05 3.08l1.05 3.85a2.7 2.7 0 0 1-4.6 2.55"
+     "L15.6 15H8.4l-1.7 2a2.7 2.7 0 0 1-4.6-2.55l1.05-3.85A4.2 4.2 0 0 1 7.2 7.5z") + path("M7.5 10v3.2M5.9 11.6h3.2") +
+     '<circle cx="15.9" cy="10.9" r="0.95" fill="currentColor" stroke="none"/>'
+     '<circle cx="17.7" cy="12.6" r="0.95" fill="currentColor" stroke="none"/>', BOTH),
+    ("feature-panel-28", 28, 1.7, '<rect x="3.5" y="3.5" width="17" height="17" rx="3"/>' + path("M13 3.5v8h7.5"), BOTH),
+    ("feature-sparkle-28", 28, 1.7, path("M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9-1.9 5.1-1.9-5.1-5.1-1.9 5.1-1.9z") +
+     path("M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"), BOTH),
+    ("feature-update-28", 28, 1.7, path("M20 12a8 8 0 1 1-2.4-5.7") + path("M20 4v4.5h-4.5"), BOTH),
 ] + [(f"settings-{name}", 28, 1.7, body, BOTH) for name, body in SETTINGS_AREAS] + [
     (f"device-{name}", 36, 1.5, body, BOTH) for name, body in DEVICES] + [
     (f"device-{name}-48", 48, 1.5, body, LIGHT_ONLY) for name, body in DEVICES]

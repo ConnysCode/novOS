@@ -19,8 +19,9 @@ While it runs it
   interface ran stable, leaves a check there itself.
 - has the source window show novOS' update notices: "novOS X ist da" once per version
   after a daily check, the progress pill while an update runs and the settings are
-  closed, "novOS X ist bereit" once a download from the settings is through, and
-  "novOS X ist installiert" once after the restart into the new release.
+  closed, "novOS X ist bereit" once a download from the settings is through, and once
+  after the restart into the new release "Neu in novOS" (minor or major) or the notice
+  "novOS X ist installiert" with its fixes (patch).
 - installs between 2 and 5 at night, while the TV is not on, the version planned for
   tonight (state/update-tonight) or, with automatic updates on, what the last check
   offered. A daily check that found no connection is tried again after an hour.
@@ -34,6 +35,7 @@ import os
 import select
 import signal
 import subprocess
+import re
 import sys
 import time
 
@@ -213,6 +215,48 @@ class Relay:
             self.process.terminate()
 
 
+# ---- After an update: "Neu in novOS" or the notice ---------------------------------------
+
+VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.]+))?$")
+
+
+def version_key(text):
+    """As release.py orders versions; None for a local build."""
+    match = VERSION.match(text or "")
+    if not match:
+        return None
+    key = [int(part) for part in match.group(1, 2, 3)] + [0 if match.group(4) else 1]
+    for part in (match.group(4) or "").split(".") if match.group(4) else []:
+        key.append((0, int(part)) if part.isdigit() else (1, part))
+    return key
+
+
+def after_update(state, version):
+    """A minor or major update shows "Neu in novOS" (WhatsNew in the source window), a patch
+    only the notice with the number of fixes (K3-Neu-5). Minor or major: the version
+    numbers say so, or a release since the one before names its level so (a beta)."""
+    previous = ""
+    for step in state.get("steps") or []:
+        found = re.search(r"\(before: ([^)]+)\)", step.get("message", ""))
+        if found:
+            previous = found.group(1)
+    try:
+        with open(PANEL + "/module/release-notes.json") as file:
+            notes = json.load(file)
+    except (OSError, ValueError):
+        notes = {}
+    current, before = version_key(version), version_key(previous)
+    since = [name for name in notes if version_key(name) and version_key(name) <= current and
+             (version_key(name) > before if before else name == version)] if current else []
+    bigger = bool(before and current and current[:2] > before[:2])
+    bigger = bigger or any(notes[name].get("level") in ("minor", "major") for name in since)
+    if bigger and any(item.get("kind", "feature") == "feature" for name in since for item in notes[name].get("items", [])):
+        return {"novosWhatsNew": True, "version": version, "previous": previous if before else "",
+                "installed": int(state.get("updated") or time.time())}
+    fixes = sum(1 for name in since for item in notes[name].get("items", []) if item.get("kind") == "fix")
+    return {"notice": True, "novos": "installed", "version": version, "fixes": fixes}
+
+
 class Updater:
     """Starts the updater for a command of the settings; it fetches itself from GitHub."""
 
@@ -299,7 +343,7 @@ class Updater:
         elif command == "update" and state.get("phase") == "done" and result.get("installed"):
             if shown.get("installed") != serial and \
                     result["installed"] == os.path.basename(os.path.realpath(PANEL)):
-                self.show({"notice": True, "novos": "installed", "version": result["installed"]})
+                self.show(after_update(state, result["installed"]))
                 shown["installed"] = serial
         elif command == "check" and serial.startswith("auto-") and state.get("phase") == "done" and \
                 found.get("newer") and not found.get("problems"):

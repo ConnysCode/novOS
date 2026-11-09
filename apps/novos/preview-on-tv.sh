@@ -33,6 +33,8 @@ cp "$LIB"/fonts/novos-inter-*.ttf "$STAGE/"
 # lib/ui and our module/ become one folder, see lib/ui/qmldir.
 python3 -I "$LIB/stage.py" "$HERE/module" "$STAGE/module"
 cp "$HERE/module/output/libnovos-video-backdrop.so" "$HERE/module/vt-feed.py" "$STAGE/module/"
+cp "$HERE/release-notes.json" "$STAGE/module/"
+mkdir -p "$STAGE/module/release-art" && cp -R "$HERE"/release-art/*.png "$HERE"/release-art/0.* "$STAGE/module/release-art/" 2>/dev/null || true
 [ -z "${PREVIEW_MODULE_SED:-}" ] || sed -i '' -e "$PREVIEW_MODULE_SED" "$STAGE"/module/*.qml
 [ -z "${PREVIEW_EXTRA:-}" ] || cp $PREVIEW_EXTRA "$STAGE/"
 

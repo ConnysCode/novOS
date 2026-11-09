@@ -73,6 +73,16 @@ for file in "$OUT"/module/*.qml "$OUT"/module/*.js; do
 done
 state < "$HERE/module/vt-feed.py" > "$OUT/module/vt-feed.py"
 cp "$HERE/module/output/libnovos-video-backdrop.so" "$OUT/module/"
+# What is new in every version and its pictures, for the update page and "Neu in novOS".
+python3 -I "$INSTALL/check-notes.py" || { echo "release-notes.json names what the release lacks" >&2; exit 1; }
+cp "$HERE/release-notes.json" "$OUT/module/"
+mkdir -p "$OUT/module/release-art"
+cp "$HERE"/release-art/*.png "$OUT/module/release-art/"
+for folder in "$HERE"/release-art/*/; do
+    case $folder in */src/) continue ;; esac
+    mkdir -p "$OUT/module/release-art/$(basename "$folder")"
+    cp "$folder"*.png "$OUT/module/release-art/$(basename "$folder")/"
+done
 # The pictures of launcher and hub, shared with the setup in lib/backgrounds.
 mkdir -p "$OUT/launcher/backgrounds"
 cp "$BACKGROUNDS"/*.jpg "$BACKGROUNDS/index.json" "$BACKGROUNDS/CREDITS.md" "$OUT/launcher/backgrounds/"

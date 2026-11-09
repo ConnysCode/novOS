@@ -1,0 +1,1 @@
+<div style="position:absolute;left:506px;top:214px;width:560px;height:150px;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(ellipse at 50% 50%,rgba(255,222,186,0.46) 0%,rgba(255,196,150,0.15) 40%,rgba(0,0,0,0) 70%)"></div>

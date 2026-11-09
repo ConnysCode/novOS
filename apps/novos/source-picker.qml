@@ -28,13 +28,14 @@ StarfishSystemUIWindow {
                 else if (params.attributes) picker.addAttribute(params.label);
                 else if (params.notice || params.alert) picker.addNotice(params);
                 else if (params.novosProgress) picker.openUpdatePill();
+                else if (params.novosWhatsNew) picker.openWhatsNew(params);
                 else if (params.alertClose !== undefined) picker.closeNotice(params.alertClose);
                 else if (picker.bannerMode) picker.open();
                 else picker.hotkeyPressed();
             } else if (params.alertClose !== undefined) {
                 rootWindow.exit();
             } else if (!params.banner && !params.attributes && !params.notice && !params.alert &&
-                       !params.novosProgress && picker.launcherOpen()) {
+                       !params.novosProgress && !params.novosWhatsNew && picker.launcherOpen()) {
                 // Our launcher shows the sources itself; the source key adds no second row.
                 rootWindow.exit();
             } else {
@@ -47,6 +48,7 @@ StarfishSystemUIWindow {
                 else if (params.attributes) picker.openAttributes(params.label);
                 else if (params.notice || params.alert) picker.openNotice(params);
                 else if (params.novosProgress) { picker.enterBanner(); picker.openUpdatePill(); }
+                else if (params.novosWhatsNew) { picker.enterBanner(); picker.openWhatsNew(params); }
                 else picker.open();
             }
         }
@@ -123,6 +125,8 @@ StarfishSystemUIWindow {
         // novOS' own update in the background (board Update-3); the supervisor opens it.
         property bool updatePillOpen: false
         property bool updatePillShown: false
+        // "Neu in novOS" after a minor or major update (WhatsNew); the supervisor opens it.
+        property bool whatsNewOpen: false
         readonly property var updateInfo: updates.info || ({})
         property var noticeQueue: []
         property int noticeFocus: 0
@@ -389,7 +393,94 @@ StarfishSystemUIWindow {
         function closeWhenIdle() {
             if (!bannerMode) return;
             if (!pillTimer.running && !attributeTimer.running && !noticeOpen &&
-                    !signalCheck.running && !updatePillOpen) close();
+                    !signalCheck.running && !updatePillOpen && !whatsNewOpen) close();
+        }
+
+        // ---- Neu in novOS ----------------------------------------------------------------
+        // The release's own notes (module/release-notes.json): every version after the one
+        // before the update, so that whoever skipped versions sees all of them. At most four
+        // features in the modal, the fixes as one line below.
+
+        function localText(texts) {
+            if (!texts || typeof texts !== "object") return String(texts || "");
+            return texts[I18n.language] || texts.en || texts.de || "";
+        }
+
+        // 1.0.0-beta.2 < 1.0.0-beta.10 < 1.0.0 < 1.0.1; a local build sorts before every release.
+        function versionKey(text) {
+            var match = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.]+))?$/.exec(text || "");
+            if (!match) return null;
+            var parts = [Number(match[1]), Number(match[2]), Number(match[3]), match[4] ? 0 : 1];
+            (match[4] || "").split(".").forEach(function (part) {
+                parts.push(/^\d+$/.test(part) ? Number(part) : part);
+            });
+            return parts;
+        }
+
+        function newer(a, b) {
+            for (var i = 0; i < Math.max(a.length, b.length); i++) {
+                if (a[i] === undefined) return false;
+                if (b[i] === undefined) return true;
+                if (a[i] !== b[i]) return typeof a[i] === typeof b[i] ? a[i] > b[i] : typeof a[i] === "string";
+            }
+            return false;
+        }
+
+        function openWhatsNew(params) {
+            var notes = {};
+            try {
+                var request = new XMLHttpRequest();
+                request.open("GET", Qt.resolvedUrl("module/release-notes.json"), false);
+                request.send();
+                notes = JSON.parse(String(request.responseText || "{}"));
+            } catch (error) {
+            }
+            var current = versionKey(params.version);
+            var before = versionKey(params.previous);
+            var features = [];
+            var fixes = [];
+            var versions = Object.keys(notes).filter(function (name) {
+                var key = versionKey(name);
+                return key && !newer(key, current) && (before ? newer(key, before) : name === params.version);
+            });
+            versions.sort(function (a, b) { return newer(versionKey(a), versionKey(b)) ? -1 : 1; });
+            versions.forEach(function (name) {
+                (notes[name].items || []).forEach(function (item) {
+                    var entry = { title: localText(item.title), text: localText(item.text), icon: item.icon || "",
+                                  open: item.open || "",
+                                  image: item.image ? Qt.resolvedUrl("module/release-art/" + name + "/" + item.image) : "" };
+                    if (item.kind === "fix") fixes.push(entry);
+                    else features.push(entry);
+                });
+            });
+            whatsNew.version = params.version || "";
+            whatsNew.items = features.slice(0, 4);
+            whatsNew.fixedText = fixes.length === 0 ? "" :
+                I18n.t("picker", fixes.length > 1 ? "whatsnew.fixed_more" : "whatsnew.fixed",
+                       { text: fixes[0].text, count: fixes.length - 1 });
+            var at = new Date((params.installed || Date.now() / 1000) * 1000);
+            var time = at.toLocaleTimeString(Qt.locale(I18n.qtLocale), Locale.ShortFormat);
+            var today = new Date().toDateString() === at.toDateString();
+            whatsNew.installedText = today ? I18n.t("picker", "whatsnew.installed_today", { time: time }) :
+                I18n.t("picker", "whatsnew.installed_on", { time: time,
+                       date: at.toLocaleDateString(Qt.locale(I18n.qtLocale), Locale.ShortFormat) });
+            whatsNew.focusIndex = whatsNew.items.length + 1;
+            stayOpen();
+            whatsNewOpen = true;
+            whatsNew.shown = liveGlass.pictureReady;
+        }
+
+        function finishWhatsNew() {
+            whatsNewOpen = false;
+            whatsNew.shown = false;
+            closeWhenIdle();
+        }
+
+        // Opens a page of the settings (OK on a novelty, "Alle Neuerungen").
+        function openSettingsPage(page) {
+            service.call("luna://com.webos.service.systemUIManager", "/launch",
+                         JSON.stringify({ appId: "com.webos.app.quicksettings", params: { page: page } }));
+            finishWhatsNew();
         }
 
         function openUpdatePill() {
@@ -438,9 +529,17 @@ StarfishSystemUIWindow {
                          dialog: false, modal: false, sourceId: "", closeAction: null, timestamp: "",
                          timeout: 20000 };
             }
+            // A patch (K3-Neu-5): how many fixes, and "Details" to the update page.
+            var fixes = params.fixes || 0;
+            var details = { label: I18n.t("picker", "update.details"),
+                            toastAction: { serviceURI: "luna://com.webos.service.systemUIManager", serviceMethod: "/launch",
+                                           launchParams: { appId: "com.webos.app.quicksettings",
+                                                           params: { page: "settings:info:update" } } } };
             return { title: I18n.t("picker", "update.installed", { version: version }),
-                     detail: I18n.t("picker", "update.installed_detail"), icon: "notice-update",
-                     buttons: [{ label: I18n.t("global", "ok"), focus: true }],
+                     detail: fixes > 0 ? I18n.t("picker", fixes === 1 ? "update.fixed_one" : "update.fixed_count",
+                                                { count: fixes }) : I18n.t("picker", "update.installed_detail"),
+                     icon: "notice-update",
+                     buttons: (fixes > 0 ? [details] : []).concat([{ label: I18n.t("global", "ok"), focus: true }]),
                      dialog: false, modal: false, sourceId: "", closeAction: null, timestamp: "", timeout: 10000 };
         }
 
@@ -506,6 +605,7 @@ StarfishSystemUIWindow {
                 if (attributes.length > 0) attributesShown = true;
                 if (noticeOpen) noticeShown = true;
                 if (updatePillOpen) updatePillShown = true;
+                if (whatsNewOpen) whatsNew.shown = true;
                 return;
             }
             if (closing || barShown) return;
@@ -589,6 +689,12 @@ StarfishSystemUIWindow {
 
         Keys.onPressed: {
             // The pill must not swallow the remote: the key goes on to the source.
+            // "Neu in novOS" takes every key while it stands.
+            if (bannerMode && whatsNewOpen) {
+                if (!isBackKey(event.key) && !event.isAutoRepeat) whatsNew.handleKey(event.key);
+                event.accepted = true;
+                return;
+            }
             if (bannerMode && noticeOpen && notice.buttons.length > 0) {
                 if (noticeKey(event)) {
                     event.accepted = true;
@@ -615,6 +721,11 @@ StarfishSystemUIWindow {
         }
 
         Keys.onReleased: {
+            if (bannerMode && whatsNewOpen) {
+                if (isBackKey(event.key)) finishWhatsNew();
+                event.accepted = true;
+                return;
+            }
             if (bannerMode) {
                 if (isBackKey(event.key) && noticeOpen && notice.buttons.length > 0 && !notice.modal) {
                     finishNotice(true);
@@ -918,6 +1029,26 @@ StarfishSystemUIWindow {
                     }
                 }
             }
+        }
+
+        WhatsNew {
+            id: whatsNew
+            x: (picker.width - width) / 2
+            y: (picker.height - height) / 2
+            z: 5
+            unit: picker.unit
+            titleFont: picker.titleFamily
+            rowFont: GlassStyle.rowFont
+            valueFont: picker.valueFamily
+            glassShader: liveGlass.glassShader
+            backdrop: liveGlass.texture
+            backdropMargin: liveGlass.margin
+            backdropArea: Qt.rect(picker.pillArea.x - x, picker.pillArea.y - y,
+                                  picker.pillArea.width, picker.pillArea.height)
+            hasBackdrop: liveGlass.hasFrame ? 1 : 0
+            onOpenItem: picker.openSettingsPage(item.open)
+            onAllNews: picker.openSettingsPage("settings:info:update")
+            onDone: picker.finishWhatsNew()
         }
 
         SetupBridge {

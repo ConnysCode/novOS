@@ -306,6 +306,9 @@
     "update.available_size": "{channel} · {size} MB",
     "update.channel_beta": "Beta",
     "update.channel_stable": "Stabil",
+    "update.details": "Details",
+    "update.fixed_count": "{count} Fehler behoben · deine Einstellungen sind unverändert",
+    "update.fixed_one": "1 Fehler behoben · deine Einstellungen sind unverändert",
     "update.install_now": "Jetzt installieren",
     "update.installed": "novOS {version} ist installiert",
     "update.installed_detail": "Alles hat geklappt, deine Einstellungen sind unverändert.",
@@ -316,7 +319,15 @@
     "update.ready": "novOS {version} ist bereit",
     "update.ready_detail": "Installation etwa 1 Minute · novOS startet dabei neu",
     "update.show": "Ansehen",
-    "update.tonight": "Heute Nacht"
+    "update.tonight": "Heute Nacht",
+    "whatsnew.all": "Alle Neuerungen",
+    "whatsnew.fixed": "Außerdem behoben: {text}",
+    "whatsnew.fixed_more": "Außerdem behoben: {text} Und {count} weitere.",
+    "whatsnew.installed_on": "Installiert am {date} um {time} Uhr. Deine Einstellungen sind unverändert.",
+    "whatsnew.installed_today": "Installiert heute um {time} Uhr. Deine Einstellungen sind unverändert.",
+    "whatsnew.next": "Weiter",
+    "whatsnew.open": "Öffnen",
+    "whatsnew.title": "novOS {version} ist da"
   },
   "source": {
     "badge.running": "Läuft",

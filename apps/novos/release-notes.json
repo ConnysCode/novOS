@@ -20,7 +20,10 @@
           "en": "Under About novOS you look for and install new versions and pick Stable or Beta.",
           "es": "En Acerca de novOS buscas e instalas versiones nuevas y eliges Estable o Beta.",
           "fr": "Dans À propos de novOS, vous recherchez et installez les nouvelles versions et choisissez Stable ou Bêta."
-        }
+        },
+        "kind": "feature",
+        "icon": "update",
+        "open": "settings:info:update"
       },
       {
         "title": {
@@ -34,9 +37,12 @@
           "en": "Once a day novOS looks by itself whether there is something new.",
           "es": "Una vez al día novOS comprueba por sí mismo si hay novedades.",
           "fr": "Une fois par jour, novOS vérifie de lui-même s’il y a du nouveau."
-        }
+        },
+        "kind": "feature",
+        "icon": "update"
       }
-    ]
+    ],
+    "level": "minor"
   },
   "0.9.0-beta.5": {
     "date": "2026-11-09",
@@ -59,9 +65,11 @@
           "en": "Same as 0.9.0-beta.4, as the target of the first update from the settings.",
           "es": "Igual que 0.9.0-beta.4, como destino de la primera actualización desde los ajustes.",
           "fr": "Identique à 0.9.0-beta.4, comme cible de la première mise à jour depuis les réglages."
-        }
+        },
+        "kind": "fix"
       }
-    ]
+    ],
+    "level": "patch"
   },
   "0.9.0-beta.6": {
     "date": "2026-11-09",
@@ -84,7 +92,8 @@
           "en": "A new version is checked against its own components before it starts, not against the old ones.",
           "es": "Una versión nueva se comprueba con sus propios componentes antes de arrancar, no con los antiguos.",
           "fr": "Une nouvelle version est vérifiée avec ses propres composants avant de démarrer, pas avec les anciens."
-        }
+        },
+        "kind": "fix"
       },
       {
         "title": {
@@ -98,9 +107,11 @@
           "en": "If a new version does not start, the one before runs again at once.",
           "es": "Si una versión nueva no arranca, vuelve a funcionar enseguida la anterior.",
           "fr": "Si une nouvelle version ne démarre pas, la précédente revient aussitôt."
-        }
+        },
+        "kind": "feature"
       }
-    ]
+    ],
+    "level": "patch"
   },
   "0.9.0-beta.7": {
     "date": "2026-11-09",
@@ -123,7 +134,9 @@
           "en": "novOS announces new versions, shows the download at the top right and confirms the install.",
           "es": "novOS avisa de versiones nuevas, muestra la descarga arriba a la derecha y confirma la instalación.",
           "fr": "novOS annonce les nouvelles versions, affiche le téléchargement en haut à droite et confirme l’installation."
-        }
+        },
+        "kind": "feature",
+        "icon": "sparkle"
       },
       {
         "title": {
@@ -137,9 +150,13 @@
           "en": "Under System › Software update you block or allow LG's updates and look for them.",
           "es": "En Sistema › Actualización de software bloqueas o permites las actualizaciones de LG y las buscas.",
           "fr": "Dans Système › Mise à jour logicielle, vous bloquez ou autorisez les mises à jour LG et les recherchez."
-        }
+        },
+        "kind": "feature",
+        "icon": "update",
+        "open": "settings:system"
       }
-    ]
+    ],
+    "level": "minor"
   },
   "0.9.0-beta.8": {
     "date": "2026-11-09",
@@ -162,7 +179,10 @@
           "en": "With what is new in each version; updates download in the background and novOS asks before installing.",
           "es": "Con las novedades de cada versión; las actualizaciones se descargan en segundo plano y novOS pregunta antes de instalar.",
           "fr": "Avec les nouveautés de chaque version ; les mises à jour se téléchargent en arrière-plan et novOS demande avant l’installation."
-        }
+        },
+        "kind": "feature",
+        "icon": "update",
+        "open": "settings:info:update"
       },
       {
         "title": {
@@ -176,7 +196,10 @@
           "en": "Read every version and go back to an earlier one; your settings stay.",
           "es": "Consulta todas las versiones y vuelve a una anterior; tus ajustes se mantienen.",
           "fr": "Consultez toutes les versions et revenez à une précédente ; vos réglages restent."
-        }
+        },
+        "kind": "feature",
+        "icon": "update",
+        "open": "settings:info:versions"
       },
       {
         "title": {
@@ -190,7 +213,10 @@
           "en": "If you like, novOS installs updates between 2 and 5 a.m. while the TV is off.",
           "es": "Si quieres, novOS instala las actualizaciones entre las 2 y las 5 con el televisor apagado.",
           "fr": "Si vous le souhaitez, novOS installe les mises à jour entre 2 h et 5 h, téléviseur éteint."
-        }
+        },
+        "kind": "feature",
+        "icon": "update",
+        "open": "settings:info:update"
       },
       {
         "title": {
@@ -204,6 +230,57 @@
           "en": "Under Interface you pick what appears when the TV turns off.",
           "es": "En Interfaz eliges lo que aparece al apagar.",
           "fr": "Dans Interface, vous choisissez ce qui s’affiche à l’extinction."
+        },
+        "kind": "feature",
+        "icon": "film",
+        "open": "settings:interface:shutdownVideo"
+      }
+    ],
+    "level": "minor"
+  },
+  "0.9.0-beta.9": {
+    "date": "2026-11-09",
+    "level": "minor",
+    "topics": {
+      "de": "Eigene Ausschalt-Videos, Neu in novOS",
+      "en": "Your own power-off videos, What's new",
+      "es": "Vídeos de apagado propios, Novedades",
+      "fr": "Vos vidéos d’extinction, Nouveautés"
+    },
+    "items": [
+      {
+        "kind": "feature",
+        "icon": "film",
+        "open": "settings:interface:shutdownVideo",
+        "image": "shutdown-videos.png",
+        "title": {
+          "de": "Eigene Ausschalt-Videos",
+          "en": "Your own power-off videos",
+          "es": "Tus vídeos de apagado",
+          "fr": "Vos vidéos d’extinction"
+        },
+        "text": {
+          "de": "Lade vom Handy ein Video oder Bild hoch, es erscheint beim Ausschalten.",
+          "en": "Upload a video or picture from your phone; it plays when the TV turns off.",
+          "es": "Sube un vídeo o una imagen desde el móvil; aparece al apagar.",
+          "fr": "Envoyez une vidéo ou une image depuis votre téléphone ; elle s’affiche à l’extinction."
+        }
+      },
+      {
+        "kind": "feature",
+        "icon": "sparkle",
+        "open": "settings:info:update",
+        "title": {
+          "de": "Neu in novOS",
+          "en": "What's new in novOS",
+          "es": "Novedades de novOS",
+          "fr": "Nouveautés de novOS"
+        },
+        "text": {
+          "de": "Nach einem größeren Update zeigt novOS, was neu ist, und führt direkt hin.",
+          "en": "After a bigger update novOS shows what is new and takes you there.",
+          "es": "Tras una actualización grande, novOS muestra las novedades y te lleva a ellas.",
+          "fr": "Après une mise à jour importante, novOS montre les nouveautés et vous y conduit."
         }
       }
     ]

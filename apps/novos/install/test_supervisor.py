@@ -121,6 +121,34 @@ class UpdatesTest(unittest.TestCase):
             json.dump({"available": "1.1.0", "newer": True, "problems": []}, handle)
         self.assertIn("command=update", self.night(2))
 
+    def after(self, previous, version, notes):
+        os.makedirs(self.m.PANEL + "/module", exist_ok=True)
+        with open(self.m.PANEL + "/module/release-notes.json", "w") as handle:
+            json.dump(notes, handle)
+        state = {"updated": 1000, "steps": [{"message": "current -> releases/%s (before: %s)" % (version, previous)}]}
+        return self.m.after_update(state, version)
+
+    def test_patch_or_whats_new(self):
+        fix = {"kind": "fix", "title": {}, "text": {}}
+        feature = {"kind": "feature", "title": {}, "text": {}}
+        notes = {"1.0.0": {"level": "major", "items": [feature]},
+                 "1.0.1": {"level": "patch", "items": [fix, fix]},
+                 "1.1.0": {"items": [feature, fix]},
+                 "1.1.1-beta.1": {"level": "minor", "items": [feature]}}
+        # A patch: the notice with its fixes.
+        self.assertEqual(self.after("1.0.0", "1.0.1", notes),
+                         {"notice": True, "novos": "installed", "version": "1.0.1", "fixes": 2})
+        # Minor by the numbers, from before the patch: the modal, with what it skipped.
+        result = self.after("1.0.0", "1.1.0", notes)
+        self.assertEqual((result.get("novosWhatsNew"), result["previous"], result["installed"]), (True, "1.0.0", 1000))
+        # A beta that names itself minor.
+        self.assertTrue(self.after("1.1.0", "1.1.1-beta.1", notes).get("novosWhatsNew"))
+        # From a local build: only the installed version counts.
+        self.assertEqual(self.after("novos-v1.0.0-3-gabc", "1.0.1", notes)["fixes"], 2)
+        self.assertEqual(self.after("novos-v1.0.0-3-gabc", "1.0.0", notes)["previous"], "")
+        # No notes at all: the plain notice.
+        self.assertEqual(self.after("1.0.0", "1.2.0", {})["fixes"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()
