@@ -224,11 +224,17 @@ Item {
     readonly property real maxScroll: Math.max(0, layout.height + listEndGap - listHeight)
     // The chosen row stays in the middle of the list until the list meets its start or
     // its end. Near the start that shows a head block and the section titles above, near
-    // the end a note below the last row, which take no focus themselves.
+    // the end a note below the last row, which take no focus themselves. On Über novOS the
+    // first focusable row lies below the middle; the first and last focusable row still
+    // show the list's start and end (ListScroll.centredBetween).
     function keepVisible() {
         if (zone !== "content" || layout.rowY.length === 0) return;
-        scroll = ListScroll.centred(layout.rowY[focusIndex], layout.rowH[focusIndex], listHeight,
-                                    maxScroll + listHeight);
+        var first = firstFocusable();
+        var last = lastFocusable();
+        scroll = ListScroll.centredBetween(layout.rowY[focusIndex], layout.rowH[focusIndex], listHeight,
+                                           maxScroll + listHeight,
+                                           { start: layout.rowY[first], size: layout.rowH[first] },
+                                           { start: layout.rowY[last], size: layout.rowH[last] });
     }
 
     onLayoutChanged: {
@@ -468,6 +474,13 @@ Item {
             if (page.rows[i].focusable) return i;
         }
         return 0;
+    }
+
+    function lastFocusable() {
+        for (var i = page.rows.length - 1; i >= 0; i--) {
+            if (page.rows[i].focusable) return i;
+        }
+        return Math.max(0, page.rows.length - 1);
     }
 
     function moveFocus(step) {
