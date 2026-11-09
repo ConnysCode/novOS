@@ -1,0 +1,125 @@
+{
+  "format": 1,
+  "app": "novos",
+  "releases": [
+    {
+      "version": "0.9.1-beta.1",
+      "channel": "beta",
+      "published": "2026-11-09T20:57:19Z",
+      "date": "2026-11-09",
+      "size": 18436796,
+      "restarts": 1,
+      "level": "minor",
+      "manifest": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.1-beta.1/novos-0.9.1-beta.1.manifest.json",
+      "signature": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.1-beta.1/novos-0.9.1-beta.1.manifest.json.sig",
+      "topics": {
+        "de": "Die erste Beta von novOS",
+        "en": "The first beta of novOS",
+        "es": "La primera beta de novOS",
+        "fr": "La première bêta de novOS"
+      },
+      "items": [
+        {
+          "kind": "feature",
+          "icon": "panel",
+          "title": {
+            "de": "Schnellmenü aus Glas",
+            "en": "Quick menu of glass",
+            "es": "Menú rápido de cristal",
+            "fr": "Menu rapide en verre"
+          },
+          "text": {
+            "de": "Das Zahnrad öffnet ein Panel, das die Farben des laufenden Bildes annimmt.",
+            "en": "The gear key opens a panel that takes on the colours of the picture behind it.",
+            "es": "La tecla de engranaje abre un panel que adopta los colores de la imagen.",
+            "fr": "La touche roue dentée ouvre un panneau qui prend les couleurs de l’image."
+          }
+        },
+        {
+          "kind": "feature",
+          "icon": "sparkle",
+          "title": {
+            "de": "Home und Quellen",
+            "en": "Home and sources",
+            "es": "Inicio y fuentes",
+            "fr": "Accueil et sources"
+          },
+          "text": {
+            "de": "Home zeigt Uhr, laufende Quelle und Apps, ein Wechsel der Quelle eine eigene Pille statt LGs Banner.",
+            "en": "Home shows the clock, the running source and apps; switching sources shows a pill of its own instead of LG’s banner.",
+            "es": "Inicio muestra la hora, la fuente activa y las apps; al cambiar de fuente aparece una píldora propia en vez del banner de LG.",
+            "fr": "L’accueil affiche l’heure, la source en cours et les apps ; un changement de source montre sa propre pastille au lieu de la bannière LG."
+          }
+        },
+        {
+          "kind": "feature",
+          "icon": "panel",
+          "open": "settings:picture",
+          "title": {
+            "de": "Alle Einstellungen",
+            "en": "All settings",
+            "es": "Todos los ajustes",
+            "fr": "Tous les réglages"
+          },
+          "text": {
+            "de": "Zwölf Bereiche mit Suche in einem Fenster, mit den Werten deines Fernsehers.",
+            "en": "Twelve areas with search in one window, with your TV’s values.",
+            "es": "Doce áreas con búsqueda en una ventana, con los valores de tu TV.",
+            "fr": "Douze rubriques avec recherche dans une fenêtre, avec les valeurs de votre téléviseur."
+          }
+        },
+        {
+          "kind": "feature",
+          "icon": "film",
+          "open": "settings:interface:shutdownVideo",
+          "image": "shutdown-videos.png",
+          "title": {
+            "de": "Eigene Ausschalt-Videos",
+            "en": "Your own power-off videos",
+            "es": "Tus vídeos de apagado",
+            "fr": "Vos vidéos d’extinction"
+          },
+          "text": {
+            "de": "Lade über einen Code vom Handy ein Video oder Foto hoch, schneide es zu und wähle den Ausschnitt.",
+            "en": "Upload a video or photo from your phone through a code, trim it and choose the framing.",
+            "es": "Sube con un código un vídeo o una foto desde el móvil, recórtalo y elige el encuadre.",
+            "fr": "Envoyez une vidéo ou une photo depuis votre téléphone grâce à un code, découpez-la et choisissez le cadrage."
+          }
+        },
+        {
+          "kind": "feature",
+          "icon": "games",
+          "title": {
+            "de": "Spiele-Leiste",
+            "en": "Game bar",
+            "es": "Barra de juegos",
+            "fr": "Barre de jeu"
+          },
+          "text": {
+            "de": "Läuft ein Spiel, zeigt das Zahnrad oben eine Leiste mit Genre, Bildrate und den wichtigsten Spiele-Einstellungen.",
+            "en": "While a game runs, the gear key shows a bar at the top with genre, frame rate and the main game settings.",
+            "es": "Mientras se juega, la tecla de engranaje muestra arriba una barra con el género, la frecuencia de imagen y los ajustes de juego principales.",
+            "fr": "Pendant une partie, la touche roue dentée affiche en haut une barre avec le genre, la fréquence d’images et les principaux réglages de jeu."
+          }
+        },
+        {
+          "kind": "feature",
+          "icon": "update",
+          "open": "settings:info:update",
+          "title": {
+            "de": "Updates",
+            "en": "Updates",
+            "es": "Actualizaciones",
+            "fr": "Mises à jour"
+          },
+          "text": {
+            "de": "novOS sucht selbst nach neuen Versionen, installiert auf Wunsch nachts und kann zu früheren Versionen zurück.",
+            "en": "novOS looks for new versions by itself, installs at night if you like and can go back to earlier versions.",
+            "es": "novOS busca versiones nuevas por sí mismo, instala de noche si quieres y puede volver a versiones anteriores.",
+            "fr": "novOS recherche lui-même les nouvelles versions, installe la nuit si vous le souhaitez et peut revenir à une version antérieure."
+          }
+        }
+      ]
+    }
+  ]
+}
