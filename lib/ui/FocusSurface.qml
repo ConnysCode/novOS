@@ -11,6 +11,7 @@ Item {
     property real unit: 1
     property real radius: 26
     property bool animated: true         // false jumps, for example when a list is rebuilt
+    property int duration: GlassStyle.focusDuration   // focusFarDuration for long jumps
     property real focusScale: 1          // GlassStyle.focusScale for elements that grow
     property real pressScale: 1
 
@@ -21,19 +22,19 @@ Item {
     }
     Behavior on x {
         enabled: surface.animated
-        NumberAnimation { duration: GlassStyle.focusDuration; easing.type: Easing.Bezier; easing.bezierCurve: GlassStyle.curve }
+        NumberAnimation { duration: surface.duration; easing.type: Easing.Bezier; easing.bezierCurve: GlassStyle.curve }
     }
     Behavior on y {
         enabled: surface.animated
-        NumberAnimation { duration: GlassStyle.focusDuration; easing.type: Easing.Bezier; easing.bezierCurve: GlassStyle.curve }
+        NumberAnimation { duration: surface.duration; easing.type: Easing.Bezier; easing.bezierCurve: GlassStyle.curve }
     }
     Behavior on width {
         enabled: surface.animated
-        NumberAnimation { duration: GlassStyle.focusDuration; easing.type: Easing.Bezier; easing.bezierCurve: GlassStyle.curve }
+        NumberAnimation { duration: surface.duration; easing.type: Easing.Bezier; easing.bezierCurve: GlassStyle.curve }
     }
     Behavior on height {
         enabled: surface.animated
-        NumberAnimation { duration: GlassStyle.focusDuration; easing.type: Easing.Bezier; easing.bezierCurve: GlassStyle.curve }
+        NumberAnimation { duration: surface.duration; easing.type: Easing.Bezier; easing.bezierCurve: GlassStyle.curve }
     }
 
     // 0 14px 32px rgba(0, 0, 0, .30), as in the hand-off.

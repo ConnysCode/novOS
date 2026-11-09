@@ -34,11 +34,17 @@ Item {
         animated: false
     }
 
+    // Fades as the owner's surface arrives, instead of leaving a gap until it is there.
     GlassControl {
         anchors.fill: parent
-        visible: !button.focused
+        opacity: button.focused ? 0 : 1
+        visible: opacity > 0
         unit: button.unit
         radius: 32
+
+        Behavior on opacity {
+            NumberAnimation { duration: GlassStyle.focusDuration; easing.type: Easing.Bezier; easing.bezierCurve: GlassStyle.curve }
+        }
     }
 
     Row {
@@ -46,11 +52,23 @@ Item {
         anchors.centerIn: parent
         spacing: 10 * button.unit
 
-        Image {
+        Item {
             anchors.verticalCenter: parent.verticalCenter
             visible: button.icon !== ""
-            source: button.icon === "" ? "" :
-                    Qt.resolvedUrl("icons/" + button.icon + (button.focused ? "-dark.png" : ".png"))
+            width: lightIcon.width
+            height: lightIcon.height
+
+            Image {
+                id: lightIcon
+                source: button.icon === "" ? "" : Qt.resolvedUrl("icons/" + button.icon + ".png")
+                opacity: button.focused ? 0 : 1
+                Behavior on opacity { NumberAnimation { duration: GlassStyle.colorDuration } }
+            }
+            Image {
+                source: button.icon === "" ? "" : Qt.resolvedUrl("icons/" + button.icon + "-dark.png")
+                opacity: button.focused ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: GlassStyle.colorDuration } }
+            }
         }
 
         Text {
@@ -61,6 +79,7 @@ Item {
             font.family: button.fontFamily
             font.pixelSize: 20 * button.unit
             font.hintingPreference: Font.PreferNoHinting
+            Behavior on color { ColorAnimation { duration: GlassStyle.colorDuration } }
         }
     }
 

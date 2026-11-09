@@ -36,6 +36,8 @@ QtObject {
     // Motion.
     readonly property var curve: [0.2, 0.8, 0.2, 1, 1, 1]
     readonly property int focusDuration: 220               // the focus surface and lists glide
+    readonly property int focusFarDuration: 340            // the surface crosses a footer or a card row
+    readonly property real focusFarDistance: 320           // logical px from which a jump counts as far
     readonly property int colorDuration: 120               // text and icons change colour
     readonly property int pageDuration: 240                // pages cross-fade with 16 px shift
     readonly property real pageShift: 16

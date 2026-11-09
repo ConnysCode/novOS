@@ -36,6 +36,9 @@ Item {
 
     property Item focusItem: null
     property bool plateShown: false
+    property string plateAt: ""
+    property real plateTargetX: 0
+    property real plateTargetY: 0
 
     function findFocused(item) {
         for (var i = 0; i < item.children.length; ++i) {
@@ -54,6 +57,14 @@ Item {
         focusItem = target;
         if (!target) return;
         var point = target.parent.mapToItem(card, target.x, target.y);
+        // Measured again while gliding, the same place must not restart the glide.
+        var place = [point.x, point.y, target.width, target.height].join(",");
+        if (plateShown && place === plateAt) return;
+        var far = Math.abs(point.x - plateTargetX) + Math.abs(point.y - plateTargetY) > GlassStyle.focusFarDistance * unit;
+        plateAt = place;
+        plateTargetX = point.x;
+        plateTargetY = point.y;
+        plate.duration = far ? GlassStyle.focusFarDuration : GlassStyle.focusDuration;
         plate.animated = plateShown;
         plate.x = point.x;
         plate.y = point.y;
@@ -64,14 +75,15 @@ Item {
         plateShown = true;
     }
 
-    // Rows lay out their buttons before the next frame; measure after that.
+    // Rows lay out new buttons before the next frame; measure after that. A focus move
+    // changes no layout and goes at once, so the surface leaves with the key press.
     Timer {
         id: placeTimer
         interval: 30
         onTriggered: dialog.placePlate()
     }
 
-    onFocusKeyChanged: placeTimer.restart()
+    onFocusKeyChanged: Qt.callLater(dialog.placePlate)
     onLeftButtonsChanged: placeTimer.restart()
     onRightButtonsChanged: placeTimer.restart()
     onCardHeightChanged: placeTimer.restart()
@@ -191,15 +203,17 @@ Item {
             y: dialog.footerY
             spacing: 12 * dialog.unit
             Repeater {
-                model: dialog.leftButtons
+                // By count, so that a focus move does not build the buttons anew.
+                model: dialog.leftButtons.length
                 FooterButton {
+                    readonly property var spec: dialog.leftButtons[index] || ({})
                     unit: dialog.unit
                     fontFamily: GlassStyle.rowFont
-                    label: modelData.label
-                    icon: modelData.icon || ""
-                    focused: modelData.focused === true
-                    disabled: modelData.disabled === true
-                    danger: modelData.danger === true
+                    label: spec.label || ""
+                    icon: spec.icon || ""
+                    focused: spec.focused === true
+                    disabled: spec.disabled === true
+                    danger: spec.danger === true
                 }
             }
         }
@@ -209,15 +223,17 @@ Item {
             y: dialog.footerY
             spacing: 12 * dialog.unit
             Repeater {
-                model: dialog.rightButtons
+                // By count, so that a focus move does not build the buttons anew.
+                model: dialog.rightButtons.length
                 FooterButton {
+                    readonly property var spec: dialog.rightButtons[index] || ({})
                     unit: dialog.unit
                     fontFamily: GlassStyle.rowFont
-                    label: modelData.label
-                    icon: modelData.icon || ""
-                    focused: modelData.focused === true
-                    disabled: modelData.disabled === true
-                    danger: modelData.danger === true
+                    label: spec.label || ""
+                    icon: spec.icon || ""
+                    focused: spec.focused === true
+                    disabled: spec.disabled === true
+                    danger: spec.danger === true
                 }
             }
         }

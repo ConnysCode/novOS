@@ -22,8 +22,10 @@ InsetCard {
         spacing: 4 * list.unit
 
         Repeater {
-            model: list.rows
+            // By count, so that a focus move does not build the rows anew.
+            model: list.rows.length
             Item {
+                readonly property var modelData: list.rows[index] || ({})
                 width: parent.width
                 height: (modelData.detail ? 80 : 68) * list.unit
                 // A focus target: the dialog's single surface glides here.

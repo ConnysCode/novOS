@@ -35,8 +35,12 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: 30 * card.unit
-        color: card.focused ? (card.ownFocus ? GlassStyle.focusFill : "transparent")
+        color: card.focused ? (card.ownFocus ? GlassStyle.focusFill : "#00ffffff")
                             : (card.selected ? "#29ffffff" : "#0fffffff")
+        Behavior on color {
+            enabled: !card.ownFocus
+            ColorAnimation { duration: GlassStyle.focusDuration }
+        }
         border.width: card.selected && !card.focused ? 2 * card.unit : 0
         border.color: "#8cffffff"
         antialiasing: true
