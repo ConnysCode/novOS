@@ -117,6 +117,14 @@ Item {
         focusId = defaultFocus();
     }
 
+    // The check starts once the check page has flown in: its first answers rebuild the page,
+    // which cost a frame in the middle of the motion.
+    Timer {
+        id: checkLater
+        interval: GlassStyle.slideDuration + 120
+        onTriggered: if (wizard.page === "install-2") bridge.send("check")
+    }
+
     function choiceValues() {
         return { keyboard: keyboard, autoUpdate: autoUpdate ? "on" : "off", blockUpdates: blockUpdates ? "on" : "off" };
     }
@@ -126,7 +134,7 @@ Item {
         switch (page) {
         case "install-1":
             if (id === "cancel") wizard.close();
-            else { go("install-2"); bridge.send("check"); }
+            else { go("install-2"); checkLater.restart(); }
             break;
         case "install-2":
             if (id === "back") go("install-1");

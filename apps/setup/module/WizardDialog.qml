@@ -102,9 +102,14 @@ Item {
     onCardHeightChanged: placeTimer.restart()
     Component.onCompleted: placeTimer.restart()
 
+    // The glass colour. The setup's stage blurs its picture once for the whole screen
+    // (backdrop.sharedGlass); a page only moves its view into it, also while it flies.
+    // Without that, the dialog blurs the part behind the card itself.
+    readonly property Item sharedGlass: backdrop && backdrop.sharedGlass ? backdrop.sharedGlass : null
+
     ImageGlass {
         id: glass
-        sourceItem: dialog.backdrop
+        sourceItem: dialog.sharedGlass ? null : dialog.backdrop
         unit: dialog.unit
         area: Qt.rect(card.x + dialog.slideX, card.y, card.width, card.height)
         visible: false
@@ -118,10 +123,14 @@ Item {
         height: dialog.cardHeight
         glides: dialog.settled
         unit: dialog.unit
-        backdrop: glass.texture
+        backdrop: dialog.sharedGlass ? dialog.sharedGlass.texture : glass.texture
         glassShader: GlassStyle.glassShader
-        backdropMargin: glass.margin
-        backdropArea: glass.area
+        backdropMargin: dialog.sharedGlass ? dialog.sharedGlass.margin : glass.margin
+        // The card's place on the screen is card.x + slideX; the shader takes card.x.
+        backdropArea: dialog.sharedGlass
+                      ? Qt.rect(dialog.sharedGlass.area.x - dialog.slideX, dialog.sharedGlass.area.y,
+                                dialog.sharedGlass.area.width, dialog.sharedGlass.area.height)
+                      : glass.area
         hasBackdrop: 1
 
         // Below everything else of the card, so that text and drawings lie on it.
