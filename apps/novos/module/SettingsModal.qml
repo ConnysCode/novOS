@@ -1046,8 +1046,9 @@ Item {
     }
 
     // K3-Ausschalt-3: a power-off video played once over the whole screen from its tile, with
-    // a pill that names it and a bar for the run. It ends by itself once black, or with any
-    // key; Back ends it at once. The TV stays on.
+    // a pill that names it. No bar: nothing loads when the TV switches off, and a bar would read
+    // as one. It ends by itself once black, or with any key; Back ends it at once. The TV
+    // stays on.
     ShutdownScreen {
         id: shutdownPreview
 
@@ -1096,24 +1097,6 @@ Item {
                     font.family: settings.rowFont
                     font.pixelSize: 19 * settings.unit
                 }
-            }
-        }
-
-        // The run as a thin bar, 72 px above the bottom.
-        Rectangle {
-            anchors.horizontalCenter: parent.horizontalCenter
-            y: parent.height - (72 + 4) * settings.unit
-            width: 420 * settings.unit
-            height: 4 * settings.unit
-            radius: height / 2
-            color: "#29ffffff"
-            visible: shutdownPreview.running
-
-            Rectangle {
-                width: parent.width * shutdownPreview.progress
-                height: parent.height
-                radius: parent.radius
-                color: "#ccffffff"
             }
         }
 

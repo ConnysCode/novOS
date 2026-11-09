@@ -22,8 +22,6 @@ Item {
     readonly property int hold: Math.max(0, duration - GlassStyle.shutdownInDuration -
                                             GlassStyle.shutdownOutDuration)
     readonly property bool running: glowRun.running || lgRun.running
-    // 0 → 1 over the run, for the preview's bar.
-    property real progress: 0
 
     // LG's times in MasterBrand.qml: the black half in, then the logo in while the black
     // completes, then the logo out.
@@ -43,25 +41,13 @@ Item {
         stop();
         if (kind === "lg") lgRun.start();
         else glowRun.start();
-        progressRun.start();
     }
 
     function stop() {
         glowRun.stop();
         lgRun.stop();
-        progressRun.stop();
         cover = 0;
         look = 0;
-        progress = 0;
-    }
-
-    NumberAnimation {
-        id: progressRun
-        target: screen
-        property: "progress"
-        from: 0
-        to: 1
-        duration: screen.duration
     }
 
     Rectangle {
@@ -81,7 +67,8 @@ Item {
             pulsing: screen.running
         }
 
-        // The bar of the boot look keeps its place below the wordmark, empty.
+        // Empty: the boot screen's bar has its place here, so the wordmark stands where it
+        // stands when starting. Switching off shows no bar.
         Column {
             anchors.horizontalCenter: parent.horizontalCenter
             y: Math.round((screen.height - height) / 2)
