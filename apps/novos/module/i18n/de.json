@@ -301,7 +301,18 @@
     "speech.switching": "wird umgeschaltet",
     "speech.turning_on": "wird eingeschaltet",
     "state.switching": "Wird umgeschaltet …",
-    "state.turning_on": "Wird eingeschaltet …"
+    "state.turning_on": "Wird eingeschaltet …",
+    "update.available": "novOS {version} ist da",
+    "update.available_size": "{channel} · {size} MB",
+    "update.channel_beta": "Beta",
+    "update.channel_stable": "Stabil",
+    "update.installed": "novOS {version} ist installiert",
+    "update.installed_detail": "Alles hat geklappt, deine Einstellungen sind unverändert.",
+    "update.installing": "novOS {version} wird installiert",
+    "update.later": "Später",
+    "update.loading": "novOS {version} wird geladen",
+    "update.percent": "{percent} %",
+    "update.show": "Ansehen"
   },
   "source": {
     "badge.running": "Läuft",

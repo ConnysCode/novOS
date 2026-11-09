@@ -2905,8 +2905,9 @@ StarfishSystemUIWindow {
         Timer {
             id: settingsOpenTimer
             property string area: "picture"
+            property string page: ""
             interval: 60
-            onTriggered: panel.openSettings(area, "")
+            onTriggered: panel.openSettings(area, page)
         }
 
         ParallelAnimation {
@@ -2921,8 +2922,10 @@ StarfishSystemUIWindow {
                     panel.openPage("network");
                     withFlow(function (flow) { flow.openList(); });
                 } else if (panel.launchPage.indexOf("settings") === 0) {
-                    // "settings" or "settings:<area>": straight into the settings modal.
+                    // "settings", "settings:<area>" or "settings:<area>:<page>": straight into
+                    // the settings modal, for example from novOS' update notice.
                     settingsOpenTimer.area = panel.launchPage.split(":")[1] || "picture";
+                    settingsOpenTimer.page = panel.launchPage.split(":")[2] || "";
                     settingsOpenTimer.restart();
                 } else if (panel.launchPage !== "") {
                     panel.openPage(panel.launchPage);

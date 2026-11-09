@@ -301,7 +301,18 @@
     "speech.switching": "switching",
     "speech.turning_on": "turning on",
     "state.switching": "Switching …",
-    "state.turning_on": "Turning on …"
+    "state.turning_on": "Turning on …",
+    "update.available": "novOS {version} is here",
+    "update.available_size": "{channel} · {size} MB",
+    "update.channel_beta": "Beta",
+    "update.channel_stable": "Stable",
+    "update.installed": "novOS {version} is installed",
+    "update.installed_detail": "Everything worked, your settings are unchanged.",
+    "update.installing": "Installing novOS {version}",
+    "update.later": "Later",
+    "update.loading": "Downloading novOS {version}",
+    "update.percent": "{percent} %",
+    "update.show": "View"
   },
   "source": {
     "badge.running": "Active",

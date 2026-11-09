@@ -1,4 +1,5 @@
 import QtQuick 2.12
+import Qt.labs.settings 1.0
 import WebOSServices 1.0
 import "."
 import "SourceList.js" as SourceList
@@ -174,11 +175,19 @@ Item {
         onInfoChanged: tvData.applyUpdates()
     }
 
+    // While the modal is open its update page shows the progress; the supervisor shows the
+    // pill over the picture (Update-3) only once the modal is closed.
+    Settings {
+        fileName: tvData.updateFolder + "/ui.ini"
+        property bool settingsOpen: !!tvData.settings && tvData.settings.active
+    }
+
     Timer {
         id: updateWatch
         interval: tvData.updateTimeout
         onTriggered: {
-            if (!updates.busy) return;
+            var info = updates.info || {};
+            if (info.id === updates.sentId && (info.phase === "done" || info.phase === "error")) return;
             tvData.updateLost = true;
             tvData.applyUpdates();
         }
@@ -226,14 +235,16 @@ Item {
     function applyUpdates() {
         var state = settings.store.state;
         var info = updates.info || {};
+        // From info itself: in onInfoChanged the bridge's bindings may not have followed yet.
         var mine = updates.sentId !== "" && info.id === updates.sentId;
+        var answered = mine && (info.phase === "done" || info.phase === "error");
         if (mine) updateLost = false;
         if (info.channel === "stable" || info.channel === "beta") state.updateChannel = info.channel;
         var result = info.result || null;
         if (result && result.check && (!state.updateCheck || (result.check.checked || 0) >= (state.updateCheck.checked || 0))) {
             state.updateCheck = result.check;
         }
-        var waiting = updates.busy && !updateLost;
+        var waiting = updates.sentId !== "" && !answered && !updateLost;
         state.updateBusy = waiting || info.busy === true;
         state.updateCommand = waiting ? sentCommand : (info.busy === true ? info.command : "");
         state.updateStage = info.busy === true ? info.stage || "" : "";
@@ -242,7 +253,7 @@ Item {
         state.updateError = updateLost ? "no updater" : (mine && info.phase === "error" ? info.error || "?" : "");
         state.updateErrorKind = updateLost ? "failed" : (mine ? info.errorKind || "" : "");
         state.updateChecked = checkedText(state.updateCheck);
-        if (mine && checkAfterChannel && !updates.busy) {
+        if (answered && checkAfterChannel) {
             checkAfterChannel = false;
             if (info.phase === "done") sendUpdate("check");
         }

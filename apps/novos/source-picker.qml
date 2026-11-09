@@ -27,13 +27,14 @@ StarfishSystemUIWindow {
                 if (params.banner) picker.openBanner(params.appId);
                 else if (params.attributes) picker.addAttribute(params.label);
                 else if (params.notice || params.alert) picker.addNotice(params);
+                else if (params.novosProgress) picker.openUpdatePill();
                 else if (params.alertClose !== undefined) picker.closeNotice(params.alertClose);
                 else if (picker.bannerMode) picker.open();
                 else picker.hotkeyPressed();
             } else if (params.alertClose !== undefined) {
                 rootWindow.exit();
             } else if (!params.banner && !params.attributes && !params.notice && !params.alert &&
-                       picker.launcherOpen()) {
+                       !params.novosProgress && picker.launcherOpen()) {
                 // Our launcher shows the sources itself; the source key adds no second row.
                 rootWindow.exit();
             } else {
@@ -45,6 +46,7 @@ StarfishSystemUIWindow {
                 if (params.banner) picker.openBanner(params.appId);
                 else if (params.attributes) picker.openAttributes(params.label);
                 else if (params.notice || params.alert) picker.openNotice(params);
+                else if (params.novosProgress) { picker.enterBanner(); picker.openUpdatePill(); }
                 else picker.open();
             }
         }
@@ -118,6 +120,10 @@ StarfishSystemUIWindow {
         property var notice: ({ title: "", detail: "", icon: "notice-info", buttons: [] })
         property bool noticeShown: false
         property bool noticeOpen: false
+        // novOS' own update in the background (board Update-3); the supervisor opens it.
+        property bool updatePillOpen: false
+        property bool updatePillShown: false
+        readonly property var updateInfo: updates.info || ({})
         property var noticeQueue: []
         property int noticeFocus: 0
 
@@ -258,6 +264,7 @@ StarfishSystemUIWindow {
 
         // A toast disappears by itself. A dialog waits for its button unless LG gave it a timeout.
         function noticeOf(params) {
+            if (params.novos) return novosNotice(params);
             var alert = params.alert;
             var info = alert || params;
             var title = info.title || info.message || "";
@@ -380,7 +387,48 @@ StarfishSystemUIWindow {
         function closeWhenIdle() {
             if (!bannerMode) return;
             if (!pillTimer.running && !attributeTimer.running && !noticeOpen &&
-                    !signalCheck.running) close();
+                    !signalCheck.running && !updatePillOpen) close();
+        }
+
+        function openUpdatePill() {
+            stayOpen();
+            updatePillOpen = true;
+            updatePillShown = liveGlass.pictureReady;
+            updatePillCheck.restart();
+        }
+
+        // The pill goes when the update is through or failed; the restart takes the window anyway.
+        // Read from the bridge itself: in onInfoChanged, updateInfo may not have followed yet.
+        function checkUpdatePill() {
+            var info = updates.info || {};
+            if (!updatePillOpen || (info.busy === true && info.command === "update" && info.phase === "running")) return;
+            updatePillOpen = false;
+            updatePillShown = false;
+            closeWhenIdle();
+        }
+
+        // novOS' own notices (boards Update-1 and Update-6), in this window's words.
+        function novosNotice(params) {
+            var version = params.version || "";
+            if (params.novos === "available") {
+                var channel = I18n.t("picker", "update.channel_" + (params.channel === "stable" ? "stable" : "beta"));
+                var size = params.size > 0 ? Math.max(1, Math.round(params.size / 1000000)) : 0;
+                return { title: I18n.t("picker", "update.available", { version: version }),
+                         detail: size ? I18n.t("picker", "update.available_size", { channel: channel, size: size }) : channel,
+                         icon: "notice-update",
+                         buttons: [{ label: I18n.t("picker", "update.show"), focus: true,
+                                     toastAction: { serviceURI: "luna://com.webos.service.systemUIManager",
+                                                    serviceMethod: "/launch",
+                                                    launchParams: { appId: "com.webos.app.quicksettings",
+                                                                    params: { page: "settings:info:update" } } } },
+                                   { label: I18n.t("picker", "update.later") }],
+                         dialog: false, modal: false, sourceId: "", closeAction: null, timestamp: "",
+                         timeout: 15000 };
+            }
+            return { title: I18n.t("picker", "update.installed", { version: version }),
+                     detail: I18n.t("picker", "update.installed_detail"), icon: "notice-update",
+                     buttons: [{ label: I18n.t("global", "ok"), focus: true }],
+                     dialog: false, modal: false, sourceId: "", closeAction: null, timestamp: "", timeout: 10000 };
         }
 
         function updateBanner() {
@@ -444,6 +492,7 @@ StarfishSystemUIWindow {
                 if (bannerState !== "") pillShown = true;
                 if (attributes.length > 0) attributesShown = true;
                 if (noticeOpen) noticeShown = true;
+                if (updatePillOpen) updatePillShown = true;
                 return;
             }
             if (closing || barShown) return;
@@ -535,7 +584,8 @@ StarfishSystemUIWindow {
             }
             if (bannerMode) {
                 rootWindow.webOSXInput.invokeFullKeyToAppAction(event.key, event.nativeScanCode, foregroundApp);
-                close();
+                // The update pill stays while the remote goes on to the source.
+                if (!updatePillOpen || noticeOpen || bannerState !== "" || attributes.length > 0) close();
                 event.accepted = true;
                 return;
             }
@@ -855,6 +905,41 @@ StarfishSystemUIWindow {
                     }
                 }
             }
+        }
+
+        SetupBridge {
+            id: updates
+            folder: "/tmp/novos-update"
+            active: picker.updatePillOpen
+            onInfoChanged: picker.checkUpdatePill()
+        }
+
+        Timer {
+            id: updatePillCheck
+            interval: 3000      // the service may not have written its first state yet
+            onTriggered: picker.checkUpdatePill()
+        }
+
+        ProgressPill {
+            id: updatePill
+            x: picker.width - width - 56 * picker.unit
+            // LG's attribute pill sits at the top right too: then below it.
+            y: 56 * picker.unit + (picker.attributesShown ? attributePill.height + 16 * picker.unit : 0)
+            unit: picker.unit
+            titleFont: picker.titleFamily
+            valueFont: picker.valueFamily
+            glassShader: liveGlass.glassShader
+            backdrop: liveGlass.texture
+            backdropMargin: liveGlass.margin
+            backdropArea: Qt.rect(picker.pillArea.x - x, picker.pillArea.y - y,
+                                  picker.pillArea.width, picker.pillArea.height)
+            hasBackdrop: liveGlass.hasFrame ? 1 : 0
+            readonly property var offer: picker.updateInfo.result && picker.updateInfo.result.check || ({})
+            label: I18n.t("picker", picker.updateInfo.stage === "download" || picker.updateInfo.stage === "manifest" ?
+                                    "update.loading" : "update.installing", { version: offer.available || "" })
+            value: I18n.t("picker", "update.percent", { percent: picker.updateInfo.percent || 0 })
+            progress: (picker.updateInfo.percent || 0) / 100
+            shown: picker.updatePillShown
         }
 
         NoticeBar {

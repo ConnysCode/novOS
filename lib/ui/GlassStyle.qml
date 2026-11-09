@@ -59,6 +59,7 @@ QtObject {
     readonly property int rowSize: 22
     readonly property int valueSize: 18
     readonly property int detailSize: 17
+    readonly property int pillTextSize: 20                 // status pill of background work
     readonly property int sectionSize: 16
     readonly property real sectionTracking: 0.96          // 0.06 em, as in the hand-off
     property alias blur: values.blur

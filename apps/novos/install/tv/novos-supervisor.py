@@ -17,6 +17,9 @@ While it runs it
 - starts bin/novos-updater.py when novOS' settings left a command for it in
   /tmp/novos-update/command.ini and no updater answers, and once a day, after the
   interface ran stable, leaves a check there itself.
+- has the source window show novOS' update notices: "novOS X ist da" once per version
+  after a daily check, the progress pill while an update runs and the settings are
+  closed, and "novOS X ist installiert" once after the restart into the new release.
 - ends when the overlays are no longer mounted, for example after a test rollback.
 """
 
@@ -42,6 +45,9 @@ STABLE = "/tmp/novos-stable"
 EARLY_RELEASE = STATE + "/early-release"
 UPDATE = "/tmp/novos-update"
 UPDATE_CHECKED = STATE + "/update-checked"
+UPDATE_ANNOUNCED = STATE + "/update-announced"     # the version "ist da" was shown for
+UPDATE_SHOWN = UPDATE + "/shown.json"               # progress and installed, per command
+SYSTEM_UI_LAUNCH = "luna://com.webos.service.systemUIManager/launch"
 
 STABLE_SECONDS = 120
 CRASH_WINDOW = 300
@@ -51,6 +57,7 @@ RELAY_RETRIES = 3
 RELAY_DELAY = 2
 BEAT_TIMEOUT = 5
 UPDATER_RETRY = 15
+NOTICE_DELAY = 8          # seconds of a running surface-manager before a notice
 CHECK_EVERY = 24 * 3600
 
 
@@ -238,6 +245,54 @@ class Updater:
                                         stderr=subprocess.DEVNULL, start_new_session=True)
         log("updater started for %s %s, pid %d" % (waiting.get("command", "?"), serial, self.process.pid))
 
+    def announce(self, settled):
+        """The notices of the updater's state, each once; settled: the interface stands."""
+        if not settled:
+            return
+        try:
+            with open(UPDATE + "/state.json") as file:
+                state = json.load(file)
+        except (OSError, ValueError):
+            return
+        try:
+            with open(UPDATE_SHOWN) as file:
+                shown = json.load(file)
+        except (OSError, ValueError):
+            shown = {}
+        before = dict(shown)
+        serial = state.get("id", "")
+        command = state.get("command", "")
+        result = state.get("result") or {}
+        found = result.get("check") or {}
+        if command == "update" and state.get("busy") and state.get("phase") == "running":
+            settings_open = read_ini(UPDATE + "/ui.ini").get("settingsOpen") == "true"
+            if shown.get("progress") != serial and not settings_open:
+                self.show({"novosProgress": True})
+                shown["progress"] = serial
+        elif command == "update" and state.get("phase") == "done" and result.get("installed"):
+            if shown.get("installed") != serial and \
+                    result["installed"] == os.path.basename(os.path.realpath(PANEL)):
+                self.show({"notice": True, "novos": "installed", "version": result["installed"]})
+                shown["installed"] = serial
+        elif command == "check" and serial.startswith("auto-") and state.get("phase") == "done" and \
+                found.get("newer") and not found.get("problems"):
+            try:
+                with open(UPDATE_ANNOUNCED) as file:
+                    announced = file.read().strip()
+            except OSError:
+                announced = ""
+            if announced != found.get("available"):
+                self.show({"notice": True, "novos": "available", "version": found.get("available", ""),
+                           "size": found.get("size", 0), "channel": found.get("channel") or ""})
+                write_text(UPDATE_ANNOUNCED, found.get("available", "") + "\n")
+        if shown != before:
+            write_text(UPDATE_SHOWN, json.dumps(shown))
+
+    @staticmethod
+    def show(params):
+        answer = luna(SYSTEM_UI_LAUNCH, {"appId": "com.webos.app.quickinputpicker", "params": params})
+        log("update notice %s: %s" % (json.dumps(params), json.dumps(answer)))
+
     @staticmethod
     def check_due():
         try:
@@ -329,6 +384,7 @@ def run():
             grow_video()
             try:
                 updater.check(counted)
+                updater.announce(bool(pid) and time.time() - since >= NOTICE_DELAY and relay.alive())
             except OSError as error:
                 log("updater: %s" % error)
             time.sleep(1)
