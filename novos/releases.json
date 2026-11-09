@@ -3,6 +3,59 @@
   "app": "novos",
   "releases": [
     {
+      "version": "0.9.0-beta.9",
+      "channel": "beta",
+      "published": "2026-11-09T19:33:13Z",
+      "date": "2026-11-09",
+      "size": 18411160,
+      "restarts": 1,
+      "manifest": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.0-beta.9/novos-0.9.0-beta.9.manifest.json",
+      "signature": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.0-beta.9/novos-0.9.0-beta.9.manifest.json.sig",
+      "topics": {
+        "de": "Eigene Ausschalt-Videos, Neu in novOS",
+        "en": "Your own power-off videos, What's new",
+        "es": "Vídeos de apagado propios, Novedades",
+        "fr": "Vos vidéos d’extinction, Nouveautés"
+      },
+      "items": [
+        {
+          "kind": "feature",
+          "icon": "film",
+          "open": "settings:interface:shutdownVideo",
+          "image": "shutdown-videos.png",
+          "title": {
+            "de": "Eigene Ausschalt-Videos",
+            "en": "Your own power-off videos",
+            "es": "Tus vídeos de apagado",
+            "fr": "Vos vidéos d’extinction"
+          },
+          "text": {
+            "de": "Lade vom Handy ein Video oder Bild hoch, es erscheint beim Ausschalten.",
+            "en": "Upload a video or picture from your phone; it plays when the TV turns off.",
+            "es": "Sube un vídeo o una imagen desde el móvil; aparece al apagar.",
+            "fr": "Envoyez une vidéo ou une image depuis votre téléphone ; elle s’affiche à l’extinction."
+          }
+        },
+        {
+          "kind": "feature",
+          "icon": "sparkle",
+          "open": "settings:info:update",
+          "title": {
+            "de": "Neu in novOS",
+            "en": "What's new in novOS",
+            "es": "Novedades de novOS",
+            "fr": "Nouveautés de novOS"
+          },
+          "text": {
+            "de": "Nach einem größeren Update zeigt novOS, was neu ist, und führt direkt hin.",
+            "en": "After a bigger update novOS shows what is new and takes you there.",
+            "es": "Tras una actualización grande, novOS muestra las novedades y te lleva a ellas.",
+            "fr": "Après une mise à jour importante, novOS montre les nouveautés et vous y conduit."
+          }
+        }
+      ]
+    },
+    {
       "version": "0.9.0-beta.8",
       "channel": "beta",
       "published": "2026-11-09T19:11:01Z",
