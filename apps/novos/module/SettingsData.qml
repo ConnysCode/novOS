@@ -384,8 +384,10 @@ Item {
                 state.blockedNow = info.choices.blockedNow === true;
             }
         } else if (ownCommand !== "versions" && ownCommand !== "cancel") {
-            state.updateError = error;
-            state.updateErrorKind = updateLost ? "failed" : (mine ? info.errorKind || "" : "");
+            // A search that found no server says so too, also the daily one (K3-NovUpdate-6).
+            var searchFailed = !mine && !waiting && info.command === "check" && info.phase === "error";
+            state.updateError = searchFailed ? info.error || "?" : error;
+            state.updateErrorKind = updateLost ? "failed" : (mine || searchFailed ? info.errorKind || "" : "");
         }
         state.updateChecked = checkedText(state.updateCheck);
         if (answered && checkAfterChannel) {
