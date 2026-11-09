@@ -105,10 +105,49 @@
   "0.9.0-beta.7": {
     "date": "2026-11-09",
     "topics": {
-      "de": "Neue Update-Seite, Hinweise, nachts aktualisieren",
-      "en": "New update page, notices, updates at night",
-      "es": "Nueva página de actualización, avisos, actualizar de noche",
-      "fr": "Nouvelle page de mise à jour, avis, mises à jour la nuit"
+      "de": "Hinweise zu Updates, LG-Systemupdates",
+      "en": "Update notices, LG system updates",
+      "es": "Avisos de actualización, actualizaciones de LG",
+      "fr": "Avis de mise à jour, mises à jour LG"
+    },
+    "items": [
+      {
+        "title": {
+          "de": "Hinweise über dem Bild",
+          "en": "Notices over the picture",
+          "es": "Avisos sobre la imagen",
+          "fr": "Avis sur l’image"
+        },
+        "text": {
+          "de": "novOS meldet neue Versionen, zeigt den Download oben rechts und bestätigt die Installation.",
+          "en": "novOS announces new versions, shows the download at the top right and confirms the install.",
+          "es": "novOS avisa de versiones nuevas, muestra la descarga arriba a la derecha y confirma la instalación.",
+          "fr": "novOS annonce les nouvelles versions, affiche le téléchargement en haut à droite et confirme l’installation."
+        }
+      },
+      {
+        "title": {
+          "de": "LG-Systemupdates",
+          "en": "LG system updates",
+          "es": "Actualizaciones de LG",
+          "fr": "Mises à jour LG"
+        },
+        "text": {
+          "de": "Unter System › Software-Update sperrst oder erlaubst du LGs Updates und suchst nach ihnen.",
+          "en": "Under System › Software update you block or allow LG's updates and look for them.",
+          "es": "En Sistema › Actualización de software bloqueas o permites las actualizaciones de LG y las buscas.",
+          "fr": "Dans Système › Mise à jour logicielle, vous bloquez ou autorisez les mises à jour LG et les recherchez."
+        }
+      }
+    ]
+  },
+  "0.9.0-beta.8": {
+    "date": "2026-11-09",
+    "topics": {
+      "de": "Neue Update-Seite, frühere Versionen, Ausschalt-Video",
+      "en": "New update page, earlier versions, power-off video",
+      "es": "Nueva página de actualización, versiones anteriores, vídeo de apagado",
+      "fr": "Nouvelle page de mise à jour, versions précédentes, vidéo d’extinction"
     },
     "items": [
       {
@@ -155,30 +194,16 @@
       },
       {
         "title": {
-          "de": "Hinweise über dem Bild",
-          "en": "Notices over the picture",
-          "es": "Avisos sobre la imagen",
-          "fr": "Avis sur l’image"
+          "de": "Ausschalt-Video",
+          "en": "Power-off video",
+          "es": "Vídeo de apagado",
+          "fr": "Vidéo d’extinction"
         },
         "text": {
-          "de": "novOS meldet neue Versionen, zeigt den Download oben rechts und bestätigt die Installation.",
-          "en": "novOS announces new versions, shows the download at the top right and confirms the install.",
-          "es": "novOS avisa de versiones nuevas, muestra la descarga arriba a la derecha y confirma la instalación.",
-          "fr": "novOS annonce les nouvelles versions, affiche le téléchargement en haut à droite et confirme l’installation."
-        }
-      },
-      {
-        "title": {
-          "de": "LG-Systemupdates",
-          "en": "LG system updates",
-          "es": "Actualizaciones de LG",
-          "fr": "Mises à jour LG"
-        },
-        "text": {
-          "de": "Unter System › Software-Update sperrst oder erlaubst du LGs Updates und suchst nach ihnen.",
-          "en": "Under System › Software update you block or allow LG's updates and look for them.",
-          "es": "En Sistema › Actualización de software bloqueas o permites las actualizaciones de LG y las buscas.",
-          "fr": "Dans Système › Mise à jour logicielle, vous bloquez ou autorisez les mises à jour LG et les recherchez."
+          "de": "Unter Oberfläche wählst du, was beim Ausschalten erscheint.",
+          "en": "Under Interface you pick what appears when the TV turns off.",
+          "es": "En Interfaz eliges lo que aparece al apagar.",
+          "fr": "Dans Interface, vous choisissez ce qui s’affiche à l’extinction."
         }
       }
     ]
