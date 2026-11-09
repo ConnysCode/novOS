@@ -154,16 +154,6 @@ StarfishSystemUIWindow {
         property string settingsConfirm: ""     // action a confirmation of the modal runs
         property var settingsConfirmParams: ({})
         property bool modalBackdrop: false  // the glass samples the screen centre
-        // A modal lies on the dimmed picture: the modal scrim (none when the panel never
-        // stood, see settingsLaunch), and for the settings modal its own dimming on top.
-        // The glass takes all of it beyond the content scrim.
-        readonly property real modalVeil: {
-            if (!modalBackdrop) return 0;
-            var sheet = settingsLoader.item;
-            var total = settingsLaunch ? 0 : GlassStyle.modalScrim;
-            if (settingsBackdrop && sheet !== null) total = GlassStyle.stackScrims(total, sheet.backdropVeil);
-            return GlassStyle.veilBeyondContent(total);
-        }
         property real panelFade: panelHidden ? 0 : 1
         Behavior on panelFade { NumberAnimation { duration: panel.modalFadeDuration } }
 
@@ -1972,7 +1962,6 @@ StarfishSystemUIWindow {
             opened: rootWindow.opened
             shown: panel.panelShown
             closing: panel.closing
-            veil: panel.modalVeil
             onReady: if (rootWindow.opened) panel.startOpenAnimation()
             onPictureReadyChanged: if (pictureReady) PerfProbe.mark("glass.picture")
         }
@@ -1985,8 +1974,8 @@ StarfishSystemUIWindow {
         // Content scrim: rgba(4, 6, 8, .18), rising to .55 behind a modal.
         Rectangle {
             anchors.fill: parent
-            color: GlassStyle.scrimColor
-            opacity: (GlassStyle.contentScrim + (GlassStyle.modalScrim - GlassStyle.contentScrim) * modalDim) * glass.opacity
+            color: "#040608"
+            opacity: (0.18 + 0.37 * modalDim) * glass.opacity
             property real modalDim: panel.panelHidden ? 1 : 0
             Behavior on modalDim { NumberAnimation { duration: panel.modalFadeDuration } }
         }
