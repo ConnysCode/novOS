@@ -282,8 +282,11 @@ Item {
                 }
 
                 Text {
+                    readonly property var focusedRow: cell.owner ? cell.owner.focusedRow : null
+                    readonly property bool onOwn: !!focusedRow && !!focusedRow.item && !!focusedRow.item.entry &&
+                                                  focusedRow.item.entry.own === true
                     anchors.verticalCenter: parent.verticalCenter
-                    text: modelData.text
+                    text: onOwn && modelData.textOwn ? modelData.textOwn : modelData.text
                     color: "#c7ffffff"
                     font.family: cell.valueFont
                     font.pixelSize: 18 * cell.unit

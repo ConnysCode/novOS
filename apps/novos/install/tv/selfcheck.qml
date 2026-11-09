@@ -30,7 +30,8 @@ StarfishSystemUIWindow {
         Qt.resolvedUrl("masterbrand/MasterBrand.qml"),
         // MasterBrand.qml loads it only at power off, so it is checked here on its own.
         "file://@REAL@/module/ShutdownScreen.qml",
-        "file://@REAL@/module/ShutdownVideo.qml",
+        "file://@REAL@/module/ShutdownFrames.qml",
+        "file://@REAL@/module/ShutdownEdit.qml",
         "file://@REAL@/module/ShutdownUpload.qml"
     ]
     property var components: []

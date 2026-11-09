@@ -25,7 +25,9 @@ Item {
     readonly property string phase: serving ? String(info.phase || "waiting") :
                                     (bridge.answeredId === bridge.sentId && info.phase ? String(info.phase) : "starting")
     readonly property var upload: info.upload || ({})
-    readonly property real share: upload.size > 0 ? upload.received / upload.size : 0
+    // A video comes as frames (frames, done), a picture as bytes (size, received).
+    readonly property real share: upload.frames > 0 ? upload.done / upload.frames :
+                                  (upload.size > 0 ? upload.received / upload.size : 0)
     readonly property var added: info.added || []
     readonly property string address: String(info.url || "").replace(/^http:\/\//, "")
     readonly property bool sending: phase === "receiving" || phase === "done"
@@ -100,8 +102,9 @@ Item {
                       detail: page.address !== "" ? page.t("upload.step_scan_detail", { address: page.address }) : "",
                       done: page.sending },
                     { title: page.t("upload.step_choose"),
-                      detail: page.upload.name ? page.t("upload.step_choose_detail",
-                                                        { name: page.upload.name, size: page.megabytes(page.upload.size) + " MB" }) : "",
+                      detail: !page.upload.name ? "" : page.upload.size > 0 ?
+                              page.t("upload.step_choose_detail", { name: page.upload.name, size: page.megabytes(page.upload.size) + " MB" }) :
+                              page.upload.name,
                       done: page.sending },
                     { title: page.t(page.phase === "done" ? "upload.step_sent" : "upload.step_send"), detail: "",
                       done: page.phase === "done" }
@@ -165,8 +168,10 @@ Item {
                     height: 24 * page.unit
 
                     Text {
-                        text: page.t("upload.progress", { received: page.megabytes(page.upload.received || 0),
-                                                         size: page.megabytes(page.upload.size || 0) })
+                        text: page.upload.frames > 0 ?
+                              page.t("upload.progress_frames", { done: page.upload.done || 0, total: page.upload.frames }) :
+                              page.t("upload.progress", { received: page.megabytes(page.upload.received || 0),
+                                                          size: page.megabytes(page.upload.size || 0) })
                         color: "#d1ffffff"
                         font.family: GlassStyle.valueFont
                         font.pixelSize: 18 * page.unit

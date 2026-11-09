@@ -507,7 +507,9 @@ function resolvePage(store, i18n, areaId, pageId, param) {
         if (rows.length === 0) continue;
         var keys = [];
         for (var k = 0; k < (section.keys || []).length; k++) {
-            keys.push({ cap: section.keys[k].cap, text: ctx.t(section.keys[k].text) });
+            // textOwn: the text while the focus is on an own entry (an own power-off video).
+            var spec = section.keys[k];
+            keys.push({ cap: spec.cap, text: ctx.t(spec.text), textOwn: spec.textOwn ? ctx.t(spec.textOwn) : "" });
         }
         // heading: a large title of its own with a text at the right, as "Neu in 1.0" and its date.
         var heading = typeof section.heading === "function" ? section.heading(ctx) :
@@ -526,7 +528,8 @@ function resolvePage(store, i18n, areaId, pageId, param) {
     }
     var hero = typeof page.hero === "function" ? page.hero(ctx) : null;
     return { id: page.id, title: title, subtitle: subtitle || "", sections: sections, rows: all, hero: hero,
-             note: page.note ? ctx.t(call(page.note, ctx)) : "", custom: page.custom || "" };
+             note: page.note ? ctx.t(call(page.note, ctx)) : "", custom: page.custom || "",
+             target: page.target || "" };
 }
 
 // The page of a choice: one row per visible value, the current one checked.

@@ -177,11 +177,12 @@ Item {
             return count === 1 ? t("value.second") : t("value.seconds", { count: count });
         };
         var tiles = [];
+        // OK chooses novOS' entries; on the user's own it opens their page (K3-Ausschalt-6).
         var add = function (entry, title, subtitle) {
-            tiles.push({ id: entry.id, title: title, subtitle: subtitle, kind: entry.kind,
-                         file: entry.file || "", still: entry.still || "", sound: entry.sound === true,
-                         selected: NovosSettings.shutdownScreen === entry.id, thumb: "shutdown",
-                         action: "chooseShutdown", params: { id: entry.id },
+            tiles.push({ id: entry.id, title: title, subtitle: subtitle, kind: entry.kind, entry: entry,
+                         sound: entry.sound === true, selected: NovosSettings.shutdownScreen === entry.id,
+                         thumb: "shutdown", action: entry.own ? "openShutdownEdit" : "chooseShutdown",
+                         params: { id: entry.id },
                          preview: { action: "previewShutdown", params: { id: entry.id } } });
         };
         for (var i = 0; i < ShutdownScreens.entries.length; i++) {
@@ -202,6 +203,31 @@ Item {
     function refreshShutdown() {
         settings.store.lists.shutdownScreens = shutdownTiles();
         settings.changed();
+    }
+
+    // Windows can neither change nor delete files: bin/novos-upload.py does, for a command
+    // in /tmp/novos-upload/command.ini, started by the supervisor. The tiles follow its answer.
+    function deleteShutdown(id) {
+        if (NovosSettings.shutdownScreen === id) writeNovos("shutdownScreen", ShutdownScreens.fallback);
+        mediaBridge.send("delete", { target: id });
+    }
+
+    // values: start, length, fade, zoom, x, y of the edit page. Stored, it is the power-off video.
+    function saveShutdown(id, values) {
+        var parts = [];
+        for (var name in values) {
+            var value = values[name];
+            parts.push(name + ":" + (typeof value === "boolean" ? (value ? 1 : 0) : Number(value)));
+        }
+        mediaBridge.send("edit", { target: id, params: parts.join(" ") });
+        writeNovos("shutdownScreen", id);
+    }
+
+    SetupBridge {
+        id: mediaBridge
+        folder: "/tmp/novos-upload"
+        active: busy
+        onAnsweredChanged: if (answered) refreshShutdown()
     }
 
     // LG's own PIN prompt; the PIN itself never reaches this window.

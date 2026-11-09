@@ -284,5 +284,49 @@
         }
       }
     ]
+  },
+  "0.9.0-beta.10": {
+    "date": "2026-11-09",
+    "level": "minor",
+    "topics": {
+      "de": "Ausschalt-Videos bearbeiten",
+      "en": "Edit power-off videos",
+      "es": "Editar vídeos de apagado",
+      "fr": "Modifier les vidéos d’extinction"
+    },
+    "items": [
+      {
+        "kind": "feature",
+        "icon": "film",
+        "open": "settings:interface:shutdownVideo",
+        "title": {
+          "de": "Zuschneiden und löschen",
+          "en": "Trim and delete",
+          "es": "Recortar y eliminar",
+          "fr": "Découper et supprimer"
+        },
+        "text": {
+          "de": "Wähle bei eigenen Videos und Bildern den Ausschnitt, die Länge und das Ausblenden, oder lösche sie.",
+          "en": "For your own videos and pictures, pick the framing, the length and the fade, or delete them.",
+          "es": "En tus vídeos e imágenes elige el encuadre, la duración y el fundido, o elimínalos.",
+          "fr": "Pour vos vidéos et images, choisissez le cadrage, la durée et le fondu, ou supprimez-les."
+        }
+      },
+      {
+        "kind": "fix",
+        "title": {
+          "de": "Eigene Videos spielen",
+          "en": "Your own videos play",
+          "es": "Tus vídeos se reproducen",
+          "fr": "Vos vidéos sont lues"
+        },
+        "text": {
+          "de": "Eigene Ausschalt-Videos laufen jetzt mit Bild und Ton; vorher blieb das Bild schwarz.",
+          "en": "Your own power-off videos now play with picture and sound; before, the picture stayed black.",
+          "es": "Tus vídeos de apagado se reproducen ahora con imagen y sonido; antes la imagen quedaba en negro.",
+          "fr": "Vos vidéos d’extinction sont désormais lues avec l’image et le son ; avant, l’image restait noire."
+        }
+      }
+    ]
   }
 }

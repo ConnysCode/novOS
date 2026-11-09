@@ -1,10 +1,12 @@
 import QtQuick 2.12
 import QtGraphicalEffects 1.0
 import "."
+import "ShutdownScreens.js" as ShutdownScreens
 
 // The picture on a tile of Oberfläche › Ausschalt-Video (K3-Ausschalt-2 and -7): what the
 // entry shows in the middle of its run, small, with rounded corners. item is the entry of
-// the host list "shutdownScreens" (SettingsData): kind, and for own entries file and still.
+// the host list "shutdownScreens" (SettingsData): kind, and for own entries the entry of
+// ShutdownScreens.js (frames, framing).
 //   "add"   the last tile, "Video hinzufügen": a ring with a plus
 Item {
     id: thumb
@@ -13,6 +15,7 @@ Item {
     property var item: ({})
     property bool focused: false
     readonly property string kind: item && item.kind ? item.kind : ""
+    readonly property var entry: item && item.entry ? item.entry : ({})
 
     // The boot look: light and wordmark, larger than on the screen so that it reads.
     BootGlow {
@@ -49,18 +52,26 @@ Item {
             source: visible ? "file:///usr/lib/qml/MasterBrand/LG_logo_2k.png" : ""
         }
 
-        // The page that sent a video made a still of it; without one the tile shows a
-        // play symbol.
-        Image {
-            id: picture
+        // The first frame of the part that plays, or the picture, framed as on the screen.
+        ShutdownFraming {
+            id: framed
             anchors.fill: parent
             visible: false
-            fillMode: Image.PreserveAspectCrop
-            sourceSize: Qt.size(640, 360)
-            asynchronous: true
-            cache: false
-            source: thumb.kind === "image" ? "file://" + thumb.item.file :
-                    (thumb.kind === "video" && thumb.item.still ? "file://" + thumb.item.still : "")
+            zoom: thumb.entry.zoom || 1
+            panX: thumb.entry.x || 0
+            panY: thumb.entry.y || 0
+            mediaWidth: picture.implicitWidth || 16
+            mediaHeight: picture.implicitHeight || 9
+
+            Image {
+                id: picture
+                anchors.fill: parent
+                sourceSize: Qt.size(640, 640)
+                asynchronous: true
+                cache: false
+                source: thumb.kind === "image" || thumb.kind === "video" ?
+                        ShutdownScreens.frameUrl(thumb.entry, ShutdownScreens.frameAt(thumb.entry, thumb.entry.start || 0)) : ""
+            }
         }
 
         Rectangle {
@@ -73,14 +84,8 @@ Item {
         OpacityMask {
             anchors.fill: parent
             visible: picture.status === Image.Ready
-            source: picture
+            source: framed
             maskSource: corners
-        }
-
-        Image {
-            anchors.centerIn: parent
-            visible: thumb.kind === "video" && picture.status !== Image.Ready
-            source: visible ? Qt.resolvedUrl("icons/play-18.png") : ""
         }
     }
 

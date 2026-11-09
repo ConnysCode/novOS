@@ -1,20 +1,29 @@
 #!/usr/bin/env python3
-"""Upload of power-off videos and pictures from a phone or computer in the same network.
+"""Power-off videos and pictures of the user: upload from a phone or computer, delete, edit.
 
     novos-upload.py serve [--folder DIR] [--media DIR] [--port N]
     novos-upload.py qr <text> <file.png>          writes a QR code, for tests
 
-The settings page "Vom Handy oder Computer" leaves "command=open" in <folder>/command.ini
-(SetupBridge); the supervisor starts this service for it. While it runs it serves one
-plain page under a fresh random path on the TV's address, http://<ip>:<port>/<code>,
-shown on the TV as a QR code and as text to type on a computer (five letters and digits
-without look-alikes, any case). The page sends each chosen file with PUT; the file lands in
-<media> with an entry in <media>/index.json that ShutdownScreens.js reads. The TV follows
-<folder>/state.json. The service ends on "command=close", after ten minutes, or when the
-settings window is gone (no new command) for ten minutes.
+The settings leave a command in <folder>/command.ini (SetupBridge); the supervisor starts
+this service for it and the service answers in <folder>/state.json.
+  open     the page "Vom Handy oder Computer" is open. Serves one plain page under a fresh
+           path on the TV's address, http://<ip>:<port>/<code>, shown on the TV as a QR
+           code and as text to type (five letters and digits without look-alikes, any
+           case). Ends on "close", after ten minutes, or when no command comes for as long.
+  delete   removes the entry "target" with its files.
+  edit     stores "params" of the entry "target": the part of a video that plays (start,
+           length, ms), the fade at its end (fade 1 or 0) and the framing (zoom, x, y), as
+           "start:6000 length:8000 fade:1 zoom:1.5 x:0.4 y:-0.2". No JSON: QSettings would
+           quote and escape its characters in the ini file.
+Delete and edit end the service after their answer unless the page is open.
 
-Only videos (MP4, MOV) and pictures (JPEG, PNG) are taken, each up to 200 MB, all of them
-together up to 300 MB and never below 150 MB free on the data partition.
+The TV cannot play video files inside surface-manager: QtMultimedia has no media service
+there. The page therefore takes a video apart in the browser, into JPEG frames (15 per
+second, at most 1280 x 720, the first 30 seconds) and a WAV track, and the TV plays the
+frames with the sound (SoundEffect). Pictures (JPEG, PNG) come as they are.
+Everything lands in <media>, one folder per video, with <media>/index.json for the TV
+(ShutdownScreens.js). Each file up to 200 MB, all of them together up to 300 MB, and never
+below 150 MB free on the data partition.
 """
 
 import binascii
@@ -22,6 +31,7 @@ import html
 import json
 import os
 import random
+import shutil
 import socket
 import struct
 import subprocess
@@ -39,12 +49,14 @@ LIFETIME = 600                    # seconds a code stays valid
 FILE_LIMIT = 200 * 1024 * 1024
 MEDIA_LIMIT = 300 * 1024 * 1024
 KEEP_FREE = 150 * 1024 * 1024
-THUMB_LIMIT = 2 * 1024 * 1024
+FPS = 15                          # frames per second of a video
+SOURCE_LIMIT = 30000              # ms of a video that the page takes over
 PLAY_LIMIT = 15000                # ms of a video that play at power off
+PLAY_SHORTEST = 1000
 PICTURE_LENGTH = 3000             # ms a picture stays; the user sets it in a later step
+ZOOM_LIMIT = 3.0
 CODE_LETTERS = "abcdefghjkmnpqrstuvwxyz23456789"
-TYPES = {".mp4": "video", ".m4v": "video", ".mov": "video", ".jpg": "image", ".jpeg": "image",
-         ".png": "image"}
+IMAGE_TYPES = {".jpg": "image", ".jpeg": "image", ".png": "image"}
 
 
 # ---- QR code (byte mode, error correction M, versions 1 to 10) ----------------------
@@ -313,58 +325,6 @@ def write_png(path, modules, scale=10, border=4):
     write_bytes(path, data)
 
 
-# ---- Videos: length and sound from the MP4 or MOV boxes -----------------------------
-
-def video_facts(path):
-    """(length in ms or 0, has a sound track) from moov/mvhd and the handlers of the tracks."""
-    length, sound = 0, False
-    try:
-        with open(path, "rb") as file:
-            end = os.path.getsize(path)
-            for kind, start, stop in _boxes(file, 0, end):
-                if kind != b"moov":
-                    continue
-                for inner, istart, istop in _boxes(file, start, stop):
-                    if inner == b"mvhd":
-                        file.seek(istart)
-                        version = file.read(1)[0]
-                        file.seek(istart + (20 if version == 1 else 12))
-                        timescale = struct.unpack(">I", file.read(4))[0]
-                        duration = struct.unpack(">Q" if version == 1 else ">I",
-                                                 file.read(8 if version == 1 else 4))[0]
-                        if timescale:
-                            length = int(duration * 1000 / timescale)
-                    elif inner == b"trak":
-                        for media, mstart, mstop in _boxes(file, istart, istop):
-                            if media != b"mdia":
-                                continue
-                            for part, pstart, _ in _boxes(file, mstart, mstop):
-                                if part == b"hdlr":
-                                    file.seek(pstart + 8)
-                                    if file.read(4) == b"soun":
-                                        sound = True
-    except (OSError, struct.error, IndexError):
-        pass
-    return length, sound
-
-
-def _boxes(file, start, stop):
-    position = start
-    while position + 8 <= stop:
-        file.seek(position)
-        size, kind = struct.unpack(">I4s", file.read(8))
-        header = 8
-        if size == 1:
-            size = struct.unpack(">Q", file.read(8))[0]
-            header = 16
-        elif size == 0:
-            size = stop - position
-        if size < header:
-            return
-        yield kind, position + header, min(position + size, stop)
-        position += size
-
-
 # ---- Files ----------------------------------------------------------------------------
 
 def write_bytes(path, data):
@@ -425,19 +385,62 @@ def address():
     return ""
 
 
+# ---- WAV: the part of the sound that plays ----------------------------------------------
+
+def wav_part(source, target, start, length):
+    """Writes the PCM of source from start for length (ms) to target, as a WAV of its own."""
+    with open(source, "rb") as file:
+        data = file.read()
+    if data[:4] != b"RIFF" or data[8:12] != b"WAVE":
+        raise ValueError("not a WAV file")
+    position, fmt, body = 12, None, None
+    while position + 8 <= len(data):
+        kind, size = data[position:position + 4], struct.unpack("<I", data[position + 4:position + 8])[0]
+        if kind == b"fmt ":
+            fmt = data[position + 8:position + 8 + size]
+        elif kind == b"data":
+            body = (position + 8, min(size, len(data) - position - 8))
+        position += 8 + size + (size & 1)
+    if fmt is None or body is None:
+        raise ValueError("WAV without fmt or data")
+    channels, rate = struct.unpack("<HI", fmt[2:8])
+    align = struct.unpack("<H", fmt[12:14])[0]
+    first = int(rate * start / 1000) * align
+    count = int(rate * length / 1000) * align
+    first = min(first, body[1])
+    count = max(0, min(count, body[1] - first))
+    pcm = data[body[0] + first:body[0] + first + count]
+    header = (b"RIFF" + struct.pack("<I", 36 + len(pcm)) + b"WAVE" + b"fmt " + struct.pack("<I", len(fmt[:16])) +
+              fmt[:16] + b"data" + struct.pack("<I", len(pcm)))
+    write_bytes(target, header + pcm)
+
+
 # ---- The page -------------------------------------------------------------------------
 
 TEXTS = {
-    "de": ("Ausschalt-Video", "Video oder Bild für den Fernseher auswählen.", "Hochladen",
-           "Wird hochgeladen", "Fertig", "Fehler", "Erst eine Datei auswählen."),
-    "en": ("Power-off video", "Choose a video or picture for the TV.", "Upload",
-           "Uploading", "Done", "Error", "Choose a file first."),
-    "es": ("Vídeo de apagado", "Elige un vídeo o una imagen para el TV.", "Subir",
-           "Subiendo", "Listo", "Error", "Primero elige un archivo."),
-    "fr": ("Vidéo d'extinction", "Choisis une vidéo ou une image pour le téléviseur.", "Envoyer",
-           "Envoi", "Terminé", "Erreur", "Choisis d'abord un fichier."),
+    "de": {"title": "Ausschalt-Video", "intro": "Video oder Bild für den Fernseher auswählen.", "upload": "Hochladen",
+           "prepare": "Wird vorbereitet", "busy": "Wird hochgeladen", "done": "Fertig", "error": "Fehler",
+           "choose": "Erst eine Datei auswählen.", "type": "Nur Videos, JPEG oder PNG.", "size": "Größer als 200 MB."},
+    "en": {"title": "Power-off video", "intro": "Choose a video or picture for the TV.", "upload": "Upload",
+           "prepare": "Preparing", "busy": "Uploading", "done": "Done", "error": "Error",
+           "choose": "Choose a file first.", "type": "Only videos, JPEG or PNG.", "size": "Larger than 200 MB."},
+    "es": {"title": "Vídeo de apagado", "intro": "Elige un vídeo o una imagen para el TV.", "upload": "Subir",
+           "prepare": "Preparando", "busy": "Subiendo", "done": "Listo", "error": "Error",
+           "choose": "Primero elige un archivo.", "type": "Solo vídeos, JPEG o PNG.", "size": "Más de 200 MB."},
+    "fr": {"title": "Vidéo d'extinction", "intro": "Choisis une vidéo ou une image pour le téléviseur.",
+           "upload": "Envoyer", "prepare": "Préparation", "busy": "Envoi", "done": "Terminé", "error": "Erreur",
+           "choose": "Choisis d'abord un fichier.", "type": "Uniquement des vidéos, JPEG ou PNG.",
+           "size": "Plus de 200 Mo."},
 }
 
+ERRORS = {
+    "de": {"space": "Kein Platz mehr auf dem Fernseher.", "broken": "Übertragung abgebrochen."},
+    "en": {"space": "No space left on the TV.", "broken": "The transfer broke off."},
+    "es": {"space": "No queda espacio en el TV.", "broken": "La transferencia se interrumpió."},
+    "fr": {"space": "Plus de place sur le téléviseur.", "broken": "Le transfert a été interrompu."},
+}
+
+# Plain on purpose: a heading, a sentence, the file picker, one button, one status line.
 PAGE = """<!doctype html>
 <html lang="{lang}">
 <meta charset="utf-8">
@@ -445,17 +448,20 @@ PAGE = """<!doctype html>
 <title>novOS</title>
 <h1>{title}</h1>
 <p>{intro}</p>
-<p><input type="file" id="files" multiple accept="video/mp4,video/quicktime,image/jpeg,image/png"></p>
+<p><input type="file" id="files" multiple accept="video/*,image/jpeg,image/png"></p>
 <p><button id="send">{upload}</button></p>
 <p id="status"></p>
 <script>
 var texts = {texts};
+var base = "{base}";
+var FPS = {fps}, SOURCE = {source}, LIMIT = {limit};
 var line = document.getElementById("status");   // not "status": that is window.status
-function put(url, body, progress) {{
+function show(text) {{ line.textContent = text; }}
+function put(path, body, headers) {{
   return new Promise(function (done, failed) {{
     var request = new XMLHttpRequest();
-    request.open("PUT", url);
-    if (progress) request.upload.onprogress = progress;
+    request.open("PUT", base + path);
+    for (var name in headers || {{}}) request.setRequestHeader(name, headers[name]);
     request.onload = function () {{
       if (request.status === 200) done(JSON.parse(request.responseText));
       else failed(request.responseText || String(request.status));
@@ -464,45 +470,96 @@ function put(url, body, progress) {{
     request.send(body);
   }});
 }}
-// A still of the video for the TV's tile, made here because the TV cannot.
-function still(file) {{
-  return new Promise(function (done) {{
-    var video = document.createElement("video");
-    video.muted = true;
-    video.playsInline = true;
-    video.preload = "auto";
-    video.src = URL.createObjectURL(file);
-    video.onloadedmetadata = function () {{ video.currentTime = Math.min(0.5, (video.duration || 1) / 2); }};
-    video.onseeked = function () {{
-      var canvas = document.createElement("canvas");
-      canvas.width = 640;
-      canvas.height = 360;
-      var scale = Math.max(640 / video.videoWidth, 360 / video.videoHeight);
-      var width = video.videoWidth * scale, height = video.videoHeight * scale;
-      canvas.getContext("2d").drawImage(video, (640 - width) / 2, (360 - height) / 2, width, height);
-      canvas.toBlob(function (blob) {{ done(blob); }}, "image/jpeg", 0.8);
-    }};
-    video.onerror = function () {{ done(null); }};
-    setTimeout(function () {{ done(null); }}, 8000);
-  }});
+function wait(target, name) {{
+  return new Promise(function (done) {{ target.addEventListener(name, done, {{ once: true }}); }});
+}}
+// 16-bit PCM WAV of a rendered AudioBuffer.
+function wav(buffer) {{
+  var channels = buffer.numberOfChannels, frames = buffer.length, rate = buffer.sampleRate;
+  var bytes = new DataView(new ArrayBuffer(44 + frames * channels * 2));
+  function text(at, value) {{ for (var i = 0; i < value.length; i++) bytes.setUint8(at + i, value.charCodeAt(i)); }}
+  text(0, "RIFF"); bytes.setUint32(4, 36 + frames * channels * 2, true); text(8, "WAVE"); text(12, "fmt ");
+  bytes.setUint32(16, 16, true); bytes.setUint16(20, 1, true); bytes.setUint16(22, channels, true);
+  bytes.setUint32(24, rate, true); bytes.setUint32(28, rate * channels * 2, true);
+  bytes.setUint16(32, channels * 2, true); bytes.setUint16(34, 16, true); text(36, "data");
+  bytes.setUint32(40, frames * channels * 2, true);
+  var data = [];
+  for (var c = 0; c < channels; c++) data.push(buffer.getChannelData(c));
+  var at = 44;
+  for (var f = 0; f < frames; f++) {{
+    for (var k = 0; k < channels; k++) {{
+      var sample = Math.max(-1, Math.min(1, data[k][f]));
+      bytes.setInt16(at, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+      at += 2;
+    }}
+  }}
+  return new Blob([bytes], {{ type: "audio/wav" }});
+}}
+async function sound(file, seconds) {{
+  try {{
+    var context = new OfflineAudioContext(2, Math.ceil(seconds * 44100), 44100);
+    var buffer = await context.decodeAudioData(await file.arrayBuffer());
+    var source = context.createBufferSource();
+    source.buffer = buffer;
+    source.connect(context.destination);
+    source.start();
+    return wav(await context.startRendering());
+  }} catch (error) {{
+    return null;    // no sound track, or none the browser can read
+  }}
+}}
+// The TV cannot play video files: frames and sound go up instead.
+async function sendVideo(file) {{
+  show(texts.prepare + " " + file.name);
+  var video = document.createElement("video");
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = "auto";
+  video.src = URL.createObjectURL(file);
+  await wait(video, "loadeddata");
+  var seconds = Math.min(video.duration || 0, SOURCE / 1000);
+  var count = Math.max(1, Math.floor(seconds * FPS));
+  var track = await sound(file, seconds);
+  var scale = Math.min(1280 / video.videoWidth, 720 / video.videoHeight, 1);
+  var canvas = document.createElement("canvas");
+  canvas.width = Math.round(video.videoWidth * scale);
+  canvas.height = Math.round(video.videoHeight * scale);
+  var paint = canvas.getContext("2d");
+  var begun = await put("/video?name=" + encodeURIComponent(file.name) + "&frames=" + count + "&full=" +
+                        Math.round(seconds * 1000) + "&sound=" + (track ? 1 : 0));
+  var batch = [];
+  for (var n = 0; n < count; n++) {{
+    video.currentTime = Math.max(0.001, n / FPS);
+    await wait(video, "seeked");
+    paint.drawImage(video, 0, 0, canvas.width, canvas.height);
+    batch.push(await new Promise(function (done) {{ canvas.toBlob(done, "image/jpeg", 0.8); }}));
+    if (batch.length === FPS || n === count - 1) {{
+      await put("/frames?id=" + begun.id + "&from=" + (n + 1 - batch.length), new Blob(batch),
+                {{ "X-Sizes": batch.map(function (blob) {{ return blob.size; }}).join(",") }});
+      batch = [];
+      show(texts.busy + " " + file.name + " " + Math.round(100 * (n + 1) / count) + " %");
+    }}
+  }}
+  if (track) await put("/sound?id=" + begun.id, track);
+  await put("/finish?id=" + begun.id);
 }}
 document.getElementById("send").onclick = async function () {{
   var files = document.getElementById("files").files;
-  if (!files.length) {{ line.textContent = texts.choose; return; }}
+  if (!files.length) {{ show(texts.choose); return; }}
   for (var i = 0; i < files.length; i++) {{
     var file = files[i];
     try {{
-      var answer = await put("{base}/file?name=" + encodeURIComponent(file.name), file, function (event) {{
-        line.textContent = texts.busy + " " + file.name + " " +
-          Math.round(100 * event.loaded / (event.total || 1)) + " %";
-      }});
-      if (answer.kind === "video") {{
-        var blob = await still(file);
-        if (blob) await put("{base}/thumb?id=" + answer.id, blob).catch(function () {{}});
+      if (file.size > LIMIT) throw texts.size;
+      if (/^video\\//.test(file.type) || /\\.(mp4|m4v|mov|webm)$/i.test(file.name)) {{
+        await sendVideo(file);
+      }} else if (/^image\\/(jpeg|png)$/.test(file.type) || /\\.(jpe?g|png)$/i.test(file.name)) {{
+        await put("/image?name=" + encodeURIComponent(file.name), file);
+      }} else {{
+        throw texts.type;
       }}
-      line.textContent = texts.done + ": " + file.name;
+      show(texts.done + ": " + file.name);
     }} catch (error) {{
-      line.textContent = texts.error + ": " + file.name + " " + error;
+      show(texts.error + ": " + file.name + " " + error);
       return;
     }}
   }}
@@ -510,17 +567,6 @@ document.getElementById("send").onclick = async function () {{
 </script>
 </html>
 """
-
-ERRORS = {
-    "de": {"type": "Nur MP4, MOV, JPEG oder PNG.", "size": "Größer als 200 MB.",
-           "space": "Kein Platz mehr auf dem Fernseher.", "broken": "Übertragung abgebrochen."},
-    "en": {"type": "Only MP4, MOV, JPEG or PNG.", "size": "Larger than 200 MB.",
-           "space": "No space left on the TV.", "broken": "The transfer broke off."},
-    "es": {"type": "Solo MP4, MOV, JPEG o PNG.", "size": "Más de 200 MB.",
-           "space": "No queda espacio en el TV.", "broken": "La transferencia se interrumpió."},
-    "fr": {"type": "Uniquement MP4, MOV, JPEG ou PNG.", "size": "Plus de 200 Mo.",
-           "space": "Plus de place sur le téléviseur.", "broken": "Le transfert a été interrompu."},
-}
 
 
 def language(header):
@@ -533,6 +579,13 @@ def language(header):
 
 # ---- The service ----------------------------------------------------------------------
 
+class Refused(Exception):
+    def __init__(self, status, message):
+        Exception.__init__(self, message)
+        self.status = status
+        self.message = message
+
+
 class Service:
     def __init__(self, folder, media, port):
         self.folder = folder
@@ -544,12 +597,14 @@ class Service:
         self.serial = ""
         self.url = ""
         self.qr = ""
+        self.opened = False          # the page is open; delete and edit alone end the service
         self.phase = "waiting"
         self.upload = {}
         self.added = []
         self.error = ""
         self.written = 0.0
         self.revision = 0            # counts the changes of index.json in this run
+        self.receiving = {}          # id -> the entry of a video whose frames come in
         self.server = None
 
     # State for the TV, at most a few times a second while bytes arrive.
@@ -558,13 +613,48 @@ class Service:
             return
         self.written = time.time()
         write_json(self.folder + "/state.json", {
-            "serving": True, "pid": os.getpid(), "id": self.serial, "phase": self.phase,
+            "serving": self.opened, "pid": os.getpid(), "id": self.serial, "phase": self.phase,
             "url": self.url, "qr": self.qr, "expires": int(self.expires), "upload": self.upload,
             "added": self.added, "revision": self.revision, "error": self.error})
+
+    # ---- The index ----
+
+    def stored(self):
+        index = read_json(self.media + "/index.json", {"entries": []})
+        if not isinstance(index.get("entries"), list):
+            index = {"entries": []}
+        return index
+
+    def store(self, index):
+        write_json(self.media + "/index.json", index)
+        self.revision += 1
+
+    def used(self):
+        total = 0
+        for top, _, names in os.walk(self.media):
+            for name in names:
+                try:
+                    total += os.path.getsize(os.path.join(top, name))
+                except OSError:
+                    pass
+        return total
+
+    def room_for(self, length, lang):
+        os.makedirs(self.media, exist_ok=True)
+        stat = os.statvfs(self.media)
+        if self.used() + length > MEDIA_LIMIT or stat.f_bavail * stat.f_frsize - length < KEEP_FREE:
+            raise Refused(507, ERRORS[lang]["space"])
+
+    def new_id(self):
+        time.sleep(0.002)
+        return "u%x" % int(time.time() * 1000)
+
+    # ---- Commands of the settings ----
 
     def open(self, serial):
         with self.lock:
             self.serial = serial
+            self.opened = True
             self.expires = time.time() + LIFETIME
             if not self.token:
                 # Short enough to type on a computer, without letters that look alike.
@@ -578,44 +668,141 @@ class Service:
             self.error = "" if self.url else "network"
             self.publish()
 
-    def stored(self):
-        index = read_json(self.media + "/index.json", {"entries": []})
-        if not isinstance(index.get("entries"), list):
-            index = {"entries": []}
-        return index
+    def delete(self, serial, target):
+        with self.lock:
+            index = self.stored()
+            entry = next((item for item in index["entries"] if item.get("id") == target), None)
+            if entry is not None:
+                index["entries"] = [item for item in index["entries"] if item.get("id") != target]
+                self.store(index)
+                remove_entry_files(self.media, entry)
+            self.serial = serial
+            self.phase = "done"
+            self.publish()
 
-    def used(self):
-        total = 0
-        for name in os.listdir(self.media):
-            try:
-                total += os.path.getsize(os.path.join(self.media, name))
-            except OSError:
-                pass
-        return total
+    def edit(self, serial, target, params):
+        with self.lock:
+            self.serial = serial
+            index = self.stored()
+            entry = next((item for item in index["entries"] if item.get("id") == target), None)
+            if entry is None:
+                self.phase = "error"
+                self.error = "unknown"
+                self.publish()
+                return
+            number = lambda name, fallback: float(params.get(name, fallback)) if params.get(name) is not None else fallback
+            entry["zoom"] = round(min(ZOOM_LIMIT, max(1.0, number("zoom", entry.get("zoom", 1)))), 3)
+            entry["x"] = round(min(1.0, max(-1.0, number("x", entry.get("x", 0)))), 3)
+            entry["y"] = round(min(1.0, max(-1.0, number("y", entry.get("y", 0)))), 3)
+            entry["fade"] = number("fade", 1 if entry.get("fade", True) else 0) != 0
+            if entry.get("kind") == "video":
+                full = int(entry.get("full") or 0)
+                length = int(min(PLAY_LIMIT, full, max(PLAY_SHORTEST, number("length", entry.get("length", PLAY_LIMIT)))))
+                start = int(min(max(0, full - length), max(0, number("start", entry.get("start", 0)))))
+                entry["start"], entry["length"] = start, length
+                folder = os.path.join(self.media, entry["folder"])
+                if entry.get("sound") and os.path.exists(os.path.join(folder, "full.wav")):
+                    try:
+                        wav_part(os.path.join(folder, "full.wav"), os.path.join(folder, "play.wav"), start, length)
+                    except (OSError, ValueError, struct.error):
+                        entry["sound"] = False
+            self.store(index)
+            self.phase = "done"
+            self.error = ""
+            self.publish()
 
-    def receive(self, handler, name, length):
-        """A file from the page. Returns (status, answer)."""
-        lang = language(handler.headers.get("Accept-Language"))
+    # ---- What the page sends ----
+
+    def receive_image(self, handler, name, length, lang):
         extension = os.path.splitext(name)[1].lower()
-        kind = TYPES.get(extension)
-        if not kind:
-            return 415, ERRORS[lang]["type"]
+        if extension not in IMAGE_TYPES:
+            raise Refused(415, TEXTS[lang]["type"])
         if length <= 0 or length > FILE_LIMIT:
-            return 413, ERRORS[lang]["size"]
-        os.makedirs(self.media, exist_ok=True)
-        stat = os.statvfs(self.media)
-        if self.used() + length > MEDIA_LIMIT or stat.f_bavail * stat.f_frsize - length < KEEP_FREE:
-            return 507, ERRORS[lang]["space"]
-        entry_id = "u%x" % int(time.time() * 1000)
+            raise Refused(413, TEXTS[lang]["size"])
+        self.room_for(length, lang)
+        entry_id = self.new_id()
         target = os.path.join(self.media, entry_id + extension)
-        partial = target + ".partial"
-        title = os.path.splitext(os.path.basename(name))[0][:40] or entry_id
+        self.started(name, length)
+        self.save_body(handler, target, length, lang, counted=True)
+        entry = {"id": entry_id, "kind": "image", "name": title_of(name, entry_id), "file": os.path.basename(target),
+                 "length": PICTURE_LENGTH, "fade": True, "zoom": 1, "x": 0, "y": 0, "added": int(time.time())}
+        self.finished(entry)
+        return {"id": entry_id, "kind": "image"}
+
+    def begin_video(self, name, frames, full, sound, lang):
+        frames = max(1, min(int(frames), SOURCE_LIMIT * FPS // 1000))
+        full = max(1, min(int(full), SOURCE_LIMIT))
+        # About 120 kB a frame and the sound track: room is checked before anything comes.
+        self.room_for(frames * 120 * 1024 + (full * 44100 * 4 // 1000 if sound else 0), lang)
+        entry_id = self.new_id()
+        os.makedirs(os.path.join(self.media, entry_id), exist_ok=True)
+        with self.lock:
+            self.receiving[entry_id] = {"id": entry_id, "kind": "video", "name": title_of(name, entry_id),
+                                        "folder": entry_id, "frames": frames, "fps": FPS, "full": full,
+                                        "sound": bool(sound), "start": 0, "length": min(PLAY_LIMIT, full),
+                                        "fade": True, "zoom": 1, "x": 0, "y": 0, "added": int(time.time())}
+            self.phase = "receiving"
+            self.error = ""
+            self.upload = {"name": os.path.basename(name)[:60], "frames": frames, "done": 0}
+            self.expires = max(self.expires, time.time() + 300)
+            self.publish()
+        return {"id": entry_id}
+
+    def receive_frames(self, handler, entry_id, first, sizes, length, lang):
+        entry = self.receiving.get(entry_id)
+        if entry is None or sum(sizes) != length or first < 0 or first + len(sizes) > entry["frames"]:
+            raise Refused(400, ERRORS[lang]["broken"])
+        folder = os.path.join(self.media, entry["folder"])
+        for offset, size in enumerate(sizes):
+            data = handler.rfile.read(size)
+            if len(data) < size or not data.startswith(b"\xff\xd8"):
+                raise Refused(400, ERRORS[lang]["broken"])
+            write_bytes(os.path.join(folder, "%04d.jpg" % (first + offset)), data)
+        with self.lock:
+            self.upload["done"] = max(self.upload.get("done", 0), first + len(sizes))
+            self.expires = max(self.expires, time.time() + 120)
+            self.publish(force=False)
+        return {"id": entry_id}
+
+    def receive_sound(self, handler, entry_id, length, lang):
+        entry = self.receiving.get(entry_id)
+        if entry is None or length <= 0 or length > 16 * 1024 * 1024:
+            raise Refused(400, ERRORS[lang]["broken"])
+        folder = os.path.join(self.media, entry["folder"])
+        self.save_body(handler, os.path.join(folder, "full.wav"), length, lang, counted=False)
+        try:
+            wav_part(os.path.join(folder, "full.wav"), os.path.join(folder, "play.wav"), 0, entry["length"])
+        except (OSError, ValueError, struct.error):
+            entry["sound"] = False
+        return {"id": entry_id}
+
+    def finish_video(self, entry_id, lang):
+        entry = self.receiving.pop(entry_id, None)
+        if entry is None:
+            raise Refused(400, ERRORS[lang]["broken"])
+        folder = os.path.join(self.media, entry["folder"])
+        present = len([name for name in os.listdir(folder) if name.endswith(".jpg")])
+        if present < entry["frames"]:
+            shutil.rmtree(folder, ignore_errors=True)
+            with self.lock:
+                self.phase, self.error = "error", "broken"
+                self.publish()
+            raise Refused(400, ERRORS[lang]["broken"])
+        if entry["sound"] and not os.path.exists(os.path.join(folder, "play.wav")):
+            entry["sound"] = False
+        self.finished(entry)
+        return {"id": entry_id, "kind": "video"}
+
+    def started(self, name, length):
         with self.lock:
             self.phase = "receiving"
             self.error = ""
             self.upload = {"name": os.path.basename(name)[:60], "size": length, "received": 0}
             self.expires = max(self.expires, time.time() + 120)
             self.publish()
+
+    def save_body(self, handler, target, length, lang, counted):
+        partial = target + ".partial"
         received = 0
         try:
             with open(partial, "wb") as file:
@@ -625,9 +812,10 @@ class Service:
                         break
                     file.write(block)
                     received += len(block)
-                    with self.lock:
-                        self.upload["received"] = received
-                        self.publish(force=False)
+                    if counted:
+                        with self.lock:
+                            self.upload["received"] = received
+                            self.publish(force=False)
                 file.flush()
                 os.fsync(file.fileno())
         except OSError:
@@ -635,53 +823,19 @@ class Service:
         if received < length:
             remove(partial)
             with self.lock:
-                self.phase = "error"
-                self.error = "broken"
+                self.phase, self.error = "error", "broken"
                 self.publish()
-            return 400, ERRORS[lang]["broken"]
+            raise Refused(400, ERRORS[lang]["broken"])
         os.replace(partial, target)
-        entry = {"id": entry_id, "kind": kind, "name": title, "file": os.path.basename(target),
-                 "size": length, "added": int(time.time())}
-        if kind == "video":
-            full, sound = video_facts(target)
-            entry["full"] = full
-            entry["length"] = min(full, PLAY_LIMIT) if full > 0 else PLAY_LIMIT
-            entry["sound"] = sound
-        else:
-            entry["length"] = PICTURE_LENGTH
-            entry["sound"] = False
+
+    def finished(self, entry):
         with self.lock:
             index = self.stored()
             index["entries"].append(entry)
-            write_json(self.media + "/index.json", index)
-            self.revision += 1
-            self.added.append(entry_id)
+            self.store(index)
+            self.added.append(entry["id"])
             self.phase = "done"
-            self.upload["received"] = length
             self.publish()
-        return 200, {"id": entry_id, "kind": kind}
-
-    def receive_still(self, handler, entry_id, length):
-        if length <= 0 or length > THUMB_LIMIT or not entry_id.isalnum():
-            return 413, "still"
-        with self.lock:
-            index = self.stored()
-            entry = next((item for item in index["entries"] if item.get("id") == entry_id), None)
-        if entry is None:
-            return 404, "unknown"
-        data = handler.rfile.read(length)
-        if len(data) < length or not data.startswith(b"\xff\xd8"):
-            return 400, "still"
-        write_bytes(os.path.join(self.media, entry_id + "-still.jpg"), data)
-        with self.lock:
-            index = self.stored()
-            for item in index["entries"]:
-                if item.get("id") == entry_id:
-                    item["still"] = entry_id + "-still.jpg"
-            write_json(self.media + "/index.json", index)
-            self.revision += 1                   # the TV reloads the tile with its still
-            self.publish()
-        return 200, {"id": entry_id}
 
     def handler(self):
         service = self
@@ -696,10 +850,11 @@ class Service:
             def valid(self):
                 path = urllib.parse.urlparse(self.path)
                 parts = path.path.strip("/").split("/")
-                if not service.token or parts[0].lower() != service.token or time.time() > service.expires:
+                if (not service.opened or not service.token or parts[0].lower() != service.token
+                        or time.time() > service.expires):
                     self.answer(404, "text/plain", b"")
                     return None
-                return parts[1:], urllib.parse.parse_qs(path.query)
+                return parts[1:], {key: values[0] for key, values in urllib.parse.parse_qs(path.query).items()}
 
             def answer(self, status, kind, body):
                 self.send_response(status)
@@ -718,10 +873,9 @@ class Service:
                     return
                 lang = language(self.headers.get("Accept-Language"))
                 words = TEXTS[lang]
-                texts = {"busy": words[3], "done": words[4], "error": words[5], "choose": words[6]}
-                page = PAGE.format(lang=lang, title=html.escape(words[0]), intro=html.escape(words[1]),
-                                   upload=html.escape(words[2]), texts=json.dumps(texts),
-                                   base="/" + service.token)
+                page = PAGE.format(lang=lang, title=html.escape(words["title"]), intro=html.escape(words["intro"]),
+                                   upload=html.escape(words["upload"]), texts=json.dumps(words),
+                                   base="/" + service.token, fps=FPS, source=SOURCE_LIMIT, limit=FILE_LIMIT)
                 self.answer(200, "text/html; charset=utf-8", page.encode("utf-8"))
 
             def do_PUT(self):
@@ -729,52 +883,108 @@ class Service:
                 if found is None:
                     return
                 parts, query = found
+                lang = language(self.headers.get("Accept-Language"))
                 try:
                     length = int(self.headers.get("Content-Length") or 0)
                 except ValueError:
                     length = 0
-                if parts == ["file"]:
-                    status, result = service.receive(self, (query.get("name") or ["file"])[0], length)
-                elif parts == ["thumb"]:
-                    status, result = service.receive_still(self, (query.get("id") or [""])[0], length)
-                else:
-                    status, result = 404, ""
-                if status == 200:
-                    self.answer(200, "application/json", json.dumps(result).encode("utf-8"))
-                else:
+                try:
+                    if parts == ["image"]:
+                        result = service.receive_image(self, query.get("name", "image"), length, lang)
+                    elif parts == ["video"]:
+                        result = service.begin_video(query.get("name", "video"), int(query.get("frames", 0)),
+                                                     int(query.get("full", 0)), query.get("sound") == "1", lang)
+                    elif parts == ["frames"]:
+                        sizes = [int(size) for size in (self.headers.get("X-Sizes") or "").split(",") if size]
+                        result = service.receive_frames(self, query.get("id", ""), int(query.get("from", -1)),
+                                                        sizes, length, lang)
+                    elif parts == ["sound"]:
+                        result = service.receive_sound(self, query.get("id", ""), length, lang)
+                    elif parts == ["finish"]:
+                        result = service.finish_video(query.get("id", ""), lang)
+                    else:
+                        raise Refused(404, "")
+                except Refused as refused:
                     self.close_connection = True
-                    self.answer(status, "text/plain; charset=utf-8", str(result).encode("utf-8"))
+                    self.answer(refused.status, "text/plain; charset=utf-8", refused.message.encode("utf-8"))
+                    return
+                except (ValueError, OSError):
+                    self.close_connection = True
+                    self.answer(400, "text/plain; charset=utf-8", ERRORS[lang]["broken"].encode("utf-8"))
+                    return
+                self.answer(200, "application/json", json.dumps(result).encode("utf-8"))
 
         return Handler
 
     def run(self):
         os.makedirs(self.folder, exist_ok=True)
+        os.makedirs(self.media, exist_ok=True)
         self.server = ThreadingHTTPServer(("0.0.0.0", self.port), self.handler())
         self.server.daemon_threads = True
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         handled = ""
+        idle_since = time.time()
         try:
             while True:
                 command = read_ini(self.folder + "/command.ini")
                 serial = command.get("serial", "")
                 if serial and serial != handled:
                     handled = serial
-                    if command.get("command") == "close":
+                    idle_since = time.time()
+                    name = command.get("command")
+                    if name == "close":
                         self.phase = "closed"
                         break
-                    if command.get("command") == "open":
+                    if name == "open":
                         self.open(serial)
-                if self.expires and time.time() > self.expires and self.phase != "receiving":
+                    elif name == "delete":
+                        self.delete(serial, command.get("target", ""))
+                    elif name == "edit":
+                        self.edit(serial, command.get("target", ""), edit_params(command.get("params", "")))
+                    if not self.opened and name in ("delete", "edit"):
+                        return              # answered; the state stays as published
+                if self.opened and time.time() > self.expires and self.phase != "receiving":
                     self.phase = "expired"
+                    break
+                if not self.opened and time.time() - idle_since > 30:
                     break
                 time.sleep(0.3)
         finally:
             self.server.shutdown()
             if self.qr:
                 remove(self.qr)
-            write_json(self.folder + "/state.json", {
-                "serving": False, "id": self.serial, "phase": self.phase, "added": self.added,
-                "revision": self.revision})
+            for entry in self.receiving.values():
+                shutil.rmtree(os.path.join(self.media, entry["folder"]), ignore_errors=True)
+            if self.opened or self.phase not in ("done", "error"):
+                self.opened = False
+                write_json(self.folder + "/state.json", {
+                    "serving": False, "id": self.serial, "phase": self.phase, "added": self.added,
+                    "revision": self.revision})
+
+
+def edit_params(text):
+    """"start:6000 length:8000 fade:1" -> {"start": "6000", ...}; anything else is left out."""
+    params = {}
+    for part in str(text).split():
+        name, _, value = part.partition(":")
+        if name in ("start", "length", "fade", "zoom", "x", "y"):
+            try:
+                float(value)
+                params[name] = value
+            except ValueError:
+                pass
+    return params
+
+
+def title_of(name, fallback):
+    return os.path.splitext(os.path.basename(name))[0][:40] or fallback
+
+
+def remove_entry_files(media, entry):
+    if entry.get("kind") == "video" and entry.get("folder"):
+        shutil.rmtree(os.path.join(media, os.path.basename(entry["folder"])), ignore_errors=True)
+    elif entry.get("file"):
+        remove(os.path.join(media, os.path.basename(entry["file"])))
 
 
 def remove(path):

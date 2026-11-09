@@ -38,6 +38,8 @@ Item {
         outbox.keepState = values && values.keepState ? "true" : "";
         outbox.version = values && values.version || "";
         outbox.manifest = values && values.manifest || "";
+        outbox.target = values && values.target || "";
+        outbox.params = values && values.params || "";
         outbox.command = command;
         outbox.serial = id;      // last: serve acts on a new serial
         sentId = id;
@@ -67,6 +69,8 @@ Item {
         property string keepState: ""
         property string version: ""         // restore, tonight
         property string manifest: ""        // restore: the signed release of that version
+        property string target: ""          // the entry a command is about (power-off videos)
+        property string params: ""          // its values, as "name:value name:value"
     }
 
     Timer {

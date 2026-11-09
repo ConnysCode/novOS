@@ -25,8 +25,9 @@ While it runs it
 - installs between 2 and 5 at night, while the TV is not on, the version planned for
   tonight (state/update-tonight) or, with automatic updates on, what the last check
   offered. A daily check that found no connection is tried again after an hour.
-- starts bin/novos-upload.py when the settings page "Vom Handy oder Computer" left
-  "command=open" in /tmp/novos-upload/command.ini; the service ends by itself.
+- starts bin/novos-upload.py when the settings left a command in
+  /tmp/novos-upload/command.ini: "open" for the page "Vom Handy oder Computer", "delete"
+  and "edit" for an own power-off video. The service ends by itself.
 - ends when the overlays are no longer mounted, for example after a test rollback.
 """
 
@@ -404,7 +405,8 @@ class Updater:
 
 
 class Uploader:
-    """Starts bin/novos-upload.py when the page "Vom Handy oder Computer" asks for it."""
+    """Starts bin/novos-upload.py for a command of the settings: the page "Vom Handy oder
+    Computer" opened, or an own power-off video to delete or to store as edited."""
 
     def __init__(self):
         self.process = None
@@ -413,7 +415,7 @@ class Uploader:
 
     def check(self):
         waiting = read_ini(UPLOAD + "/command.ini")
-        if waiting.get("command") != "open" or not waiting.get("serial"):
+        if waiting.get("command") not in ("open", "delete", "edit") or not waiting.get("serial"):
             return
         if self.process is not None and self.process.poll() is None:
             return
@@ -422,7 +424,7 @@ class Uploader:
         try:
             with open(UPLOAD + "/state.json") as file:
                 state = json.load(file)
-            # An answered open of a service that ended (closed or ran out) needs a new one.
+            # An answered command of a service that ended needs nothing more.
             if state.get("id") == waiting.get("serial") and not state.get("serving"):
                 return
             if state.get("serving"):
@@ -434,7 +436,8 @@ class Uploader:
         self.process = subprocess.Popen(["python3", PANEL + "/bin/novos-upload.py", "serve"],
                                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                         stderr=subprocess.DEVNULL, start_new_session=True)
-        log("upload service started for %s, pid %d" % (waiting.get("serial"), self.process.pid))
+        log("upload service started for %s %s, pid %d" % (waiting.get("command"), waiting.get("serial"),
+                                                            self.process.pid))
 
     def stop(self):
         if self.process is not None and self.process.poll() is None:

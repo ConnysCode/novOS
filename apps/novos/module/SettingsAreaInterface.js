@@ -133,7 +133,8 @@ var area = {
             sections: [
                 {
                     columns: 3,
-                    keys: [{ cap: "red", text: "hint.play_preview" }, { cap: "OK", text: "hint.ok_choose" }],
+                    keys: [{ cap: "red", text: "hint.play_preview" },
+                           { cap: "OK", text: "hint.ok_choose", textOwn: "hint.ok_edit" }],
                     rows: [{ id: "shutdownScreens", type: "list", source: "shutdownScreens" }]
                 },
                 {

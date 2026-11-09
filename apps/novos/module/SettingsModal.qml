@@ -435,6 +435,7 @@ Item {
             resetPicture(context);
         } else if (name === "previewShutdown") {
             shutdownPreview.own = ShutdownScreens.ownEntries();
+            shutdownPreview.changes = params && params.changes ? params.changes : null;
             shutdownPreview.screenId = params && params.id ? params.id : NovosSettings.shutdownScreen;
             shutdownPreview.sound = NovosSettings.shutdownSound;
             shutdownPreview.play();
@@ -442,6 +443,13 @@ Item {
             tvData.writeNovos("shutdownScreen", String(params.id));
         } else if (name === "openShutdownUpload") {
             pushPage({ id: "shutdownUpload", title: "page.shutdown_upload", custom: "shutdownUpload", sections: [] });
+        } else if (name === "openShutdownEdit") {
+            var own = ShutdownScreens.entry(String(params.id), ShutdownScreens.ownEntries());
+            pushPage({ id: "shutdownEdit", title: function () { return own.name || ""; }, custom: "shutdownEdit",
+                       target: String(params.id), sections: [] });
+        } else if (name === "deleteShutdown") {
+            tvData.deleteShutdown(String(params.id));
+            if (page.custom === "shutdownEdit") back();
         } else if (name === "applySoundToAll") {
             settingsStore.call("luna://com.webos.settingsservice", "/setSystemSettings",
                          JSON.stringify({ category: "sound", settings: { applyToAllInputSSM: "sound" } }));
@@ -647,6 +655,12 @@ Item {
     }
 
     function contentKey(key, autoRepeat) {
+        // A page with content of its own takes the keys first; Left it leaves goes to the side bar.
+        if (page.custom) {
+            if (customPage.item && customPage.item.handleKey && customPage.item.handleKey(key, autoRepeat)) return;
+            if (key === Qt.Key_Left) toSidebar();
+            return;
+        }
         var row = focusedRow;
         if (focusOnCard && (key === Qt.Key_Left || key === Qt.Key_Right)) {
             if (!moveOnCard(key === Qt.Key_Right ? 1 : -1) && key === Qt.Key_Left) toSidebar();
@@ -1110,17 +1124,32 @@ Item {
                     font.pixelSize: 20 * settings.unit
                 }
 
-                // A page with its own content instead of rows: the upload of power-off videos.
+                // A page with its own content instead of rows: the upload of power-off videos
+                // and the page of an own one.
                 Loader {
+                    id: customPage
                     y: (settings.listTop - settings.paneY) * settings.unit
                     width: parent.width
                     height: settings.listHeight * settings.unit
-                    active: settings.page.custom === "shutdownUpload"
-                    sourceComponent: Component {
-                        ShutdownUpload {
-                            unit: settings.unit
-                            host: tvData     // a property named like the id would bind to itself
-                        }
+                    active: !!settings.page.custom     // choice pages have none at all
+                    sourceComponent: settings.page.custom === "shutdownEdit" ? shutdownEditPage : shutdownUploadPage
+                }
+
+                Component {
+                    id: shutdownUploadPage
+                    ShutdownUpload {
+                        unit: settings.unit
+                        host: tvData     // a property named like the id would bind to itself
+                    }
+                }
+
+                Component {
+                    id: shutdownEditPage
+                    ShutdownEdit {
+                        unit: settings.unit
+                        owner: settings
+                        host: tvData
+                        entryId: settings.page.target
                     }
                 }
 
@@ -1198,7 +1227,8 @@ Item {
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: Engine.text(I18n, "interface", "preview.title",
-                                      { name: Engine.text(I18n, "interface", "value.shutdown_screen." + shutdownPreview.screenId) })
+                                      { name: shutdownPreview.ownEntry ? shutdownPreview.entry.name :
+                                              Engine.text(I18n, "interface", "value.shutdown_screen." + shutdownPreview.screenId) })
                     color: settings.textPrimary
                     font.family: settings.titleFont
                     font.pixelSize: 19 * settings.unit
