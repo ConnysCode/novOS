@@ -236,7 +236,12 @@ Item {
         var lowSpace = problems.join(" ").indexOf("free space") >= 0;
         var internet;
         if (checking) internet = { status: "running", label: tr("check.internet"), value: tr("check.checking") };
-        else if (checkFailed) internet = { status: "error", label: tr("check.internet"), value: tr("check.failed") };
+        else if (checkFailed) {
+            // Only an unreachable server is the connection's fault.
+            var kind = bridge.info.errorKind || "failed";
+            internet = { status: "error", label: tr("check.internet"),
+                         value: tr(kind === "offline" ? "check.failed" : (kind === "missing" ? "check.no_release" : "check.error")) };
+        }
         else if (!result) internet = { status: "pending", label: tr("check.internet") };
         else if (!result.newer && result.installed === result.available)
             internet = { status: "done", label: tr("check.internet"), value: tr("check.installed_already", { version: result.installed }) };

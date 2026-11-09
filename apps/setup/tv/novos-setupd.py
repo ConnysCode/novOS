@@ -53,6 +53,7 @@ import subprocess
 import sys
 import tarfile
 import time
+import urllib.error
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 for candidate in (HERE, os.path.join(HERE, "..", "..", "..", "lib", "release")):
@@ -282,8 +283,39 @@ def run_script(report, script, *args, **options):
 
 # ---- commands ------------------------------------------------------------------------------
 
+def default_source():
+    """The stored channel; without one stable, and beta as long as stable has no release yet.
+
+    Removing novOS with its data also removes the stored channel, and before the first
+    stable release a fresh setup would find nothing.
+    """
+    channel = read_setting("channel")
+    if channel:
+        return channel
+    try:
+        release.download("%s/novos/stable.json" % release.PAGES, os.devnull)
+    except urllib.error.URLError as error:
+        missing = getattr(error, "code", None) == 404 or isinstance(getattr(error, "reason", None), FileNotFoundError)
+        if missing:
+            return "beta"
+    except OSError:
+        pass                # the real download reports what is wrong
+    return "stable"
+
+
+def error_kind(error):
+    """offline: the internet or GitHub is not reachable; missing: there is no such release."""
+    if isinstance(error, urllib.error.HTTPError):
+        return "missing" if error.code == 404 else "offline"
+    if isinstance(error, urllib.error.URLError):
+        return "missing" if isinstance(error.reason, FileNotFoundError) else "offline"
+    if isinstance(error, (ConnectionError, TimeoutError)):
+        return "offline"
+    return "failed"
+
+
 def source_of(args):
-    return args.source or read_setting("channel", "stable")
+    return args.source or default_source()
 
 
 def status(report):
@@ -894,7 +926,7 @@ class Bridge:
         # phase is what the window shows ("done" may come before the command ends, so that
         # the reopened window shows its last page at once); busy is whether a command runs.
         self.state = {"serving": True, "pid": os.getpid(), "id": "", "command": "", "phase": "idle", "busy": False,
-                      "stage": "", "percent": 0, "steps": [], "result": None, "error": None,
+                      "stage": "", "percent": 0, "steps": [], "result": None, "error": None, "errorKind": None,
                       "choices": current_choices(), "tv": tv_facts(), "updated": time.time()}
         self.last_written = 0.0
 
@@ -952,10 +984,10 @@ class Bridge:
     def run(self, command):
         name = command.get("command", "")
         self.state.update(id=command_serial(command), command=name, phase="running", stage="", percent=0,
-                          steps=[], result=None, error=None, busy=True)
+                          steps=[], result=None, error=None, errorKind=None, busy=True)
         self.write()
         report = Reporter(False, self.listen)
-        source = command.get("source") or read_setting("channel", "stable")
+        source = command.get("source") or default_source()
         try:
             if name in ("install", "update"):
                 apply_choices(report, command.get("keyboard") or None, command.get("autoUpdate") or None,
@@ -983,6 +1015,7 @@ class Bridge:
         except (SetupError, release.ReleaseError, OSError, ValueError, KeyError) as error:
             self.state["phase"] = "error"
             self.state["error"] = str(error)
+            self.state["errorKind"] = error_kind(error)
         self.state["choices"] = current_choices()
         self.state["busy"] = False
         self.write()
@@ -1065,7 +1098,7 @@ def main(argv=None):
         elif args.command == "install":
             install(report, source_of(args), args.allow_downgrade, args.start)
         elif args.command == "update":
-            source = read_setting("channel", "stable")
+            source = default_source()
             if check(report, source):
                 install(report, source, args.allow_downgrade)
         elif args.command == "rollback":

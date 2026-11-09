@@ -315,6 +315,28 @@ class SetupdTest(unittest.TestCase):
         self.assertEqual(code, 0, lines)
         self.assertEqual(self.current(), "1.1.0-beta.1")
 
+    def test_beta_until_stable_exists(self):
+        # Nothing stored (as after removing novOS with its data) and no stable release yet.
+        self.publish("0.9.0-beta.3", channel="beta")
+        code, lines = self.run_setupd("check")
+        self.assertEqual(code, 0, lines)
+        self.assertEqual(lines[-1]["check"]["available"], "0.9.0-beta.3")
+        self.publish("1.0.0", channel="stable")
+        code, lines = self.run_setupd("check")
+        self.assertEqual(lines[-1]["check"]["available"], "1.0.0")
+        self.run_setupd("channel", "beta")
+        code, lines = self.run_setupd("check")
+        self.assertEqual(lines[-1]["check"]["available"], "0.9.0-beta.3")
+
+    def test_error_kinds(self):
+        import urllib.error
+        kind = self.setupd.error_kind
+        self.assertEqual(kind(urllib.error.HTTPError("u", 404, "Not Found", {}, None)), "missing")
+        self.assertEqual(kind(urllib.error.HTTPError("u", 503, "Unavailable", {}, None)), "offline")
+        self.assertEqual(kind(urllib.error.URLError(OSError("Network is unreachable"))), "offline")
+        self.assertEqual(kind(urllib.error.URLError(FileNotFoundError())), "missing")
+        self.assertEqual(kind(release.ReleaseError("bad signature")), "failed")
+
     def test_autostart(self):
         self.run_setupd("install", self.publish("1.0.0"))
         hook = self.path("/var/lib/webosbrew/init.d/50-novos")
