@@ -18,7 +18,7 @@ Item {
         backdrop: screen.backdrop
         focusKey: screen.live ? (screen.live.focus || "") : ""
         label: tr("header.install")
-        step: 6
+        step: 7
         title: tr("summary.title")
         lead: tr("summary.lead")
         contentHeight: facts.logicalHeight

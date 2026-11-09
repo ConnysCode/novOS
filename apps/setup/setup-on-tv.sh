@@ -73,5 +73,6 @@ ssh "$TV" "pkill -f 'novos-setupd.p[y] serve'; find /tmp/novos-setup-app -mindep
 scp -qr "$STAGE"/* "$TV:$REMOTE/"
 ssh "$TV" "setsid python3 $REMOTE/tv/novos-setupd.py serve --dir $BRIDGE --window file://$REMOTE/setup.qml --app $APP --idle 1800 ${CHANNEL:+--channel $CHANNEL} </dev/null >$BRIDGE/serve.log 2>&1 &"
 LAUNCH='{"appId":"'$APP'","main":"file://'$REMOTE'/setup.qml","params":{"flow":"'$FLOW'"}}'
-ssh -tt "$TV" "luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/closeByAppId '{\"appId\":\"$APP\"}'; sleep 1; luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/launch '$LAUNCH'" >/dev/null 2>&1
+# A launch within about a second of closing an open window is dropped without an error.
+ssh -tt "$TV" "luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/closeByAppId '{\"appId\":\"$APP\"}'; sleep 3; luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/launch '$LAUNCH'" >/dev/null 2>&1
 echo "setup $FLOW${CHANNEL:+ ($CHANNEL)} running from $REMOTE"

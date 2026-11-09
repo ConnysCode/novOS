@@ -3,8 +3,8 @@ import QtQuick 2.12
 // The running setup: pages in order, focus moved with the remote, actions sent to
 // novos-setupd serve through SetupBridge, and pages that follow the service's state.
 //
-//   flow "install"  welcome, check, what changes, privacy, keyboard and updates, summary,
-//                   progress, restart, done (after the window was opened again)
+//   flow "install"  welcome, channel, check, what changes, privacy, keyboard and updates,
+//                   summary, progress, restart, done (after the window was opened again)
 //   flow "update"   what is new, progress, restart
 //   flow "remove"   confirm, progress, farewell
 //
@@ -21,6 +21,9 @@ Item {
     property string focusId: ""
     property var privacy: [false, false, false, false]
     property string keyboard: "qwertz"
+    // Stabil or Beta: the check looks there, the install keeps it for every later update.
+    // It starts as the service's channel (stable, or beta while stable has no release).
+    property string channel: "stable"
     property bool autoUpdate: true
     property bool blockUpdates: true
     property bool deleteData: true
@@ -52,6 +55,7 @@ Item {
     function grid() {
         switch (page) {
         case "install-1": return [["cancel", "start"]];
+        case "install-channel": return [["stable", "beta"], ["back", "next"]];
         // A disabled "next" takes no focus.
         case "install-2": return [checkFailed ? ["back", "retry"] : (canInstall ? ["back", "next"] : ["back"])];
         case "install-3": return [["back", "next"]];
@@ -69,6 +73,7 @@ Item {
     function defaultFocus() {
         switch (page) {
         case "install-1": return "start";
+        case "install-channel": return channel;
         case "install-2": return canInstall ? "next" : "back";
         case "install-4": return "row0";
         case "install-5": return keyboard;
@@ -122,11 +127,12 @@ Item {
     Timer {
         id: checkLater
         interval: GlassStyle.slideDuration + 120
-        onTriggered: if (wizard.page === "install-2") bridge.send("check")
+        onTriggered: if (wizard.page === "install-2") bridge.send("check", { source: wizard.channel })
     }
 
     function choiceValues() {
-        return { keyboard: keyboard, autoUpdate: autoUpdate ? "on" : "off", blockUpdates: blockUpdates ? "on" : "off" };
+        return { source: channel, keyboard: keyboard, autoUpdate: autoUpdate ? "on" : "off",
+                 blockUpdates: blockUpdates ? "on" : "off" };
     }
 
     function activate() {
@@ -134,11 +140,16 @@ Item {
         switch (page) {
         case "install-1":
             if (id === "cancel") wizard.close();
+            else go("install-channel");
+            break;
+        case "install-channel":
+            if (id === "stable" || id === "beta") channel = id;
+            else if (id === "back") go("install-1");
             else { go("install-2"); checkLater.restart(); }
             break;
         case "install-2":
-            if (id === "back") go("install-1");
-            else if (id === "retry") bridge.send("check");
+            if (id === "back") go("install-channel");
+            else if (id === "retry") bridge.send("check", { source: channel });
             else if (canInstall) go("install-3");
             break;
         case "install-3":
@@ -186,7 +197,8 @@ Item {
         case "install-1": case "update-2": case "remove-2": case "install-9": case "install-x":
             wizard.close();
             break;
-        case "install-2": go("install-1"); break;
+        case "install-channel": go("install-1"); break;
+        case "install-2": go("install-channel"); break;
         case "install-3": go("install-2"); break;
         case "install-4": go("install-3"); break;
         case "install-5": go("install-4"); break;
@@ -218,6 +230,7 @@ Item {
         if (!choicesRead && bridge.info.choices) {
             choicesRead = true;
             keyboard = bridge.choices.keyboard || keyboard;
+            if (bridge.info.channel === "stable" || bridge.info.channel === "beta") channel = bridge.info.channel;
         }
         if (page === "") {
             if (!bridge.info.serving) return;      // wait for the service
@@ -268,7 +281,9 @@ Item {
             // Only an unreachable server is the connection's fault.
             var kind = bridge.info.errorKind || "failed";
             internet = { status: "error", label: tr("check.internet"),
-                         value: tr(kind === "offline" ? "check.failed" : (kind === "missing" ? "check.no_release" : "check.error")) };
+                         value: tr(kind === "offline" ? "check.failed" :
+                                  kind === "missing" ? (channel === "stable" ? "check.no_stable" : "check.no_release") :
+                                  "check.error") };
         }
         else if (!result) internet = { status: "pending", label: tr("check.internet") };
         else if (!result.newer && result.installed === result.available)
@@ -329,9 +344,11 @@ Item {
         switch (page) {
         case "install-1": case "install-3": case "install-9":
             return { focus: f };
+        case "install-channel":
+            return { focus: f, channel: channel };
         case "install-2":
             return {
-                label: tr("header.install"), step: 2, title: tr("check.title"), lead: tr("check.lead"),
+                label: tr("header.install"), step: 3, title: tr("check.title"), lead: tr("check.lead"),
                 rows: checkRows(),
                 left: [{ label: tr("button.back"), focused: f === "back" }],
                 right: checkFailed ? [{ label: tr("button.check_again"), icon: "refresh-22", focused: f === "retry" }]
@@ -345,6 +362,7 @@ Item {
             return { focus: f, rows: [
                 { label: tr("summary.version"), value: checkResult ? tr("summary.version_value",
                     { version: checkResult.available, size: mb(checkResult.size) + " MB" }) : "" },
+                { label: tr("summary.channel"), value: tr(channel === "beta" ? "channel.beta_title" : "channel.stable_title") },
                 { label: tr("summary.duration"), value: tr("summary.duration_value") },
                 { label: tr("summary.privacy"), value: tr("summary.privacy_later") },
                 { label: tr("summary.keyboard"), value: tr(keyboard === "t9" ? "keyboard.t9_title" : "keyboard.qwertz_title") },

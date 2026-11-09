@@ -18,7 +18,7 @@ Item {
         backdrop: screen.backdrop
         focusKey: screen.live ? (screen.live.focus || "") : ""
         label: tr("header.install")
-        step: 5
+        step: 6
         title: tr("keyboard.title")
         lead: tr("keyboard.lead")
         contentHeight: 290 + 20 + updates.logicalHeight

@@ -12,6 +12,7 @@
 
 var list = [
     { id: "install-1", board: "K3-Install-1-Willkommen", screen: "InstallWelcome", variant: "", scene: "picture", scrim: 0.3 },
+    { id: "install-channel", board: "(no board: channel)", screen: "InstallChannel", variant: "", scene: "picture", scrim: 0.3 },
     { id: "install-2", board: "K3-Install-2-Pruefung", screen: "CheckScreen", variant: "install-2", scene: "picture", scrim: 0.3 },
     { id: "install-2b", board: "K3-Install-2b-Fehlt", screen: "CheckScreen", variant: "install-2b", scene: "picture", scrim: 0.3 },
     { id: "install-3", board: "K3-Install-3-Aenderungen", screen: "InstallChanges", variant: "", scene: "picture", scrim: 0.3 },

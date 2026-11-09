@@ -18,7 +18,7 @@ Item {
         backdrop: screen.backdrop
         focusKey: screen.live ? (screen.live.focus || "") : ""
         label: tr("header.install")
-        step: 3
+        step: 4
         title: tr("change.title")
         contentHeight: 342
         leftButtons: [{ label: tr("button.back"), focused: (screen.live !== null && screen.live.focus === "back") }]

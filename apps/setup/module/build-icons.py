@@ -15,7 +15,7 @@ _SPEC = importlib.util.spec_from_file_location(
 ui = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(ui)
 path, strokes, render = ui.path, ui.strokes, ui.render
-LIGHT_ONLY, LOCK = ui.LIGHT_ONLY, ui.LOCK
+LIGHT_ONLY, LOCK, BOTH = ui.LIGHT_ONLY, ui.LOCK, ui.BOTH
 
 OUTPUT = pathlib.Path(__file__).parent / "icons"
 
@@ -57,6 +57,11 @@ ICONS = [
     ("setup-gamepad-30", 30, 1.7, GAMEPAD, LIGHT_ONLY),
     ("setup-search-30", 30, 1.7, SEARCH, LIGHT_ONLY),
     ("setup-sparkle-30", 30, 1.7, SPARKLE, LIGHT_ONLY),
+    # The two channels of the channel page; -dark on the focus surface.
+    ("setup-shield-44", 44, 1.5, path("M12 3.5l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9v-5z") + path("M9 12l2 2 4-4"),
+     BOTH),
+    ("setup-flask-44", 44, 1.5, path("M9.5 3.5h5") + path("M10.5 3.5v5.2L5.6 17.4A2 2 0 0 0 7.3 20.5h9.4a2 2 0 0 0 1.7-3.1L13.5 8.7V3.5") +
+     path("M7.6 14h8.8"), BOTH),
 ]
 
 

@@ -19,7 +19,7 @@ Item {
 
     readonly property var spec: ({
         "install-2": {
-            label: tr("header.install"), step: 2, title: tr("check.title"), lead: tr("check.lead"),
+            label: tr("header.install"), step: 3, title: tr("check.title"), lead: tr("check.lead"),
             rows: [
                 { status: "done", label: tr("check.tv"), value: "LG 55QNED816RE" },
                 { status: "done", label: tr("check.webos"), value: tr("check.webos_value", { version: "10.3.2" }) },
@@ -31,7 +31,7 @@ Item {
             right: [{ label: tr("button.next"), disabled: true }]
         },
         "install-2b": {
-            label: tr("header.install"), step: 2, title: tr("missing.title"), lead: tr("missing.lead"),
+            label: tr("header.install"), step: 3, title: tr("missing.title"), lead: tr("missing.lead"),
             rows: [
                 { status: "done", label: tr("check.tv"), value: "LG 55QNED816RE" },
                 { status: "done", label: tr("check.webos"), value: tr("check.webos_value", { version: "10.3.2" }) },

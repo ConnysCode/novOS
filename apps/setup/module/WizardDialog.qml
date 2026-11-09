@@ -17,7 +17,7 @@ Item {
     property Item backdrop
     property string label: ""
     property int step: 0                    // 0 hides the steps at the right
-    property int stepCount: 6
+    property int stepCount: 7
     property string title: ""
     property string lead: ""
     property real contentHeight: 0          // logical px

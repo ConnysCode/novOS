@@ -19,7 +19,7 @@ Item {
         backdrop: screen.backdrop
         focusKey: screen.live ? (screen.live.focus || "") : ""
         label: tr("header.install")
-        step: 4
+        step: 5
         title: tr("privacy.title")
         lead: tr("privacy.lead")
         contentHeight: list.logicalHeight
