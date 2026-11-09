@@ -111,13 +111,22 @@ Item {
 
     // ---- Actions ------------------------------------------------------------------
 
+    // Fixed, so that the buttons are built once: a new list would rebuild them and take
+    // the focus surface's target away (Dark Room changes its label on every press).
     readonly property var actions: [
-        { key: "darkRoom", icon: "game-dark-room",
-          label: darkMode === "off" ? t("action.dark_room") : t("action.dark_room_level", { level: darkMode === "level2" ? 2 : 1 }) },
-        { key: "multiView", icon: "game-multi-view", label: t("action.multi_view") },
-        { key: "games", icon: "game-games", label: t("action.games") },
-        { key: "quick", icon: "game-quick", label: t("action.quick_menu") }
+        { key: "darkRoom", icon: "game-dark-room" },
+        { key: "multiView", icon: "game-multi-view" },
+        { key: "games", icon: "game-games" },
+        { key: "quick", icon: "game-quick" }
     ]
+
+    function actionLabel(key, darkMode) {
+        if (key === "darkRoom") {
+            return darkMode === "off" ? t("action.dark_room")
+                                      : t("action.dark_room_level", { level: darkMode === "level2" ? 2 : 1 });
+        }
+        return t({ multiView: "action.multi_view", games: "action.games", quick: "action.quick_menu" }[key]);
+    }
 
     function actionIndex(key) {
         for (var i = 0; i < actions.length; i++) {
@@ -195,7 +204,8 @@ Item {
     property real stepBack: genreList.shown ? GlassStyle.dimmedOpacity : 1
     Behavior on stepBack { NumberAnimation { duration: GlassStyle.popoverDuration } }
 
-    readonly property Item focusedItem: focusIndex === 0 ? chip : actionRepeater.itemAt(focusIndex - 1)
+    readonly property Item focusedItem: focusIndex === 0 ? chip
+                                      : (actionRepeater.count > 0 ? actionRepeater.itemAt(focusIndex - 1) : null)
     readonly property real focusRadius: focusIndex === 0 ? GlassStyle.chipRadius : GlassStyle.pillRadius
 
     opacity: shown && !covered ? 1 : 0
@@ -357,13 +367,13 @@ Item {
 
                 Repeater {
                     id: actionRepeater
-                    model: bar.actions
+                    model: bar.actions.length
 
                     FooterButton {
                         unit: bar.unit
                         fontFamily: GlassStyle.rowFont
-                        label: modelData.label
-                        icon: modelData.icon
+                        label: bar.actionLabel(bar.actions[index].key, bar.darkMode)
+                        icon: bar.actions[index].icon
                         focused: bar.focusIndex === index + 1
                         onClicked: {
                             bar.focusIndex = index + 1;
