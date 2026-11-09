@@ -1,4 +1,63 @@
 {
+  "0.10.0-beta.1": {
+    "date": "2026-11-10",
+    "level": "minor",
+    "topics": {
+      "de": "Zurück zur vorigen Version",
+      "en": "Back to the previous version",
+      "es": "Volver a la versión anterior",
+      "fr": "Retour à la version précédente"
+    },
+    "items": [
+      {
+        "kind": "feature",
+        "icon": "update",
+        "open": "settings:info:update",
+        "title": {
+          "de": "Zurück zur vorigen Version",
+          "en": "Back to the previous version",
+          "es": "Volver a la versión anterior",
+          "fr": "Retour à la version précédente"
+        },
+        "text": {
+          "de": "Nach einem Update kannst du 14 Tage lang zurück, mit deinen Einstellungen und Ausschalt-Videos vom Stand davor. Die Liste früherer Versionen fällt dafür weg.",
+          "en": "For 14 days after an update you can go back, with your settings and power-off videos as they were before. The list of earlier versions is gone in exchange.",
+          "es": "Durante 14 días tras una actualización puedes volver atrás, con tus ajustes y vídeos de apagado como estaban antes. A cambio desaparece la lista de versiones anteriores.",
+          "fr": "Pendant 14 jours après une mise à jour, vous pouvez revenir en arrière, avec vos réglages et vidéos d’extinction tels qu’ils étaient. La liste des versions précédentes disparaît."
+        }
+      },
+      {
+        "kind": "fix",
+        "title": {
+          "de": "Während der Installation",
+          "en": "During the installation",
+          "es": "Durante la instalación",
+          "fr": "Pendant l’installation"
+        },
+        "text": {
+          "de": "Statt LGs Home zeigt novOS beim Installieren und Zurückgehen ein schwarzes Bild, danach immer den Hinweis „ist installiert“.",
+          "en": "Instead of LG’s Home, novOS shows a black screen while installing or going back, and afterwards always the “installed” notice.",
+          "es": "En lugar del Inicio de LG, novOS muestra una pantalla negra al instalar o volver atrás y después siempre el aviso «instalado».",
+          "fr": "Au lieu de l’accueil LG, novOS affiche un écran noir pendant l’installation ou le retour, puis toujours l’avis « installé »."
+        }
+      },
+      {
+        "kind": "fix",
+        "title": {
+          "de": "Symbol in Rückfragen",
+          "en": "Icon in confirmations",
+          "es": "Icono en las confirmaciones",
+          "fr": "Icône des confirmations"
+        },
+        "text": {
+          "de": "Rückfragen der Einstellungen zeigen wieder ein Symbol statt eines leeren Kreises.",
+          "en": "Confirmations in the settings show an icon again instead of an empty circle.",
+          "es": "Las confirmaciones de los ajustes vuelven a mostrar un icono en lugar de un círculo vacío.",
+          "fr": "Les confirmations des réglages affichent de nouveau une icône au lieu d’un cercle vide."
+        }
+      }
+    ]
+  },
   "0.9.1-beta.3": {
     "date": "2026-11-09",
     "level": "patch",
