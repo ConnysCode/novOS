@@ -19,6 +19,7 @@ init-hook.sh and novos-uninstall.sh.
     novos-setupd.py uninstall [--keep-state]
     novos-setupd.py settings [--keyboard qwertz|t9] [--auto-update on|off] [--block-updates on|off]
     novos-setupd.py serve --dir <folder> [--window <url>] [--app <id>] [--idle <seconds>]
+                          [--channel stable|beta] [--in-novos] [--pending]
 
 settings stores the setup's choices: the keyboard novOS starts with, whether novOS updates
 itself at night (used from step 6 of the plan on) and whether LG's system updates are
@@ -30,7 +31,9 @@ serve is the bridge to the setup's window, which runs inside surface-manager and
 start programs nor delete files: the window writes commands into <folder>/command.ini
 (Qt.labs.settings), serve runs them and keeps <folder>/state.json up to date. When an
 install restarts surface-manager, the window goes with it; serve opens it again (--window,
---app) once novOS runs.
+--app) once novOS runs. novOS' own settings use the same bridge (--in-novos): its supervisor
+starts this file, fetched and checked as a signed setup release, for a waiting command
+(--pending). Each check is kept in state/last-check.json for the settings.
 
 Without a source, check, fetch and install use the channel set with "channel" (stable by
 default). install stops a running novOS first and starts it again afterwards; --start
@@ -51,7 +54,6 @@ import os
 import shutil
 import subprocess
 import sys
-import tarfile
 import time
 import urllib.error
 
@@ -375,20 +377,42 @@ def check(report, source):
     finally:
         shutil.rmtree(folder, ignore_errors=True)
     current = current_release()
+    found = {"available": manifest["version"], "installed": current or None, "size": manifest["archive"]["size"],
+             "published": manifest.get("published", ""), "channel": source if source in ("stable", "beta") else None,
+             "checked": int(time.time())}
     if manifest["version"] == current:
-        report.result("novOS %s is installed, nothing newer in %s" % (current, source),
-                      check={"available": current, "installed": current, "newer": False, "problems": [],
-                             "size": manifest["archive"]["size"]})
+        found.update(newer=False, problems=[])
+        remember_check(found)
+        report.result("novOS %s is installed, nothing newer in %s" % (current, source), check=found)
         return False
     problems = preflight(manifest, allow_downgrade=False)
-    result = {"available": manifest["version"], "installed": current or None, "size": manifest["archive"]["size"],
-              "newer": is_newer(manifest["version"], current), "problems": problems}
+    found.update(newer=is_newer(manifest["version"], current), problems=problems)
+    remember_check(found)
     if problems:
         message = "novOS %s cannot be installed: %s" % (manifest["version"], "; ".join(problems))
     else:
         message = "novOS %s can be installed (installed: %s)" % (manifest["version"], current or "nothing")
-    report.result(message, check=result)
+    report.result(message, check=found)
     return not problems
+
+
+def remember_check(found):
+    """The last answer of the channel, for novOS' settings after a restart (state/last-check.json)."""
+    with contextlib.suppress(OSError):
+        os.makedirs(STATE, exist_ok=True)
+        write_file(STATE + "/last-check.json", json.dumps(found, ensure_ascii=False) + "\n")
+
+
+def settle_check(installed):
+    """After an install the remembered answer names the new release as installed."""
+    try:
+        with open(STATE + "/last-check.json") as handle:
+            found = json.load(handle)
+    except (OSError, ValueError):
+        return
+    if found.get("available") == installed:
+        found.update(installed=installed, newer=False, problems=[])
+        remember_check(found)
 
 
 def is_newer(version, installed):
@@ -476,47 +500,7 @@ def download_with_progress(report, url, path, total):
 
 def safe_extract(archive, version, target):
     """Unpacks the release folder <version> of archive into target, refusing anything else."""
-    try:
-        bundle = tarfile.open(archive, "r:xz")
-    except (tarfile.CompressionError, ImportError):
-        bundle = None
-    if bundle is None:
-        # Some Pythons lack lzma; tar on the TV unpacks into a scratch folder first.
-        scratch = target + ".tar"
-        shutil.rmtree(scratch, ignore_errors=True)
-        os.makedirs(scratch)
-        if subprocess.call(["tar", "-C", scratch, "-xJf", archive]) != 0:
-            raise SetupError("tar could not unpack the archive")
-        names = os.listdir(scratch)
-        if names != [version]:
-            raise SetupError("the archive holds %s, expected only %s" % (names, version))
-        check_tree(os.path.join(scratch, version))
-        os.rename(os.path.join(scratch, version), target)
-        shutil.rmtree(scratch, ignore_errors=True)
-        return
-    with bundle:
-        for member in bundle.getmembers():
-            name = os.path.normpath(member.name)
-            if name != version and not name.startswith(version + os.sep):
-                raise SetupError("unexpected entry in the archive: %s" % member.name)
-            if member.issym() or member.islnk() or not (member.isdir() or member.isfile()):
-                raise SetupError("the archive holds a link or a special file: %s" % member.name)
-        scratch = target + ".tar"
-        shutil.rmtree(scratch, ignore_errors=True)
-        # Newer Pythons check members once more; the checks above are the ones that count.
-        if hasattr(tarfile, "data_filter"):
-            bundle.extractall(scratch, filter="data")
-        else:
-            bundle.extractall(scratch)
-    os.rename(os.path.join(scratch, version), target)
-    shutil.rmtree(scratch, ignore_errors=True)
-
-
-def check_tree(folder):
-    for base, folders, files in os.walk(folder):
-        for name in folders + files:
-            if os.path.islink(os.path.join(base, name)):
-                raise SetupError("the archive holds a link: %s" % os.path.join(base, name))
+    release.extract(archive, version, target)
 
 
 # Apps that show no picture of their own: closing them is not needed to keep the screen dark.
@@ -591,6 +575,7 @@ def install(report, source, allow_downgrade=False, start=False, before_start=Non
             finally:
                 if stay_dark:
                     screen(report, True)
+        settle_check(version)
         report.result("installed novOS %s%s" % (version, ", started" if was_running or start else ""),
                       installed=version, started=was_running or start)
 
@@ -924,19 +909,22 @@ STAGES = [("manifest", 2), ("download", 55), ("verify", 3), ("stop", 8), ("unpac
 
 
 class Bridge:
-    def __init__(self, folder, window, app, channel=None):
+    def __init__(self, folder, window, app, channel=None, in_novos=False):
         self.folder = folder
         self.channel = channel       # given at the start of the setup; else the stored one
         self.window = window
         self.app = app
+        # The window is novOS' own settings: an update keeps the picture and goes back to
+        # what ran, and the facts of the setup's check page are not needed.
+        self.in_novos = in_novos
         self.state_path = os.path.join(folder, "state.json")
         self.command_path = os.path.join(folder, "command.ini")
         # phase is what the window shows ("done" may come before the command ends, so that
         # the reopened window shows its last page at once); busy is whether a command runs.
         self.state = {"serving": True, "pid": os.getpid(), "id": "", "command": "", "phase": "idle", "busy": False,
                       "stage": "", "percent": 0, "steps": [], "result": None, "error": None, "errorKind": None,
-                      "choices": current_choices(), "tv": tv_facts(), "channel": channel or default_source(),
-                      "updated": time.time()}
+                      "choices": current_choices(), "tv": {} if in_novos else tv_facts(),
+                      "channel": channel or default_source(), "installed": current_release(), "updated": time.time()}
         self.last_written = 0.0
 
     def write(self, force=True):
@@ -1005,11 +993,14 @@ class Bridge:
                 if name == "update" and not check(report, source):
                     raise SetupError("nothing newer to install")
                 install(report, source, start=True, before_start=self.restarting, after_start=self.reopen,
-                        stay_dark=True)
+                        stay_dark=not self.in_novos)
                 if self.channel or command.get("source"):
                     remember_channel(source)
             elif name == "check":
                 check(report, source)
+            elif name == "channel":
+                set_channel(report, command.get("source"))
+                self.state["channel"] = read_setting("channel", "stable")
             elif name == "settings":
                 result = apply_choices(report, command.get("keyboard") or None, command.get("autoUpdate") or None,
                                        command.get("blockUpdates") or None)
@@ -1029,6 +1020,7 @@ class Bridge:
             self.state["error"] = str(error)
             self.state["errorKind"] = error_kind(error)
         self.state["choices"] = current_choices()
+        self.state["installed"] = current_release()
         self.state["busy"] = False
         self.write()
 
@@ -1038,11 +1030,27 @@ def command_serial(command):
     return command.get("serial") or command.get("id") or ""
 
 
-def serve(folder, window, app, idle, channel=None):
+def serve(folder, window, app, idle, channel=None, in_novos=False, pending=False):
+    """pending: run the command waiting in command.ini unless the last serve answered it
+    already (state.json names it). novOS' supervisor starts serve for a waiting command."""
     os.makedirs(folder, exist_ok=True)
-    bridge = Bridge(folder, window, app, channel)
+    answered = None
+    if pending:
+        # Started for a waiting command, maybe twice in a row: only one serve answers.
+        guard = open(os.path.join(folder, "serve.lock"), "w")
+        try:
+            fcntl.flock(guard, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            guard.close()
+            return
+        try:
+            with open(os.path.join(folder, "state.json")) as handle:
+                answered = json.load(handle).get("id", "")
+        except (OSError, ValueError):
+            answered = ""
+    bridge = Bridge(folder, window, app, channel, in_novos)
     # A command left over from an earlier run is not run again.
-    last_id = command_serial(read_ini(bridge.command_path))
+    last_id = answered if pending else command_serial(read_ini(bridge.command_path))
     bridge.state["id"] = last_id
     bridge.write()
     log("serve %s, window %s" % (folder, window or "-"))
@@ -1055,7 +1063,8 @@ def serve(folder, window, app, idle, channel=None):
             last_activity = time.time()
             if command.get("command") == "close":
                 # "Zum Startbildschirm": the setup ends on novOS' own Home, as the home key opens it.
-                if bridge.state["command"] in ("install", "update") and bridge.state["phase"] == "done" and running():
+                if (not in_novos and bridge.state["command"] in ("install", "update") and bridge.state["phase"] == "done"
+                        and running()):
                     with contextlib.suppress(OSError):
                         luna("luna://com.webos.service.systemUIManager/launch", {"appId": "com.webos.app.store-streamer"})
                 break
@@ -1066,6 +1075,8 @@ def serve(folder, window, app, idle, channel=None):
         time.sleep(0.3)
     bridge.state["serving"] = False
     bridge.write()
+    if pending:
+        guard.close()
 
 
 def main(argv=None):
@@ -1095,6 +1106,10 @@ def main(argv=None):
     serve_parser.add_argument("--window", help="file:// URL of the setup's window, opened again after a restart")
     serve_parser.add_argument("--app", default="com.webos.app.quicksettings")
     serve_parser.add_argument("--idle", type=int, default=1800, help="ends after this many seconds without a command")
+    serve_parser.add_argument("--in-novos", action="store_true",
+                              help="the window is novOS' settings: updates keep the picture on")
+    serve_parser.add_argument("--pending", action="store_true",
+                              help="run the command waiting in command.ini, unless it was answered already")
     serve_parser.add_argument("--channel", choices=("stable", "beta"),
                               help="the channel this setup installs from and stores; else the stored one")
     args = parser.parse_args(argv)
@@ -1134,7 +1149,7 @@ def main(argv=None):
                 "" if choices["blockUpdates"] == choices["blockedNow"] else " (from the next restart on)"),
                 choices=choices)
         elif args.command == "serve":
-            serve(args.dir, args.window, args.app, args.idle, args.channel)
+            serve(args.dir, args.window, args.app, args.idle, args.channel, args.in_novos, args.pending)
         else:
             parser.print_help()
             return 2

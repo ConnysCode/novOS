@@ -500,6 +500,72 @@ class SetupdTest(unittest.TestCase):
         self.assertFalse(thread.is_alive())
         self.assertFalse(state()["serving"])
 
+    def test_serve_in_novos(self):
+        """novOS' settings: the supervisor starts serve for a waiting command; channel,
+        check and update run from there, and the picture stays on."""
+        import threading
+        import time
+        folder = os.path.join(self.sandbox, "update")
+        os.makedirs(folder)
+        command = os.path.join(folder, "command.ini")
+        state_path = os.path.join(folder, "state.json")
+        self.run_setupd("install", self.publish("1.0.0"), "--start")
+        self.publish("1.1.0", channel="stable")
+        with open(state_path, "w") as handle:
+            json.dump({"id": "a", "phase": "done"}, handle)
+        with open(command, "w") as handle:
+            handle.write("[General]\ncommand=check\nserial=b\n")
+        thread = threading.Thread(target=self.setupd.serve, args=(folder, "", "app", 60, None, True, True),
+                                  daemon=True)
+        thread.start()
+        def answer(serial):
+            for _ in range(300):
+                try:
+                    with open(state_path) as handle:
+                        current = json.load(handle)
+                    if current["id"] == serial and not current.get("busy") and current["phase"] in ("done", "error"):
+                        return current
+                except (OSError, ValueError, KeyError):
+                    pass
+                time.sleep(0.05)
+            self.fail("no answer to " + serial)
+        def send(text, serial):
+            with open(command, "w") as handle:
+                handle.write("[General]\n%sserial=%s\n" % (text, serial))
+            return answer(serial)
+        # The waiting command runs at once.
+        result = answer("b")
+        self.assertEqual(result["result"]["check"]["available"], "1.1.0")
+        self.assertTrue(result["result"]["check"]["newer"])
+        self.assertEqual(result["installed"], "1.0.0")
+        self.assertEqual(result["tv"], {})
+        with open(self.path("/var/lib/novos/state/last-check.json")) as handle:
+            self.assertEqual(json.load(handle)["available"], "1.1.0")
+        result = send("command=channel\nsource=beta\n", "c")
+        self.assertEqual(result["channel"], "beta")
+        with open(self.path("/var/lib/novos/state/channel")) as handle:
+            self.assertEqual(handle.read().strip(), "beta")
+        self.publish("1.2.0-beta.1", channel="beta")
+        result = send("command=update\n", "d")
+        self.assertEqual(result["phase"], "done", result)
+        self.assertEqual(result["installed"], "1.2.0-beta.1")
+        self.assertEqual(self.current(), "1.2.0-beta.1")
+        # From novOS' settings the picture stays on and the TV goes back to what ran.
+        self.assertEqual(self.calls()[-1], "start manual restore=1")
+        with open(self.path("/var/lib/novos/state/last-check.json")) as handle:
+            remembered = json.load(handle)
+        self.assertEqual((remembered["installed"], remembered["newer"]), ("1.2.0-beta.1", False))
+        with open(command, "w") as handle:
+            handle.write("[General]\ncommand=close\nserial=e\n")
+        thread.join(10)
+        self.assertFalse(thread.is_alive())
+        # A command answered already is not run again by the next serve.
+        with open(command, "w") as handle:
+            handle.write("[General]\ncommand=update\nserial=d\n")
+        calls = len(self.calls())
+        self.setupd.serve(folder, "", "app", 1, None, True, True)
+        self.assertEqual(len(self.calls()), calls)
+
     def test_uninstall(self):
         self.run_setupd("install", self.publish("1.0.0"))
         code, lines = self.run_setupd("uninstall", "--keep-state")

@@ -14,6 +14,9 @@ While it runs it
   five minutes: it writes state/disabled and hands over to novos-stop.sh.
 - grows the video plane back to full screen when the launcher died while the plane
   was small. The launcher writes a beat every second while it holds the plane small.
+- starts bin/novos-updater.py when novOS' settings left a command for it in
+  /tmp/novos-update/command.ini and no updater answers, and once a day, after the
+  interface ran stable, leaves a check there itself.
 - ends when the overlays are no longer mounted, for example after a test rollback.
 """
 
@@ -37,6 +40,8 @@ FAILURES = STATE + "/boot-failures"
 DISABLED = STATE + "/disabled"
 STABLE = "/tmp/novos-stable"
 EARLY_RELEASE = STATE + "/early-release"
+UPDATE = "/tmp/novos-update"
+UPDATE_CHECKED = STATE + "/update-checked"
 
 STABLE_SECONDS = 120
 CRASH_WINDOW = 300
@@ -45,6 +50,8 @@ RELAY_HEALTHY = 60
 RELAY_RETRIES = 3
 RELAY_DELAY = 2
 BEAT_TIMEOUT = 5
+UPDATER_RETRY = 15
+CHECK_EVERY = 24 * 3600
 
 
 def log(text):
@@ -187,6 +194,58 @@ class Relay:
             self.process.terminate()
 
 
+class Updater:
+    """Starts the updater for a command of the settings; it fetches itself from GitHub."""
+
+    def __init__(self):
+        self.process = None
+        self.started = 0.0
+        os.makedirs(UPDATE, exist_ok=True)
+
+    def answering(self):
+        """An updater runs: ours, or one an earlier supervisor started before a restart."""
+        if self.process is not None and self.process.poll() is None:
+            return True
+        try:
+            with open(UPDATE + "/state.json") as file:
+                state = json.load(file)
+            if state.get("serving"):
+                os.kill(int(state.get("pid") or 0), 0)
+                return True
+        except (OSError, ValueError, TypeError):
+            pass
+        return False
+
+    def check(self, stable):
+        if stable and self.check_due():
+            write_text(UPDATE + "/command.ini", "[General]\ncommand=check\nserial=auto-%d\n" % time.time())
+            write_text(UPDATE_CHECKED, time.strftime("%Y-%m-%d %H:%M:%S") + "\n")
+            log("daily update check asked for")
+        waiting = read_ini(UPDATE + "/command.ini")
+        serial = waiting.get("serial") or waiting.get("id") or ""
+        if not serial or time.time() - self.started < UPDATER_RETRY:
+            return
+        try:
+            with open(UPDATE + "/state.json") as file:
+                answered = json.load(file).get("id", "")
+        except (OSError, ValueError):
+            answered = ""
+        if serial == answered or self.answering():
+            return
+        self.started = time.time()
+        self.process = subprocess.Popen(["python3", PANEL + "/bin/novos-updater.py", "serve"],
+                                        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                        stderr=subprocess.DEVNULL, start_new_session=True)
+        log("updater started for %s %s, pid %d" % (waiting.get("command", "?"), serial, self.process.pid))
+
+    @staticmethod
+    def check_due():
+        try:
+            return time.time() - os.path.getmtime(UPDATE_CHECKED) >= CHECK_EVERY
+        except OSError:
+            return True
+
+
 def remove(path):
     try:
         os.remove(path)
@@ -224,6 +283,7 @@ def give_up(reason):
 def run():
     files = targets()
     relay = Relay()
+    updater = Updater()
     pid = surface_manager()
     since = time.time()
     restarts = []
@@ -267,6 +327,10 @@ def run():
                 log("not reset yet: surface-manager pid %d for %.0f s, relay %s" % (
                     pid, time.time() - since, "alive" if relay.alive() else "not running"))
             grow_video()
+            try:
+                updater.check(counted)
+            except OSError as error:
+                log("updater: %s" % error)
             time.sleep(1)
     finally:
         relay.stop()

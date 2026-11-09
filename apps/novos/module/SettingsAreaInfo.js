@@ -6,8 +6,10 @@
 // LG does; serial number, ESN and Widevine ID are only shown, never stored or logged.
 // LG's own firmware update stays under System.
 //
-// Left out on purpose until novOS has them: release notes, automatic updates, "Nach Updates
-// suchen" and a project page. There is no update server and no public project address yet.
+// Software › Software-Update checks the channel, installs and switches between Stable and
+// Beta. SettingsData talks to the updater: novOS' supervisor starts the newest signed setup
+// release for each command (install/tv/novos-updater.py), see docs/setup-update-plan.md.
+// Left out until novOS has them: release notes, installing at night and a project page.
 
 function storage(ctx) {
     if (!(ctx.state.storageTotal > 0)) return "";
@@ -21,6 +23,52 @@ function shown(value) {
 
 function known(value) {
     return function (ctx) { return !!ctx.state[value]; };
+}
+
+// ---- Software-Update -------------------------------------------------------------------
+
+function check(ctx) {
+    return ctx.state.updateCheck || null;
+}
+
+// A release newer than the one running that this TV can take.
+function offered(ctx) {
+    var found = check(ctx);
+    return !!found && found.newer === true && (found.problems || []).length === 0 &&
+           found.available !== ctx.state.novosVersion;
+}
+
+function running(ctx, command) {
+    return ctx.state.updateBusy === true && (!command || ctx.state.updateCommand === command);
+}
+
+function sizeOf(found) {
+    return found && found.size > 0 ? Math.max(1, Math.round(found.size / 1000000)) : 0;
+}
+
+// The line below the version on the update page: what novOS knows right now.
+function updateStatus(ctx) {
+    var found = check(ctx);
+    if (running(ctx, "update")) {
+        var version = found && found.available || "";
+        if (ctx.state.updateStage === "download") {
+            return ctx.t("detail.update_loading", { version: version, percent: ctx.state.updatePercent || 0 });
+        }
+        return ctx.t("detail.update_installing", { version: version });
+    }
+    if (running(ctx, "check") || running(ctx, "channel")) return ctx.t("detail.update_checking");
+    if (ctx.state.updateError) {
+        var kind = ctx.state.updateErrorKind;
+        if (kind === "offline") return ctx.t("detail.update_offline");
+        if (kind === "missing") return ctx.t("detail.update_missing");
+        return ctx.t("detail.update_failed");
+    }
+    if (!found) return ctx.t("detail.update_never");
+    if (offered(ctx)) return ctx.t("detail.update_ready", { version: found.available });
+    if (found.newer && (found.problems || []).length > 0) {
+        return ctx.t("detail.update_not_for_tv", { version: found.available });
+    }
+    return ctx.t("detail.up_to_date");
 }
 
 function modelLine(ctx) {
@@ -54,7 +102,13 @@ var area = {
                 title: "section.software",
                 rows: [
                     { id: "built", type: "info", focusable: false, title: "row.built",
-                      value: shown("novosBuilt"), requires: known("novosBuilt") }
+                      value: shown("novosBuilt"), requires: known("novosBuilt") },
+                    { id: "softwareUpdate", type: "page", page: "update", title: "row.software_update",
+                      search: "search.software_update",
+                      value: function (ctx) {
+                          if (running(ctx, "update")) return ctx.t("value.updating");
+                          return offered(ctx) ? ctx.t("value.update_available") : "";
+                      } }
                 ]
             },
             {
@@ -108,6 +162,48 @@ var area = {
         ]
     },
     pages: {
+        update: {
+            id: "update",
+            title: "row.software_update",
+            hero: function (ctx) {
+                var version = ctx.state.novosVersion ? ctx.t("detail.version", { version: ctx.state.novosVersion }) : "";
+                return { title: version, text: updateStatus(ctx) };
+            },
+            note: "note.update_restart",
+            sections: [
+                {
+                    rows: [
+                        { id: "installUpdate", type: "action", action: "installUpdate", title: "row.install_update",
+                          subtitle: function (ctx) {
+                              var found = check(ctx) || {};
+                              var channel = ctx.label("novos.updateChannel", found.channel || ctx.state.updateChannel);
+                              var size = sizeOf(found);
+                              return ctx.t(size ? "detail.update_offer_size" : "detail.update_offer",
+                                           { version: found.available, channel: channel, size: size });
+                          },
+                          value: function (ctx) {
+                              return running(ctx, "update") ? ctx.t("value.percent", { percent: ctx.state.updatePercent || 0 }) : "";
+                          },
+                          // Pressed again while it runs, it does nothing (SettingsData).
+                          requires: function (ctx) { return offered(ctx) || running(ctx, "update"); } },
+                        { id: "checkUpdates", type: "action", action: "checkUpdates", title: "row.check_updates",
+                          search: "search.software_update",
+                          subtitle: function (ctx) {
+                              return ctx.state.updateChecked ? ctx.t("detail.last_check", { when: ctx.state.updateChecked }) : "";
+                          },
+                          value: function (ctx) {
+                              return running(ctx, "check") || running(ctx, "channel") ? ctx.t("value.checking") : "";
+                          },
+                          disabled: [{ when: function (ctx) { return running(ctx, "update"); },
+                                       reason: "reason.update_running" }] },
+                        { id: "updateChannel", type: "choice", key: "novos.updateChannel", values: ["stable", "beta"],
+                          title: "row.update_channel", subtitle: "detail.update_channel", search: "search.update_channel",
+                          disabled: [{ when: function (ctx) { return running(ctx, "update"); },
+                                       reason: "reason.update_running" }] }
+                    ]
+                }
+            ]
+        },
         details: {
             id: "details",
             title: "row.all_details",

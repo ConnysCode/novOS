@@ -17,7 +17,8 @@ Item {
         pinPrompt: true, resetAdId: true, cmpSettings: true, resetHbbtvId: true,
         resetHbbtvConnections: true, autoTime: true, sleepTimer: true, setSleepTimer: true,
         timerTime: true, onTimerEnable: true, screenOff: true, resetSound: true, resetGameGenre: true,
-        deleteConnectionHistory: true, deepColorChanged: true, toggleInputLock: true
+        deleteConnectionHistory: true, deepColorChanged: true, toggleInputLock: true,
+        checkUpdates: true, installUpdate: true
     })
     property var bluetoothFeatures: []
 
@@ -44,6 +45,7 @@ Item {
         luna("luna://com.webos.service.sm/crypto", "/checkSeStore", { id: ["esn", "widevine"] });
         readVersion();
         readSleepTimer();
+        readUpdates();
     }
 
     // The input of a page opened for one input, for example "hdmi2".
@@ -129,11 +131,18 @@ Item {
         if (!settings.store.values.novos) settings.store.values.novos = {};
         settings.store.values.novos.hideInputBanner = NovosSettings.hideInputBanner;
         settings.store.values.novos.keyboardMode = GlassStyle.keyboardMode;
+        settings.store.values.novos.updateChannel = settings.store.state.updateChannel || "stable";
     }
 
     function writeNovos(name, value) {
         if (name === "hideInputBanner") NovosSettings.hideInputBanner = value === true || value === "on";
         else if (name === "keyboardMode") GlassStyle.keyboardMode = String(value);
+        else if (name === "updateChannel") {
+            // The updater stores it; a check of the new channel follows its answer.
+            settings.store.state.updateChannel = String(value);
+            sendUpdate("channel", { source: String(value) });
+            checkAfterChannel = true;
+        }
         readNovos();
         settings.changed();
     }
@@ -146,8 +155,107 @@ Item {
         luna("luna://com.webos.notification", "/createPincodePrompt", { promptType: kind });
     }
 
+    // ---- Software-Update ---------------------------------------------------------------
+    // Commands go to the updater through /tmp/novos-update (SetupBridge); novOS' supervisor
+    // starts the newest signed setup release for them. Its last answer of the channel stays
+    // in state/last-check.json, so the page knows it after a restart too.
+
+    readonly property string updateFolder: "/tmp/novos-update"
+    readonly property string novosState: "/var/lib/novos/state"
+    readonly property int updateTimeout: 60000      // no answer: no updater on this TV
+    property string sentCommand: ""
+    property bool checkAfterChannel: false
+    property bool updateLost: false
+
+    SetupBridge {
+        id: updates
+        folder: tvData.updateFolder
+        active: !!tvData.settings && tvData.settings.active
+        onInfoChanged: tvData.applyUpdates()
+    }
+
+    Timer {
+        id: updateWatch
+        interval: tvData.updateTimeout
+        onTriggered: {
+            if (!updates.busy) return;
+            tvData.updateLost = true;
+            tvData.applyUpdates();
+        }
+    }
+
+    function sendUpdate(command, values) {
+        sentCommand = command;
+        updateLost = false;
+        updates.send(command, values || {});
+        updateWatch.restart();
+        applyUpdates();
+    }
+
+    function readFile(path) {
+        try {
+            var request = new XMLHttpRequest();
+            request.open("GET", "file://" + path, false);
+            request.send();
+            return String(request.responseText || "");
+        } catch (error) {
+            return "";
+        }
+    }
+
+    function readUpdates() {
+        var state = settings.store.state;
+        var channel = readFile(novosState + "/channel").trim();
+        if (channel === "stable" || channel === "beta") state.updateChannel = channel;
+        try {
+            var found = JSON.parse(readFile(novosState + "/last-check.json") || "null");
+            if (found && (!state.updateCheck || (found.checked || 0) >= (state.updateCheck.checked || 0))) {
+                state.updateCheck = found;
+            }
+        } catch (error) {
+        }
+        applyUpdates();
+    }
+
+    function checkedText(found) {
+        if (!found || !found.checked) return "";
+        var date = new Date(found.checked * 1000);
+        return date.toLocaleString(Qt.locale(I18n.qtLocale), Locale.ShortFormat);
+    }
+
+    function applyUpdates() {
+        var state = settings.store.state;
+        var info = updates.info || {};
+        var mine = updates.sentId !== "" && info.id === updates.sentId;
+        if (mine) updateLost = false;
+        if (info.channel === "stable" || info.channel === "beta") state.updateChannel = info.channel;
+        var result = info.result || null;
+        if (result && result.check && (!state.updateCheck || (result.check.checked || 0) >= (state.updateCheck.checked || 0))) {
+            state.updateCheck = result.check;
+        }
+        var waiting = updates.busy && !updateLost;
+        state.updateBusy = waiting || info.busy === true;
+        state.updateCommand = waiting ? sentCommand : (info.busy === true ? info.command : "");
+        state.updateStage = info.busy === true ? info.stage || "" : "";
+        state.updatePercent = info.busy === true ? info.percent || 0 : 0;
+        // Errors of the own last command; a failed check at night says nothing here.
+        state.updateError = updateLost ? "no updater" : (mine && info.phase === "error" ? info.error || "?" : "");
+        state.updateErrorKind = updateLost ? "failed" : (mine ? info.errorKind || "" : "");
+        state.updateChecked = checkedText(state.updateCheck);
+        if (mine && checkAfterChannel && !updates.busy) {
+            checkAfterChannel = false;
+            if (info.phase === "done") sendUpdate("check");
+        }
+        readNovos();
+        settings.changed();
+    }
+
     function run(name, params, ctx) {
-        if (name === "pinPrompt") {
+        if (name === "checkUpdates") {
+            sendUpdate("check");
+        } else if (name === "installUpdate") {
+            if (!settings.store.state.updateBusy) sendUpdate("update");
+        } else if (name === "pinPrompt") {
             luna("luna://com.webos.notification", "/createPincodePrompt", { promptType: "set_match" });
         } else if (name === "resetAdId") {
             luna("luna://com.webos.service.admanager", "/resetIFA", {});

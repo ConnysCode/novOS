@@ -1,0 +1,88 @@
+# Builds, signs and publishes the setup's TV part when a tag setup-v<version> is pushed:
+# setup-v0.1.0 goes to the stable and the beta channel, setup-v0.2.0-beta.1 to beta only.
+# novOS fetches the newest one from its channel for every update (setup/<channel>.json),
+# checks the signature against its own trusted keys and only then runs it.
+name: Release setup
+
+on:
+  push:
+    tags: ["setup-v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-channels
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version and channel from the tag
+        run: |
+          version="${TAG#setup-v}"
+          python3 lib/release/release.py channel --app setup --version "$version" \
+              --manifest-url - --signature-url - > /dev/null
+          case "$version" in *-*) channel=beta ;; *) channel=stable ;; esac
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "CHANNEL=$channel" >> "$GITHUB_ENV"
+          echo "BASE=https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG" >> "$GITHUB_ENV"
+
+      - name: Test the release tools and novos-setupd
+        run: |
+          python3 lib/release/test_release.py
+          python3 apps/setup/tv/test_setupd.py
+
+      - name: Build the release
+        run: SETUP_VERSION="$VERSION" apps/setup/build-release.sh "dist/$VERSION"
+
+      - name: Package, describe and sign
+        env:
+          NOVOS_SIGNING_KEY: ${{ secrets.NOVOS_SIGNING_KEY }}
+        run: |
+          name="setup-$VERSION"
+          tar -C dist --sort=name --owner=0 --group=0 --numeric-owner -cJf "dist/$name.tar.xz" "$VERSION"
+          python3 lib/release/release.py manifest --app setup --version "$VERSION" --tag "$TAG" \
+              --commit "$GITHUB_SHA" --archive "dist/$name.tar.xz" --url "$BASE/$name.tar.xz" \
+              > "dist/$name.manifest.json"
+          python3 lib/release/release.py sign "dist/$name.manifest.json" > "dist/$name.manifest.json.sig"
+          python3 lib/release/release.py verify "dist/$name.manifest.json" "dist/$name.manifest.json.sig" \
+              --archive "dist/$name.tar.xz" --app setup
+
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          name="setup-$VERSION"
+          prerelease=""
+          [ "$CHANNEL" = stable ] || prerelease="--prerelease"
+          gh release create "$TAG" --verify-tag --title "novOS Setup $VERSION" --generate-notes $prerelease \
+              "dist/$name.tar.xz" "dist/$name.manifest.json" "dist/$name.manifest.json.sig"
+
+      - name: Point the channels to this release
+        run: |
+          name="setup-$VERSION"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin gh-pages
+          git worktree add --detach pages FETCH_HEAD
+          mkdir -p pages/setup
+          channels=beta
+          [ "$CHANNEL" = stable ] && channels="stable beta"
+          for channel in $channels; do
+              python3 lib/release/release.py channel --app setup --version "$VERSION" \
+                  --manifest-url "$BASE/$name.manifest.json" --signature-url "$BASE/$name.manifest.json.sig" \
+                  --keep-newer "pages/setup/$channel.json" > "pages/setup/$channel.json.new"
+              mv "pages/setup/$channel.json.new" "pages/setup/$channel.json"
+          done
+          git -C pages add -A
+          git -C pages diff --cached --quiet && exit 0
+          git -C pages commit -q -m "chore(release): point the setup channels to $VERSION"
+          git -C pages push origin HEAD:gh-pages

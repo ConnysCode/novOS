@@ -17,6 +17,8 @@ archive's hash are checked against a key in trusted-keys.json.
                        [--keep-newer <current channel file>]
     release.py fetch <stable|beta|manifest-url> --app novos --out <dir>
 
+extract() unpacks a checked archive. novOS' release and the setup's updater both use it.
+
 Runs on Python 3.6 and later, with the standard library only, also on the TV.
 """
 
@@ -26,7 +28,10 @@ import hashlib
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
+import tarfile
 import time
 import urllib.request
 
@@ -195,6 +200,44 @@ def fetch(source, app, out):
     download(manifest["archive"]["url"], archive_path)
     check_archive(manifest, archive_path)
     return manifest
+
+
+def extract(archive, name, target):
+    """Unpacks the folder <name> of a checked archive into target, refusing anything else:
+    entries outside <name>, links and special files."""
+    scratch = target + ".tar"
+    shutil.rmtree(scratch, ignore_errors=True)
+    try:
+        bundle = tarfile.open(archive, "r:xz")
+    except (tarfile.CompressionError, ImportError):
+        bundle = None
+    if bundle is None:
+        # Some Pythons lack lzma; tar on the TV unpacks into a scratch folder first.
+        os.makedirs(scratch)
+        if subprocess.call(["tar", "-C", scratch, "-xJf", archive]) != 0:
+            raise ReleaseError("tar could not unpack the archive")
+        names = os.listdir(scratch)
+        if names != [name]:
+            raise ReleaseError("the archive holds %s, expected only %s" % (names, name))
+        for base, folders, files in os.walk(os.path.join(scratch, name)):
+            for entry in folders + files:
+                if os.path.islink(os.path.join(base, entry)):
+                    raise ReleaseError("the archive holds a link: %s" % os.path.join(base, entry))
+    else:
+        with bundle:
+            for member in bundle.getmembers():
+                path = os.path.normpath(member.name)
+                if path != name and not path.startswith(name + os.sep):
+                    raise ReleaseError("unexpected entry in the archive: %s" % member.name)
+                if member.issym() or member.islnk() or not (member.isdir() or member.isfile()):
+                    raise ReleaseError("the archive holds a link or a special file: %s" % member.name)
+            # Newer Pythons check members once more; the checks above are the ones that count.
+            if hasattr(tarfile, "data_filter"):
+                bundle.extractall(scratch, filter="data")
+            else:
+                bundle.extractall(scratch)
+    os.rename(os.path.join(scratch, name), target)
+    shutil.rmtree(scratch, ignore_errors=True)
 
 
 def main(argv=None):

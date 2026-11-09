@@ -79,6 +79,10 @@ state < "$HERE/banner-relay.py" > "$OUT/banner-relay.py"
 cp "$HERE/toast-filter.inc" "$HERE/settings-redirect.inc" "$HERE/launcher-home-key.inc" "$HERE/fullscreen-home.inc" "$HERE/splash-hide.inc" "$HERE/launcher-home.inc" "$HERE/launcher-stays.inc" \
     "$INSTALL/lg-targets.txt" "$OUT/"
 for file in "$INSTALL"/tv/*; do [ ! -f "$file" ] || cp "$file" "$OUT/bin/"; done
+# What novos-updater.py checks the setup's updater with, and the keys it trusts.
+mkdir -p "$OUT/bin/release"
+cp "$HERE/../../lib/release/release.py" "$HERE/../../lib/release/ed25519.py" \
+    "$HERE/../../lib/release/trusted-keys.json" "$OUT/bin/release/"
 # The PmLogCtl and luna-send stand-ins of the early start, each alone in its folder for PATH.
 cp -R "$INSTALL/tv/early" "$INSTALL/tv/kick" "$OUT/bin/"
 chmod 755 "$OUT"/bin/early/* "$OUT"/bin/kick/*

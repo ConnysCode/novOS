@@ -1,10 +1,11 @@
 import QtQuick 2.12
 import Qt.labs.settings 1.0
 
-// The window's side of novos-setupd serve: commands go into <folder>/command.ini, the
-// service's state comes back from <folder>/state.json, read a few times a second. The
-// window runs inside surface-manager and can neither start programs nor delete files;
-// writing an ini file and reading a file is all it needs.
+// A window's side of novos-setupd serve: commands go into <folder>/command.ini, the
+// service's state comes back from <folder>/state.json, read a few times a second while
+// active. Windows run inside surface-manager and can neither start programs nor delete
+// files; writing an ini file and reading a file is all they need. The setup's wizard uses
+// /tmp/novos-setup, novOS' settings /tmp/novos-update (its supervisor starts the service).
 Item {
     id: bridge
 
@@ -12,6 +13,7 @@ Item {
     property bool active: true
 
     property var info: ({})          // state.json as read last
+    property string infoText: ""     // its text, so that an unchanged file changes nothing
     readonly property string phase: info.phase || "idle"
     readonly property bool serving: info.serving === true
     readonly property int percent: info.percent || 0
@@ -74,7 +76,10 @@ Item {
                 request.open("GET", "file://" + bridge.folder + "/state.json", false);
                 request.send();
                 var text = String(request.responseText || "");
-                if (text !== "") bridge.info = JSON.parse(text);
+                if (text !== "" && text !== bridge.infoText) {
+                    bridge.info = JSON.parse(text);
+                    bridge.infoText = text;
+                }
             } catch (error) {
                 // The service writes the file anew; the next read gets it whole.
             }
