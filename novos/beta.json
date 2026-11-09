@@ -1,8 +1,8 @@
 {
   "format": 1,
   "app": "novos",
-  "version": "0.9.0-beta.3",
+  "version": "0.9.0-beta.4",
   "channel": "beta",
-  "manifest": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.0-beta.3/novos-0.9.0-beta.3.manifest.json",
-  "signature": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.0-beta.3/novos-0.9.0-beta.3.manifest.json.sig"
+  "manifest": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.0-beta.4/novos-0.9.0-beta.4.manifest.json",
+  "signature": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.0-beta.4/novos-0.9.0-beta.4.manifest.json.sig"
 }
