@@ -1,6 +1,6 @@
 import QtQuick 2.12
 
-// Pill button of the content modals, 64 px high. Sized by its label.
+// Pill button of the content modals, 64 px high (size: 60 in a StatusCard). Sized by its label.
 // The owner usually draws the focus surface behind a focused button; ownFocus lets the
 // button draw its own white plate at 103 %, for screens without a moving focus.
 // danger colours the label (red on glass, darker red on white), disabled dims to 40 %.
@@ -15,14 +15,15 @@ Item {
     property bool ownFocus: false
     // A focus target for an owner's single gliding surface (see apps/setup WizardDialog).
     readonly property bool focusTarget: !ownFocus && !disabled
-    readonly property real plateRadius: 32
+    property real size: 64
+    readonly property real plateRadius: size / 2
     readonly property real plateScale: GlassStyle.focusScale
     property bool danger: false
     property bool disabled: false
     signal clicked()
 
     width: content.width + 56 * unit
-    height: 64 * unit
+    height: size * unit
     opacity: disabled ? GlassStyle.dimmedOpacity : 1
     scale: ownFocus && focused ? GlassStyle.focusScale : 1
 
@@ -30,7 +31,7 @@ Item {
         anchors.fill: parent
         visible: button.ownFocus && button.focused
         unit: button.unit
-        radius: 32
+        radius: button.plateRadius
         animated: false
     }
 
@@ -40,7 +41,7 @@ Item {
         opacity: button.focused ? 0 : 1
         visible: opacity > 0
         unit: button.unit
-        radius: 32
+        radius: button.plateRadius
 
         Behavior on opacity {
             NumberAnimation { duration: GlassStyle.focusDuration; easing.type: Easing.Bezier; easing.bezierCurve: GlassStyle.curve }

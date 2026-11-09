@@ -34,6 +34,10 @@ QtObject {
     readonly property color danger: "#ff9a90"
     readonly property color keyRed: "#e5484d"              // the red key of the remote in key hints
     readonly property color dangerFocused: "#c42b20"
+    // StatusCard: the card, the circle of its symbol, the circle of an error.
+    readonly property color cardFill: "#14ffffff"          // white 8 %
+    readonly property color circleFill: "#29ffffff"        // white 16 %
+    readonly property color dangerCircle: "#38ff9a90"      // danger 22 %
     // Motion.
     readonly property var curve: [0.2, 0.8, 0.2, 1, 1, 1]
     readonly property int focusDuration: 220               // the focus surface and lists glide

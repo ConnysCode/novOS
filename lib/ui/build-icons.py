@@ -88,12 +88,19 @@ ICONS = [
     # Status marks of check and progress lists (StatusMark) and the badge of OptionCard.
     ("refresh-18", 18, 2.2, strokes(REFRESH), LIGHT_ONLY),
     ("check-20", 20, 2.6, strokes(CHECK), BOTH),
+    # Symbols of StatusCard, 32 px in a 64 px circle (K3-NovUpdate-*).
+    ("status-check-32", 32, 2.6, strokes(["M6.5 12.5l3.5 3.5 7.5-8"]), LIGHT_ONLY),
+    ("status-download-32", 32, 2.2, strokes(["M12 4v11", "M7.5 10.5L12 15l4.5-4.5", "M5 19.5h14"]), LIGHT_ONLY),
+    ("status-alert-32", 32, 2.2, '<circle cx="12" cy="12" r="9"/>' + strokes(["M12 8v5", "M12 16.5v0.1"]),
+     [("", ERROR)]),
+    ("status-history-32", 32, 2, strokes(["M4.5 12a7.5 7.5 0 1 0 2.2-5.3", "M4.5 4.5v3.5H8", "M12 8v4.2l2.8 1.8"]),
+     LIGHT_ONLY),
 ]
 
 
 GLASS_EDGE = "inset 0 1px 0 rgba(170,178,196,0.40), inset 0 0 0 1px rgba(170,178,196,0.10)"
 FIELD_EDGE = "inset 0 1px 2px rgba(0,0,0,0.25), inset 0 0 0 1px rgba(255,255,255,0.16)"
-EDGES = [(f"edge-{radius}", radius, GLASS_EDGE) for radius in (16, 17, 20, 22, 26, 28, 32, 34, 36, 44)]
+EDGES = [(f"edge-{radius}", radius, GLASS_EDGE) for radius in (16, 17, 20, 22, 26, 28, 30, 32, 34, 36, 44)]
 EDGES.append(("edge-field-26", 26, FIELD_EDGE))
 
 
