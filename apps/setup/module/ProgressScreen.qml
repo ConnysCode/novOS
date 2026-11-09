@@ -11,6 +11,8 @@ Item {
     property real unit: 1
     property Item backdrop
     property string variant: "install"
+    // Values and focus of the running setup (Wizard); null shows the board's demo state.
+    property var live: null
 
     function tr(key, params) { return I18n.t("setup", key, params); }
 
@@ -49,7 +51,7 @@ Item {
             ]
         }
     })
-    readonly property var current: spec[variant] || spec.install
+    readonly property var current: live || spec[variant] || spec.install
 
     WizardDialog {
         anchors.fill: parent

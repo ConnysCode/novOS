@@ -10,6 +10,8 @@ Item {
 
     property real unit: 1
     property string slideId: ""
+    // Values and focus of the running setup, handed to the screen; null shows the board.
+    property var live: null
     readonly property var slide: Slides.list[Math.max(0, Slides.indexOf(slideId))]
 
     property string pictureFile: "lake-tahoe-at-morning-7-2023.jpg"
@@ -75,11 +77,12 @@ Item {
     function load() {
         var next = Slides.list[Math.max(0, Slides.indexOf(slideId))];
         screen.setSource(Qt.resolvedUrl(next.screen + ".qml"),
-                         { unit: stage.unit, backdrop: backdrop, variant: next.variant });
+                         { unit: stage.unit, backdrop: backdrop, variant: next.variant, live: stage.live });
     }
 
     onSlideIdChanged: load()
     onUnitChanged: if (screen.item) screen.item.unit = unit
+    onLiveChanged: if (screen.item) screen.item.live = live
     Component.onCompleted: {
         loadPictures();
         load();

@@ -7,6 +7,8 @@ Item {
     property real unit: 1
     property Item backdrop
     property string variant: ""
+    // Values and focus of the running setup (Wizard); null shows the board's demo state.
+    property var live: null
 
     function tr(key) { return I18n.t("setup", key); }
 
@@ -19,8 +21,8 @@ Item {
         title: tr("keyboard.title")
         lead: tr("keyboard.lead")
         contentHeight: 290 + 20 + updates.logicalHeight
-        leftButtons: [{ label: tr("button.back") }]
-        rightButtons: [{ label: tr("button.next") }]
+        leftButtons: [{ label: tr("button.back"), focused: (screen.live !== null && screen.live.focus === "back") }]
+        rightButtons: [{ label: tr("button.next"), focused: (screen.live !== null && screen.live.focus === "next") }]
 
         OptionCard {
             width: 574 * screen.unit
@@ -28,7 +30,8 @@ Item {
             unit: screen.unit
             title: tr("keyboard.qwertz_title")
             subtitle: tr("keyboard.qwertz_detail")
-            selected: true
+            selected: screen.live ? screen.live.keyboard === "qwertz" : true
+            focused: (screen.live !== null && screen.live.focus === "qwertz")
 
             // A small keyboard: two rows of ten keys, one of nine, then space with its neighbours.
             Column {
@@ -58,7 +61,8 @@ Item {
             unit: screen.unit
             title: tr("keyboard.t9_title")
             subtitle: tr("keyboard.t9_detail")
-            focused: true
+            selected: screen.live !== null && screen.live.keyboard === "t9"
+            focused: (screen.live ? screen.live.focus === "t9" : true)
 
             // The number pad: three columns of four keys.
             Grid {
@@ -81,7 +85,10 @@ Item {
             y: 310 * screen.unit
             width: parent.width
             unit: screen.unit
-            rows: [{ title: tr("keyboard.auto_update_title"), detail: tr("keyboard.auto_update_detail"), on: true }]
+            rows: [{ title: tr("keyboard.auto_update_title"), detail: tr("keyboard.auto_update_detail"),
+                     on: screen.live ? screen.live.autoUpdate : true, focused: (screen.live !== null && screen.live.focus === "auto") },
+                   { title: tr("keyboard.block_updates_title"), detail: tr("keyboard.block_updates_detail"),
+                     on: screen.live ? screen.live.blockUpdates : true, focused: (screen.live !== null && screen.live.focus === "block") }]
         }
     }
 }

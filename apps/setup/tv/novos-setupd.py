@@ -336,10 +336,11 @@ def check(report, source):
     current = current_release()
     if manifest["version"] == current:
         report.result("novOS %s is installed, nothing newer in %s" % (current, source),
-                      check={"available": current, "installed": current, "newer": False, "problems": []})
+                      check={"available": current, "installed": current, "newer": False, "problems": [],
+                             "size": manifest["archive"]["size"]})
         return False
     problems = preflight(manifest, allow_downgrade=False)
-    result = {"available": manifest["version"], "installed": current or None,
+    result = {"available": manifest["version"], "installed": current or None, "size": manifest["archive"]["size"],
               "newer": is_newer(manifest["version"], current), "problems": problems}
     if problems:
         message = "novOS %s cannot be installed: %s" % (manifest["version"], "; ".join(problems))
@@ -786,6 +787,23 @@ def luna(url, payload, timeout=6.0):
         return {}
 
 
+def tv_facts():
+    """What the check screen shows about this TV."""
+    facts = {"model": "", "webos": "", "free": free_bytes(ROOT), "root": os.geteuid() == 0}
+    try:
+        with open(system("/etc/starfish-release")) as handle:
+            words = handle.readline().split()
+        facts["webos"] = words[2] if len(words) > 2 else ""
+    except OSError:
+        pass
+    try:
+        info = luna("luna://com.webos.service.tv.systemproperty/getSystemInfo", {"keys": ["modelName"]})
+        facts["model"] = info.get("modelName", "")
+    except OSError:
+        pass
+    return facts
+
+
 # Share of the whole install each stage stands for, for one progress bar.
 STAGES = [("manifest", 2), ("download", 55), ("verify", 3), ("stop", 8), ("unpack", 10),
           ("overlays", 8), ("switch", 2), ("settings", 2), ("start", 10)]
@@ -800,7 +818,7 @@ class Bridge:
         self.command_path = os.path.join(folder, "command.ini")
         self.state = {"serving": True, "pid": os.getpid(), "id": "", "command": "", "phase": "idle",
                       "stage": "", "percent": 0, "steps": [], "result": None, "error": None,
-                      "choices": current_choices(), "updated": time.time()}
+                      "choices": current_choices(), "tv": tv_facts(), "updated": time.time()}
         self.last_written = 0.0
 
     def write(self, force=True):
@@ -856,7 +874,7 @@ class Bridge:
 
     def run(self, command):
         name = command.get("command", "")
-        self.state.update(id=command.get("id", ""), command=name, phase="running", stage="", percent=0,
+        self.state.update(id=command_serial(command), command=name, phase="running", stage="", percent=0,
                           steps=[], result=None, error=None)
         self.write()
         report = Reporter(False, self.listen)
@@ -891,19 +909,25 @@ class Bridge:
         self.write()
 
 
+def command_serial(command):
+    """The window writes "serial" (QML has no property named id); scripts may write "id"."""
+    return command.get("serial") or command.get("id") or ""
+
+
 def serve(folder, window, app, idle):
     os.makedirs(folder, exist_ok=True)
     bridge = Bridge(folder, window, app)
     # A command left over from an earlier run is not run again.
-    last_id = read_ini(bridge.command_path).get("id", "")
+    last_id = command_serial(read_ini(bridge.command_path))
     bridge.state["id"] = last_id
     bridge.write()
     log("serve %s, window %s" % (folder, window or "-"))
     last_activity = time.time()
     while True:
         command = read_ini(bridge.command_path)
-        if command.get("id", "") not in ("", last_id):
-            last_id = command["id"]
+        serial = command_serial(command)
+        if serial not in ("", last_id):
+            last_id = serial
             last_activity = time.time()
             if command.get("command") == "close":
                 break

@@ -21,6 +21,7 @@ Item {
     property real backdropMargin: 56
     property rect backdropArea: Qt.rect(0, 0, 0, 0)
     property real hasBackdrop: 0
+    readonly property real backdropVeil: 0.38   // its own dimming, over the host's
     property var focusCurve: GlassStyle.curve
     property var hostState: ({})          // source, network and device facts the panel knows
 
@@ -711,10 +712,11 @@ Item {
             NumberAnimation { duration: 200 }
         }
 
-        // The picture behind the modal steps back by 38 %.
+        // The picture behind the modal steps back by 38 %. The host passes it to the glass.
         Rectangle {
             anchors.fill: parent
-            color: "#61040608"
+            color: GlassStyle.scrimColor
+            opacity: settings.backdropVeil
         }
 
         MouseArea {

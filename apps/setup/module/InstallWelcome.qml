@@ -7,6 +7,8 @@ Item {
     property real unit: 1
     property Item backdrop
     property string variant: ""
+    // Values and focus of the running setup (Wizard); null shows the board's demo state.
+    property var live: null
 
     function tr(key) { return I18n.t("setup", key); }
 
@@ -19,8 +21,8 @@ Item {
         title: tr("welcome.title")
         lead: tr("welcome.lead")
         contentHeight: 274
-        leftButtons: [{ label: tr("button.cancel") }]
-        rightButtons: [{ label: tr("button.start"), focused: true }]
+        leftButtons: [{ label: tr("button.cancel"), focused: (screen.live !== null && screen.live.focus === "cancel") }]
+        rightButtons: [{ label: tr("button.start"), focused: (screen.live ? screen.live.focus === "start" : true) }]
 
         Row {
             y: 8 * screen.unit

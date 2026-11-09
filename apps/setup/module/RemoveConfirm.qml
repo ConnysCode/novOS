@@ -8,6 +8,8 @@ Item {
     property real unit: 1
     property Item backdrop
     property string variant: ""
+    // Values and focus of the running setup (Wizard); null shows the board's demo state.
+    property var live: null
 
     function tr(key) { return I18n.t("setup", key); }
 
@@ -19,8 +21,8 @@ Item {
         title: tr("remove.title")
         lead: tr("remove.lead")
         contentHeight: 184 + 20 + choices.logicalHeight
-        leftButtons: [{ label: tr("button.cancel"), focused: true }]
-        rightButtons: [{ label: tr("button.remove"), danger: true }]
+        leftButtons: [{ label: tr("button.cancel"), focused: (screen.live ? screen.live.focus === "cancel" : true) }]
+        rightButtons: [{ label: tr("button.remove"), danger: true, focused: (screen.live !== null && screen.live.focus === "remove") }]
 
         Row {
             spacing: 20 * screen.unit
@@ -50,8 +52,10 @@ Item {
             width: parent.width
             unit: screen.unit
             rows: [
-                { title: tr("remove.privacy_title"), detail: tr("remove.privacy_detail"), on: true },
-                { title: tr("remove.data_title"), detail: tr("remove.data_detail"), on: true }
+                { title: tr("remove.privacy_title"), detail: tr("remove.privacy_detail"), on: true,
+                  disabled: screen.live !== null, focused: (screen.live !== null && screen.live.focus === "privacy") },
+                { title: tr("remove.data_title"), detail: tr("remove.data_detail"),
+                  on: screen.live ? screen.live.deleteData : true, focused: (screen.live !== null && screen.live.focus === "data") }
             ]
         }
     }

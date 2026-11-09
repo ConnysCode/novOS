@@ -2,7 +2,7 @@ import QtQuick 2.12
 
 // Switches in an inner card: rows of 80 px with a second line, 68 px without, 4 px apart
 // in 8 px of padding. The focused row is the white focus surface. rows: [{ title,
-// detail, on, focused }].
+// detail, on, focused, disabled }].
 InsetCard {
     id: list
 
@@ -44,6 +44,7 @@ InsetCard {
                     title: modelData.title
                     subtitle: modelData.detail || ""
                     toggle: modelData.on === true
+                    disabled: modelData.disabled === true
                 }
             }
         }

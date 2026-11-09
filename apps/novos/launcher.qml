@@ -815,6 +815,12 @@ StarfishSystemUIWindow {
                 onStatusChanged: if (status === Image.Ready && source == launcher.backgroundUrl(launcher.backgroundIndex)) launcher.activeBackground = 1
                 Behavior on opacity { NumberAnimation { duration: 1600 } }
             }
+
+            // The nav lies on the dimmed picture, so its glass samples the scrims too.
+            BackdropScrim {
+                anchors.fill: parent
+                unit: launcher.unit
+            }
         }
 
         // The glass hides the backdrop it blurs, so the pictures are drawn again here,
@@ -846,24 +852,9 @@ StarfishSystemUIWindow {
             visible: false
         }
 
-        // Left to right scrim, then the top one behind the clock.
-        Rectangle {
+        BackdropScrim {
             anchors.fill: parent
-            gradient: Gradient {
-                orientation: Gradient.Horizontal
-                GradientStop { position: 0; color: "#9e040608" }
-                GradientStop { position: 0.55; color: "#4d040608" }
-                GradientStop { position: 1; color: "#33040608" }
-            }
-        }
-
-        Rectangle {
-            width: parent.width
-            height: 220 * launcher.unit
-            gradient: Gradient {
-                GradientStop { position: 0; color: "#73040608" }
-                GradientStop { position: 1; color: "#00040608" }
-            }
+            unit: launcher.unit
         }
 
         Column {
