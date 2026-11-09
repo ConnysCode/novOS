@@ -143,7 +143,7 @@ def index_entry(manifest, manifest_url, signature_url):
     notes = manifest.get("notes") or {}
     return {"version": manifest["version"], "channel": manifest["channel"],
             "published": manifest.get("published", ""), "date": notes.get("date", ""),
-            "size": manifest["archive"]["size"], "restarts": manifest.get("restarts"),
+            "size": manifest["archive"]["size"], "restarts": manifest.get("restarts"), "level": notes.get("level", ""),
             "manifest": manifest_url, "signature": signature_url,
             "topics": notes.get("topics", {}), "items": notes.get("items", [])}
 
