@@ -40,6 +40,7 @@ QtObject {
     readonly property real focusFarDistance: 320           // logical px from which a jump counts as far
     readonly property int colorDuration: 120               // text and icons change colour
     readonly property int pageDuration: 240                // pages cross-fade with 16 px shift
+    readonly property int slideDuration: 520               // a wizard page flies out, the next one in
     readonly property real pageShift: 16
     readonly property int popoverDuration: 160             // popovers, dimming, fades
     readonly property int listFadeDuration: 180            // a list end fades in or out

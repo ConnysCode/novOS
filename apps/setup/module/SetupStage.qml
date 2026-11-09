@@ -68,21 +68,76 @@ Item {
         font.hintingPreference: Font.PreferNoHinting
     }
 
-    Loader {
-        id: screen
+    // The pages. A new page flies in from the right while the current one flies out to the
+    // left at the same speed (back: the other way); the windows themselves keep their size.
+    // Pages over another scene (the black restart) change at once.
+    Item {
+        id: pages
         anchors.fill: parent
+    }
+
+    property Item current: null
+    property Item leaving: null
+    property int currentIndex: -1
+
+    ParallelAnimation {
+        id: slideMotion
+        NumberAnimation {
+            id: outMotion
+            property: "x"
+            duration: GlassStyle.slideDuration
+            easing.type: Easing.Bezier
+            easing.bezierCurve: GlassStyle.curve
+        }
+        NumberAnimation {
+            id: inMotion
+            property: "x"
+            to: 0
+            duration: GlassStyle.slideDuration
+            easing.type: Easing.Bezier
+            easing.bezierCurve: GlassStyle.curve
+        }
+        onStopped: stage.dropLeaving()
+    }
+
+    function dropLeaving() {
+        if (leaving) leaving.destroy();
+        leaving = null;
     }
 
     // Reads the slide itself: in onSlideIdChanged the binding of slide may still be old.
     function load() {
-        var next = Slides.list[Math.max(0, Slides.indexOf(slideId))];
-        screen.setSource(Qt.resolvedUrl(next.screen + ".qml"),
-                         { unit: stage.unit, backdrop: backdrop, variant: next.variant, live: stage.live });
+        var index = Math.max(0, Slides.indexOf(slideId));
+        var next = Slides.list[index];
+        if (slideMotion.running) slideMotion.complete();
+        dropLeaving();
+        var component = Qt.createComponent(Qt.resolvedUrl(next.screen + ".qml"));
+        var item = component.createObject(pages, { unit: stage.unit, backdrop: backdrop, variant: next.variant,
+                                                   live: stage.live, width: stage.width, height: stage.height });
+        if (item === null) return;
+        var before = current;
+        var slides = before !== null && currentIndex >= 0 &&
+                     Slides.list[currentIndex].scene === "picture" && next.scene === "picture";
+        current = item;
+        if (!slides) {
+            if (before) before.destroy();
+        } else {
+            var direction = index >= currentIndex ? 1 : -1;
+            leaving = before;
+            item.x = direction * stage.width;
+            outMotion.target = before;
+            outMotion.from = 0;
+            outMotion.to = -direction * stage.width;
+            inMotion.target = item;
+            inMotion.from = direction * stage.width;
+            slideMotion.start();
+        }
+        currentIndex = index;
     }
 
     onSlideIdChanged: load()
-    onUnitChanged: if (screen.item) screen.item.unit = unit
-    onLiveChanged: if (screen.item) screen.item.live = live
+    onUnitChanged: if (current) current.unit = unit
+    onLiveChanged: if (current) current.live = live
     Component.onCompleted: {
         loadPictures();
         load();
