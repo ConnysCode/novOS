@@ -28,7 +28,7 @@ uninstaller brings LG's interface back completely.
 | Path | Content |
 | --- | --- |
 | [`apps/novos/`](apps/novos) | novOS itself: the interface, the video plugin, the release build and everything that runs on the TV |
-| [`apps/setup/`](apps/setup) | The setup that installs, updates and removes novOS. For now a visual debug build: every screen as a slide, without function |
+| [`apps/setup/`](apps/setup) | The setup that installs, updates and removes novOS: `tv/novos-setupd.py`, the root service that installs only signed releases (for now run over SSH with `setupd-on-tv.sh`), and the screens as visual debug slides |
 | [`lib/ui/`](lib/ui) | The glass components every app shares: style tokens, glass cards, focus surface, rows, switches, sliders, buttons, notices, popovers, progress, status lists, the on-screen keyboard, texts, icons and fonts |
 | [`lib/backgrounds/`](lib/backgrounds) | The pictures behind the launcher, the hub and the setup, with their credits |
 | [`lib/release/`](lib/release) | Signed releases: Ed25519 in plain Python, manifests, channel files, checked downloads |

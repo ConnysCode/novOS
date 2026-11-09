@@ -13,3 +13,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: Test signing, manifests and channels
         run: python3 lib/release/test_release.py
+      - name: Test novos-setupd in a sandbox
+        run: python3 apps/setup/tv/test_setupd.py
