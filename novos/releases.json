@@ -3,6 +3,55 @@
   "app": "novos",
   "releases": [
     {
+      "version": "0.9.1-beta.2",
+      "channel": "beta",
+      "published": "2026-11-09T21:51:57Z",
+      "date": "2026-11-09",
+      "size": 18437584,
+      "restarts": 1,
+      "level": "patch",
+      "manifest": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.1-beta.2/novos-0.9.1-beta.2.manifest.json",
+      "signature": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.1-beta.2/novos-0.9.1-beta.2.manifest.json.sig",
+      "topics": {
+        "de": "Spiele-Leiste und Spiele-Einstellungen",
+        "en": "Game bar and game settings",
+        "es": "Barra de juegos y ajustes de juego",
+        "fr": "Barre de jeu et réglages de jeu"
+      },
+      "items": [
+        {
+          "kind": "fix",
+          "title": {
+            "de": "Fokus bei Dark Room",
+            "en": "Focus on Dark Room",
+            "es": "Foco en Dark Room",
+            "fr": "Focus sur Dark Room"
+          },
+          "text": {
+            "de": "Beim Umschalten von Dark Room in der Spiele-Leiste bleibt die weiße Auswahl jetzt stehen.",
+            "en": "Switching Dark Room in the game bar now keeps the white selection in place.",
+            "es": "Al cambiar Dark Room en la barra de juegos, la selección blanca ya no desaparece.",
+            "fr": "En changeant Dark Room dans la barre de jeu, la sélection blanche reste désormais en place."
+          }
+        },
+        {
+          "kind": "fix",
+          "title": {
+            "de": "Spiele-Einstellungen aufgeräumt",
+            "en": "Game settings tidied up",
+            "es": "Ajustes de juego ordenados",
+            "fr": "Réglages de jeu simplifiés"
+          },
+          "text": {
+            "de": "Die Menüfarbe ist weg, der Schalter für die Spiele-Leiste steht direkt unter Spiele.",
+            "en": "The menu colour is gone; the switch for the game bar sits right on the Games page.",
+            "es": "El color del menú ya no está; el interruptor de la barra de juegos está directamente en Juegos.",
+            "fr": "La couleur du menu a disparu ; l’interrupteur de la barre de jeu se trouve directement dans Jeux."
+          }
+        }
+      ]
+    },
+    {
       "version": "0.9.1-beta.1",
       "channel": "beta",
       "published": "2026-11-09T20:57:19Z",
