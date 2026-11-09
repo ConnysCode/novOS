@@ -81,6 +81,16 @@ Item {
         }
     }
 
+    // The footer button that takes the page forward. A destructive page keeps "cancel", as
+    // its focus starts there too (docs/design-system.md).
+    function footerAction() {
+        var rows = grid();
+        if (rows.length === 0) return "";
+        var footer = rows[rows.length - 1];
+        if (page === "remove-2") return "cancel";
+        return footer[footer.length - 1];
+    }
+
     function go(next) {
         page = next;
         focusId = defaultFocus();
@@ -96,7 +106,11 @@ Item {
                 focusId = rows[r][nc];
             } else {
                 var nr = Math.max(0, Math.min(rows.length - 1, r + dy));
-                focusId = rows[nr][Math.min(c, rows[nr].length - 1)];
+                // Down from the content into the footer lands on the page's action.
+                if (nr !== r && nr === rows.length - 1 && rows[nr].indexOf(footerAction()) >= 0)
+                    focusId = footerAction();
+                else
+                    focusId = rows[nr][Math.min(c, rows[nr].length - 1)];
             }
             return;
         }
@@ -206,8 +220,14 @@ Item {
             go(page === "install-7" ? "install-8" : page === "update-4" ? "update-5" : "remove-4");
         else if (progressPage && bridge.answered && bridge.phase === "error")
             go("install-x");
-        else if (page === "install-2" && focusId === "back" && canInstall)
-            focusId = "next";
+    }
+
+    // When the check finds a release, the focus moves on to "next" once; the state is read
+    // a few times a second, and moving it on every read kept the user from going back.
+    onCanInstallChanged: {
+        if (!canInstall) return;
+        if (page === "install-2" && focusId === "back") focusId = "next";
+        else if (page === "update-2" && focusId === "later") focusId = "now";
     }
 
     function start() {
