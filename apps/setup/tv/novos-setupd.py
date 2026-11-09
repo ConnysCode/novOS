@@ -910,7 +910,7 @@ class Bridge:
         if event == "step":
             key = fields.get("key", "")
             self.state["steps"].append({"key": key, "message": message})
-            if key:
+            if key and self.state["phase"] != "done":
                 self.state["stage"] = key
                 self.state["percent"] = self.stage_start(key)
             self.write()
