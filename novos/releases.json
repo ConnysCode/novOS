@@ -3,6 +3,73 @@
   "app": "novos",
   "releases": [
     {
+      "version": "0.9.1-beta.1",
+      "channel": "beta",
+      "published": "2026-11-09T20:44:31Z",
+      "date": "2026-11-09",
+      "size": 18438664,
+      "restarts": 1,
+      "level": "minor",
+      "manifest": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.1-beta.1/novos-0.9.1-beta.1.manifest.json",
+      "signature": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.1-beta.1/novos-0.9.1-beta.1.manifest.json.sig",
+      "topics": {
+        "de": "Ausschalt-Videos bearbeiten, Spiele-Leiste",
+        "en": "Edit power-off videos, game bar",
+        "es": "Editar vídeos de apagado, barra de juegos",
+        "fr": "Modifier les vidéos d’extinction, barre de jeu"
+      },
+      "items": [
+        {
+          "kind": "feature",
+          "icon": "film",
+          "open": "settings:interface:shutdownVideo",
+          "title": {
+            "de": "Zuschneiden und löschen",
+            "en": "Trim and delete",
+            "es": "Recortar y eliminar",
+            "fr": "Découper et supprimer"
+          },
+          "text": {
+            "de": "Wähle bei eigenen Videos und Bildern den Ausschnitt, die Länge und das Ausblenden, oder lösche sie.",
+            "en": "For your own videos and pictures, pick the framing, the length and the fade, or delete them.",
+            "es": "En tus vídeos e imágenes elige el encuadre, la duración y el fundido, o elimínalos.",
+            "fr": "Pour vos vidéos et images, choisissez le cadrage, la durée et le fondu, ou supprimez-les."
+          }
+        },
+        {
+          "kind": "feature",
+          "icon": "games",
+          "title": {
+            "de": "Spiele-Leiste",
+            "en": "Game bar",
+            "es": "Barra de juegos",
+            "fr": "Barre de jeu"
+          },
+          "text": {
+            "de": "Läuft ein Spiel, zeigt das Zahnrad oben eine Leiste mit Genre, Bildrate und den wichtigsten Spiele-Einstellungen.",
+            "en": "While a game runs, the gear key shows a bar at the top with genre, frame rate and the main game settings.",
+            "es": "Mientras se juega, la tecla de engranaje muestra arriba una barra con el género, la frecuencia de imagen y los ajustes de juego principales.",
+            "fr": "Pendant une partie, la touche roue dentée affiche en haut une barre avec le genre, la fréquence d’images et les principaux réglages de jeu."
+          }
+        },
+        {
+          "kind": "fix",
+          "title": {
+            "de": "Eigene Videos spielen",
+            "en": "Your own videos play",
+            "es": "Tus vídeos se reproducen",
+            "fr": "Vos vidéos sont lues"
+          },
+          "text": {
+            "de": "Eigene Ausschalt-Videos laufen jetzt mit Bild und Ton; vorher blieb das Bild schwarz.",
+            "en": "Your own power-off videos now play with picture and sound; before, the picture stayed black.",
+            "es": "Tus vídeos de apagado se reproducen ahora con imagen y sonido; antes la imagen quedaba en negro.",
+            "fr": "Vos vidéos d’extinction sont désormais lues avec l’image et le son ; avant, l’image restait noire."
+          }
+        }
+      ]
+    },
+    {
       "version": "0.9.0-beta.9",
       "channel": "beta",
       "published": "2026-11-09T19:33:13Z",
