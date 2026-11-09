@@ -3,7 +3,11 @@
 # as root and the setup's window. Nothing is installed by this script itself; the setup
 # does what it is told on the TV, an install included.
 #
-#   setup-on-tv.sh <build-name> [install|update|remove]   start the setup with this flow
+#   setup-on-tv.sh <build-name> [install|update|remove] [stable|beta]
+#                                                         start the setup with this flow; the
+#                                                         channel is checked, installed from and
+#                                                         stored. Without it: the stored channel,
+#                                                         else stable (beta while stable is empty)
 #   setup-on-tv.sh key <ok|back|left|right|up|down>...    press keys in the running setup
 #   setup-on-tv.sh state                                  print the service's state.json
 #   setup-on-tv.sh capture <file.png> [DISPLAY]           a picture of the interface; DISPLAY
@@ -40,6 +44,11 @@ esac
 
 BUILD_NAME=$1
 FLOW=${2:-install}
+CHANNEL=${3:-}
+case "$CHANNEL" in
+""|stable|beta) ;;
+*) echo "the channel is stable or beta" >&2; exit 2 ;;
+esac
 REMOTE=/tmp/novos-setup-app/$BUILD_NAME
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
@@ -52,7 +61,7 @@ cp "$HERE/tv/novos-setupd.py" "$LIB/release/release.py" "$LIB/release/ed25519.py
 
 ssh lg-tv "pkill -f 'novos-setupd.p[y] serve'; find /tmp/novos-setup-app -mindepth 1 -maxdepth 1 -type d -mmin +30 -exec rm -rf {} + 2>/dev/null; rm -rf $BRIDGE /tmp/novos-setup-keys; mkdir -p $REMOTE $BRIDGE"
 scp -qr "$STAGE"/* "lg-tv:$REMOTE/"
-ssh lg-tv "setsid python3 $REMOTE/tv/novos-setupd.py serve --dir $BRIDGE --window file://$REMOTE/setup.qml --app $APP --idle 1800 </dev/null >$BRIDGE/serve.log 2>&1 &"
+ssh lg-tv "setsid python3 $REMOTE/tv/novos-setupd.py serve --dir $BRIDGE --window file://$REMOTE/setup.qml --app $APP --idle 1800 ${CHANNEL:+--channel $CHANNEL} </dev/null >$BRIDGE/serve.log 2>&1 &"
 LAUNCH='{"appId":"'$APP'","main":"file://'$REMOTE'/setup.qml","params":{"flow":"'$FLOW'"}}'
 ssh -tt lg-tv "luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/closeByAppId '{\"appId\":\"$APP\"}'; sleep 1; luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/launch '$LAUNCH'" >/dev/null 2>&1
-echo "setup $FLOW running from $REMOTE"
+echo "setup $FLOW${CHANNEL:+ ($CHANNEL)} running from $REMOTE"

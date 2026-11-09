@@ -328,6 +328,50 @@ class SetupdTest(unittest.TestCase):
         code, lines = self.run_setupd("check")
         self.assertEqual(lines[-1]["check"]["available"], "0.9.0-beta.3")
 
+    def test_install_stores_the_named_channel(self):
+        self.publish("1.0.0", channel="stable")
+        self.publish("1.1.0-beta.1", channel="beta")
+        code, lines = self.run_setupd("install", "beta")
+        self.assertEqual(code, 0, lines)
+        self.assertEqual(self.current(), "1.1.0-beta.1")
+        with open(self.path("/var/lib/novos/state/channel")) as handle:
+            self.assertEqual(handle.read().strip(), "beta")
+
+    def test_serve_with_a_channel(self):
+        import threading
+        import time
+        folder = os.path.join(self.sandbox, "bridge")
+        os.makedirs(folder)
+        self.publish("1.0.0", channel="stable")
+        self.publish("1.1.0-beta.1", channel="beta")
+        thread = threading.Thread(target=self.setupd.serve, args=(folder, "", "app", 60, "beta"), daemon=True)
+        thread.start()
+        def state():
+            for _ in range(200):
+                try:
+                    with open(os.path.join(folder, "state.json")) as handle:
+                        current = json.load(handle)
+                    if current["id"] == "1" and not current.get("busy") and current["phase"] in ("done", "error"):
+                        return current
+                except (OSError, ValueError, KeyError):
+                    pass
+                time.sleep(0.05)
+            self.fail("no answer")
+        # Written before serve reads it, the command would count as left over.
+        for _ in range(100):
+            if os.path.exists(os.path.join(folder, "state.json")):
+                break
+            time.sleep(0.05)
+        with open(os.path.join(folder, "command.ini"), "w") as handle:
+            handle.write("[General]\ncommand=check\nid=1\n")
+        result = state()
+        self.assertEqual(result["phase"], "done", result)
+        self.assertEqual(result["channel"], "beta")
+        self.assertEqual(result["result"]["check"]["available"], "1.1.0-beta.1")
+        self.assertFalse(os.path.exists(self.path("/var/lib/novos/state/channel")))
+        with open(os.path.join(folder, "command.ini"), "w") as handle:
+            handle.write("[General]\ncommand=close\nid=2\n")
+
     def test_error_kinds(self):
         import urllib.error
         kind = self.setupd.error_kind

@@ -318,6 +318,13 @@ def source_of(args):
     return args.source or default_source()
 
 
+def remember_channel(source):
+    """A channel named for an install becomes the channel of later updates."""
+    if source in ("stable", "beta"):
+        os.makedirs(STATE, exist_ok=True)
+        write_file(STATE + "/channel", source + "\n")
+
+
 def status(report):
     current = current_release()
     previous = [name for name in installed_releases() if name != current]
@@ -917,8 +924,9 @@ STAGES = [("manifest", 2), ("download", 55), ("verify", 3), ("stop", 8), ("unpac
 
 
 class Bridge:
-    def __init__(self, folder, window, app):
+    def __init__(self, folder, window, app, channel=None):
         self.folder = folder
+        self.channel = channel       # given at the start of the setup; else the stored one
         self.window = window
         self.app = app
         self.state_path = os.path.join(folder, "state.json")
@@ -927,7 +935,8 @@ class Bridge:
         # the reopened window shows its last page at once); busy is whether a command runs.
         self.state = {"serving": True, "pid": os.getpid(), "id": "", "command": "", "phase": "idle", "busy": False,
                       "stage": "", "percent": 0, "steps": [], "result": None, "error": None, "errorKind": None,
-                      "choices": current_choices(), "tv": tv_facts(), "updated": time.time()}
+                      "choices": current_choices(), "tv": tv_facts(), "channel": channel or default_source(),
+                      "updated": time.time()}
         self.last_written = 0.0
 
     def write(self, force=True):
@@ -987,7 +996,8 @@ class Bridge:
                           steps=[], result=None, error=None, errorKind=None, busy=True)
         self.write()
         report = Reporter(False, self.listen)
-        source = command.get("source") or default_source()
+        source = command.get("source") or self.channel or default_source()
+        self.state["channel"] = source if source in ("stable", "beta") else None
         try:
             if name in ("install", "update"):
                 apply_choices(report, command.get("keyboard") or None, command.get("autoUpdate") or None,
@@ -996,6 +1006,8 @@ class Bridge:
                     raise SetupError("nothing newer to install")
                 install(report, source, start=True, before_start=self.restarting, after_start=self.reopen,
                         stay_dark=True)
+                if self.channel or command.get("source"):
+                    remember_channel(source)
             elif name == "check":
                 check(report, source)
             elif name == "settings":
@@ -1026,9 +1038,9 @@ def command_serial(command):
     return command.get("serial") or command.get("id") or ""
 
 
-def serve(folder, window, app, idle):
+def serve(folder, window, app, idle, channel=None):
     os.makedirs(folder, exist_ok=True)
-    bridge = Bridge(folder, window, app)
+    bridge = Bridge(folder, window, app, channel)
     # A command left over from an earlier run is not run again.
     last_id = command_serial(read_ini(bridge.command_path))
     bridge.state["id"] = last_id
@@ -1083,6 +1095,8 @@ def main(argv=None):
     serve_parser.add_argument("--window", help="file:// URL of the setup's window, opened again after a restart")
     serve_parser.add_argument("--app", default="com.webos.app.quicksettings")
     serve_parser.add_argument("--idle", type=int, default=1800, help="ends after this many seconds without a command")
+    serve_parser.add_argument("--channel", choices=("stable", "beta"),
+                              help="the channel this setup installs from and stores; else the stored one")
     args = parser.parse_args(argv)
     report = Reporter(args.json)
     try:
@@ -1097,6 +1111,7 @@ def main(argv=None):
                           version=manifest["version"], folder=folder)
         elif args.command == "install":
             install(report, source_of(args), args.allow_downgrade, args.start)
+            remember_channel(args.source)
         elif args.command == "update":
             source = default_source()
             if check(report, source):
@@ -1119,7 +1134,7 @@ def main(argv=None):
                 "" if choices["blockUpdates"] == choices["blockedNow"] else " (from the next restart on)"),
                 choices=choices)
         elif args.command == "serve":
-            serve(args.dir, args.window, args.app, args.idle)
+            serve(args.dir, args.window, args.app, args.idle, args.channel)
         else:
             parser.print_help()
             return 2
