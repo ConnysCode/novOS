@@ -300,9 +300,11 @@ Item {
         settleCardFocus();
         if (focusIndex >= layout.rowY.length) focusIndex = Math.max(0, layout.rowY.length - 1);
         // A page opened straight from a launch starts at 0, maybe before its focusable rows
-        // have their data: the focus never rests on a row that takes none.
+        // have their data: the focus never rests on a row that takes none. A status card is
+        // the exception: while its task runs (a search) its only button is greyed out, and
+        // the focus stays on the card instead of jumping to the rows below it.
         var row = page.rows[focusIndex];
-        if (zone === "content" && row && !row.focusable) focusIndex = firstFocusable();
+        if (zone === "content" && row && !row.focusable && row.type !== "statusCard") focusIndex = firstFocusable();
         keepVisible();
     }
 
