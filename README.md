@@ -31,6 +31,7 @@ uninstaller brings LG's interface back completely.
 | [`apps/setup/`](apps/setup) | The setup that installs, updates and removes novOS. For now a visual debug build: every screen as a slide, without function |
 | [`lib/ui/`](lib/ui) | The glass components every app shares: style tokens, glass cards, focus surface, rows, switches, sliders, buttons, notices, popovers, progress, status lists, the on-screen keyboard, texts, icons and fonts |
 | [`lib/backgrounds/`](lib/backgrounds) | The pictures behind the launcher, the hub and the setup, with their credits |
+| [`lib/release/`](lib/release) | Signed releases: Ed25519 in plain Python, manifests, channel files, checked downloads |
 
 `apps/` holds the deployable apps, `lib/` the code they share. An app's build merges
 `lib/ui/` into its own `module/` folder with [`lib/ui/stage.py`](lib/ui/stage.py), so both
@@ -54,6 +55,20 @@ after `ssh lg-tv`: `sh novos-uninstall.sh`.
 
 Releases are named after the commit of this repository. `install` refuses
 uncommitted changes.
+
+### Releases
+
+A tag `novos-v<version>` builds, signs and publishes a release with
+[`.github/workflows/release-novos.yml`](.github/workflows/release-novos.yml): `novos-v1.0.0` goes to the
+stable and the beta channel, `novos-v1.1.0-beta.1` to beta only. Each release has an archive,
+a manifest with the archive's SHA-256 and the LG files it overlays, and an Ed25519 signature of
+the manifest. Channel files on GitHub Pages (`novos/stable.json`, `novos/beta.json`) point to the
+current manifest. Nothing is installed unless the signature matches a key in
+[`lib/release/trusted-keys.json`](lib/release/trusted-keys.json) and the archive matches the manifest.
+
+```sh
+apps/novos/novos-on-tv.sh install --from beta     # or stable, or a manifest URL
+```
 
 ### The setup's debug slides
 

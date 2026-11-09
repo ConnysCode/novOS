@@ -1,0 +1,15 @@
+# Tests that need no TV, on every push and pull request.
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  release-tools:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test signing, manifests and channels
+        run: python3 lib/release/test_release.py

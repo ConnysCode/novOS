@@ -1,0 +1,98 @@
+# Builds, signs and publishes a release of novOS when a tag novos-v<version> is pushed:
+# novos-v1.0.0 goes to the stable and the beta channel, novos-v1.1.0-beta.1 to beta only.
+# The signing key is the repository secret NOVOS_SIGNING_KEY (base64 of the 32-byte
+# Ed25519 seed); its public half must be in lib/release/trusted-keys.json.
+name: Release novOS
+
+on:
+  push:
+    tags: ["novos-v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-channels
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version and channel from the tag
+        run: |
+          version="${TAG#novos-v}"
+          python3 lib/release/release.py channel --app novos --version "$version" \
+              --manifest-url - --signature-url - > /dev/null
+          case "$version" in *-*) channel=beta ;; *) channel=stable ;; esac
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "CHANNEL=$channel" >> "$GITHUB_ENV"
+          echo "BASE=https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG" >> "$GITHUB_ENV"
+
+      - name: Test the release tools
+        run: python3 lib/release/test_release.py
+
+      - name: Build the video plugin
+        run: apps/novos/module/build.sh
+
+      - name: Build the release
+        run: |
+          NOVOS_VERSION="$VERSION" apps/novos/install/build-release.sh \
+              "dist/$VERSION" /var/lib/novos/current /var/lib/novos/state/
+
+      - name: Package, describe and sign
+        env:
+          NOVOS_SIGNING_KEY: ${{ secrets.NOVOS_SIGNING_KEY }}
+        run: |
+          name="novos-$VERSION"
+          tar -C dist --sort=name --owner=0 --group=0 --numeric-owner -cJf "dist/$name.tar.xz" "$VERSION"
+          python3 lib/release/release.py manifest --app novos --version "$VERSION" --tag "$TAG" \
+              --commit "$GITHUB_SHA" --archive "dist/$name.tar.xz" --url "$BASE/$name.tar.xz" \
+              --targets apps/novos/install/lg-targets.txt --restarts 1 > "dist/$name.manifest.json"
+          python3 lib/release/release.py sign "dist/$name.manifest.json" > "dist/$name.manifest.json.sig"
+          python3 lib/release/release.py verify "dist/$name.manifest.json" "dist/$name.manifest.json.sig" \
+              --archive "dist/$name.tar.xz" --app novos
+
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          name="novos-$VERSION"
+          prerelease=""
+          [ "$CHANNEL" = stable ] || prerelease="--prerelease"
+          gh release create "$TAG" --verify-tag --title "novOS $VERSION" --generate-notes $prerelease \
+              "dist/$name.tar.xz" "dist/$name.manifest.json" "dist/$name.manifest.json.sig"
+
+      - name: Point the channels to this release
+        run: |
+          name="novos-$VERSION"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code origin gh-pages > /dev/null; then
+              git fetch origin gh-pages
+              git worktree add --detach pages FETCH_HEAD
+          else
+              git worktree add --detach pages
+              git -C pages checkout --orphan gh-pages
+              git -C pages rm -rqf .
+          fi
+          mkdir -p pages/novos
+          touch pages/.nojekyll
+          channels=beta
+          [ "$CHANNEL" = stable ] && channels="stable beta"
+          for channel in $channels; do
+              python3 lib/release/release.py channel --app novos --version "$VERSION" \
+                  --manifest-url "$BASE/$name.manifest.json" --signature-url "$BASE/$name.manifest.json.sig" \
+                  --keep-newer "pages/novos/$channel.json" > "pages/novos/$channel.json.new"
+              mv "pages/novos/$channel.json.new" "pages/novos/$channel.json"
+          done
+          git -C pages add -A
+          git -C pages diff --cached --quiet && exit 0
+          git -C pages commit -q -m "chore(release): point the novOS channels to $VERSION"
+          git -C pages push origin HEAD:gh-pages

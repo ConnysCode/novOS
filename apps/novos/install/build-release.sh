@@ -87,7 +87,8 @@ uninstall_script > "$OUT/bin/novos-uninstall.sh"
 chmod 755 "$OUT"/bin/*
 
 {
-    echo "version=$(git -C "$HERE" describe --always --dirty 2>/dev/null || echo unknown)"
+    # A CI release names its version; a local build takes the commit.
+    echo "version=${NOVOS_VERSION:-$(git -C "$HERE" describe --always --dirty 2>/dev/null || echo unknown)}"
     echo "built=$(date '+%Y-%m-%d %H:%M:%S')"
     echo "panel=$PANEL"
     echo "state=$STATE"

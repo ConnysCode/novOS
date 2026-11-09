@@ -3,6 +3,8 @@
 # See docs/permanent-install-plan.md: every phase needs its own yes.
 #
 #   novos-on-tv.sh install                  builds and uploads a release, no autostart
+#   novos-on-tv.sh install --from <source>  uploads a signed CI release instead: stable,
+#                                          beta or a manifest URL; checked on this Mac
 #   novos-on-tv.sh start [seconds]          starts it by hand; a guard stops it after
 #                                          <seconds>, without restarting surface-manager
 #   novos-on-tv.sh stop [--no-restart]      stops it and proves LG's originals
@@ -41,6 +43,26 @@ install_release() {
     STAGE=$(mktemp -d)
     trap 'rm -rf "$STAGE"' EXIT
     "$HERE/install/build-release.sh" "$STAGE/$version" "$ROOT/current" "$ROOT/state/"
+    upload_release "$version" "$STAGE/$version"
+}
+
+# A release from GitHub, see lib/release/release.py: channel or manifest, signature checked
+# against lib/release/trusted-keys.json and the archive against the manifest before
+# anything goes to the TV. The archive holds one folder named after the version.
+fetch_release() {
+    STAGE=$(mktemp -d)
+    trap 'rm -rf "$STAGE"' EXIT
+    version=$(python3 -I "$HERE/../../lib/release/release.py" fetch "$1" --app novos --out "$STAGE/download")
+    tar -C "$STAGE" -xJf "$STAGE/download/novos-$version.tar.xz"
+    [ -f "$STAGE/$version/VERSION" ] || { echo "the archive has no folder $version" >&2; exit 1; }
+    echo "checked: novos $version, signature and archive"
+    upload_release "$version" "$STAGE/$version"
+}
+
+# Uploads the release folder $2 as releases/$1 and points current to it.
+upload_release() {
+    version=$1
+    folder=$2
     ssh lg-tv sh -s "$version" <<'REMOTE'
 set -eu
 root=/var/lib/novos
@@ -56,7 +78,7 @@ fi
 mkdir -p "$root/releases" "$root/state"
 rm -rf "$root/releases/.partial"
 REMOTE
-    scp -qr "$STAGE/$version" "lg-tv:$ROOT/releases/.partial"
+    scp -qr "$folder" "lg-tv:$ROOT/releases/.partial"
     ssh lg-tv sh -s "$version" <<'REMOTE'
 set -eu
 root=/var/lib/novos
@@ -88,7 +110,12 @@ REMOTE
 
 case "${1:-}" in
 install)
-    install_release
+    if [ "${2:-}" = --from ]; then
+        [ -n "${3:-}" ] || { echo "usage: novos-on-tv.sh install --from stable|beta|<manifest-url>" >&2; exit 2; }
+        fetch_release "$3"
+    else
+        install_release
+    fi
     remote_status
     ;;
 start)
