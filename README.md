@@ -19,7 +19,9 @@ uninstaller brings LG's interface back completely.
 
 ## Requirements
 
-- An SSH host alias `lg-tv` that reaches the TV as `root`.
+- SSH access to the TV as `root`. The scripts read the target from `NOVOS_TV`,
+  for example `export NOVOS_TV=root@<tv-ip>` or the name of a host entry
+  in your own `~/.ssh/config`.
 - Docker, to build the video plugin for the TV's ARM userland.
 - Python 3 on the TV (part of webOS).
 
@@ -43,6 +45,7 @@ import as one directory; the app brings a `UiConfig.js` with its settings file a
 All commands run from `apps/novos/`.
 
 ```sh
+export NOVOS_TV=root@<tv-ip>     # SSH target of the TV, once per shell
 module/build.sh                 # builds module/output/libnovos-video-backdrop.so
 ./novos-on-tv.sh install        # uploads a release, no autostart
 ./novos-on-tv.sh start 1800     # starts it by hand, stops again after 30 min
@@ -52,7 +55,7 @@ module/build.sh                 # builds module/output/libnovos-video-backdrop.s
 ```
 
 `./novos-on-tv.sh` without arguments lists all commands. On the TV itself,
-after `ssh lg-tv`: `sh novos-uninstall.sh`.
+after `ssh $NOVOS_TV`: `sh novos-uninstall.sh`.
 
 Releases are named after the commit of this repository. `install` refuses
 uncommitted changes.

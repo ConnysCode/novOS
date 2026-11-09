@@ -13,6 +13,7 @@
 # for the uploaded copy only (main file and module/*.qml). Scenario files may set, in comment lines,
 # "# page: <launch page>", "# opens: <n>" and "# seconds: <open time>".
 set -eu
+TV=${NOVOS_TV:?"set NOVOS_TV to the SSH target of the TV as root, e.g. root@<tv-ip>"}
 
 BUILD_NAME=$1
 OUT=$2
@@ -30,8 +31,8 @@ PREVIEW_UPLOAD_ONLY=1 PREVIEW_SED="${PERF_SED:-}" \
 PREVIEW_MODULE_SED="$PROBE_ON
 ${PERF_MODULE_SED:-}" \
     "$HERE/preview-on-tv.sh" "$BUILD_NAME" /dev/null
-scp -q "$HERE/perf/perf-open.sh" lg-tv:/tmp/novos-perf-open.sh
-ssh lg-tv "rm -f /tmp/novos-perf.ini /tmp/novos-perf-script.txt"
+scp -q "$HERE/perf/perf-open.sh" "$TV:/tmp/novos-perf-open.sh"
+ssh "$TV" "rm -f /tmp/novos-perf.ini /tmp/novos-perf-script.txt"
 printf 'build=%s date=%s\n' "$BUILD_NAME" "$(date '+%Y-%m-%d %H:%M')" > "$OUT/runs.txt"
 
 for scenario in "$@"; do
@@ -41,21 +42,21 @@ for scenario in "$@"; do
     page=$(sed -n 's/^# page: *//p' "$file")
     opens=$(sed -n 's/^# opens: *//p' "$file")
     seconds=$(sed -n 's/^# seconds: *//p' "$file")
-    scp -q "$file" lg-tv:/tmp/novos-perf-script.txt
+    scp -q "$file" "$TV:/tmp/novos-perf-script.txt"
     open=1
     while [ "$open" -le "${opens:-1}" ]; do
         # A timer on the TV closes the window even if this script dies. The old one goes in a
         # call of its own: a shell whose command line names the guard would kill itself.
-        ssh lg-tv "pkill -f '[n]ovos-perf-guard'" || true
-        ssh lg-tv "nohup sh -c 'sleep $(( ${seconds:-6} + 20 )); luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/closeByAppId \"$CLOSE\"; : novos-perf-guard' >/dev/null 2>&1 &"
-        result=$(ssh -tt lg-tv "sh /tmp/novos-perf-open.sh $APP $MAIN '$page' ${seconds:-6}" | tr -d '\r' | sed -n 's/^result //p')
+        ssh "$TV" "pkill -f '[n]ovos-perf-guard'" || true
+        ssh "$TV" "nohup sh -c 'sleep $(( ${seconds:-6} + 20 )); luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/closeByAppId \"$CLOSE\"; : novos-perf-guard' >/dev/null 2>&1 &"
+        result=$(ssh -tt "$TV" "sh /tmp/novos-perf-open.sh $APP $MAIN '$page' ${seconds:-6}" | tr -d '\r' | sed -n 's/^result //p')
         echo "scenario=$name open=$open page=${page:-none} $result" | tee -a "$OUT/runs.txt"
         open=$((open + 1))
     done
 done
 
-ssh lg-tv "pkill -f '[n]ovos-perf-guard'" || true
-scp -q lg-tv:/tmp/novos-perf.ini "$OUT/novos-perf.ini"
+ssh "$TV" "pkill -f '[n]ovos-perf-guard'" || true
+scp -q "$TV:/tmp/novos-perf.ini" "$OUT/novos-perf.ini"
 # /tmp on the TV is RAM: the upload goes once its results are in.
-ssh lg-tv "rm -rf $REMOTE_DIR"
+ssh "$TV" "rm -rf $REMOTE_DIR"
 echo "$OUT"

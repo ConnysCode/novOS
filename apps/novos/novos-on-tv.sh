@@ -15,8 +15,9 @@
 #   novos-on-tv.sh early on|off             mount before surface-manager's first start
 #   novos-on-tv.sh uninstall [--keep-state] removes hook, mounts and files
 #
-# On the TV itself, after "ssh lg-tv": sh novos-uninstall.sh
+# On the TV itself, after "ssh $NOVOS_TV": sh novos-uninstall.sh
 set -eu
+TV=${NOVOS_TV:?"set NOVOS_TV to the SSH target of the TV as root, e.g. root@<tv-ip>"}
 
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 ROOT=/var/lib/novos
@@ -27,8 +28,8 @@ BASE_PATH=/mnt/bsppart/bsp/usr/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Read-only scripts run from the repository, so they work without an install too.
 remote_status() {
-    scp -q "$HERE/install/lg-targets.txt" lg-tv:/tmp/novos-lg-targets.txt
-    ssh lg-tv sh -s /tmp/novos-lg-targets.txt < "$HERE/install/tv/novos-status.sh"
+    scp -q "$HERE/install/lg-targets.txt" "$TV:/tmp/novos-lg-targets.txt"
+    ssh "$TV" sh -s /tmp/novos-lg-targets.txt < "$HERE/install/tv/novos-status.sh"
 }
 
 install_release() {
@@ -63,7 +64,7 @@ fetch_release() {
 upload_release() {
     version=$1
     folder=$2
-    ssh lg-tv sh -s "$version" <<'REMOTE'
+    ssh "$TV" sh -s "$version" <<'REMOTE'
 set -eu
 root=/var/lib/novos
 version=$1
@@ -78,8 +79,8 @@ fi
 mkdir -p "$root/releases" "$root/state"
 rm -rf "$root/releases/.partial"
 REMOTE
-    scp -qr "$folder" "lg-tv:$ROOT/releases/.partial"
-    ssh lg-tv sh -s "$version" <<'REMOTE'
+    scp -qr "$folder" "$TV:$ROOT/releases/.partial"
+    ssh "$TV" sh -s "$version" <<'REMOTE'
 set -eu
 root=/var/lib/novos
 version=$1
@@ -95,7 +96,7 @@ previous=$(readlink "$root/current" 2>/dev/null || true)
 # a dirty test build after its folder was deleted, must earn that again.
 [ "$(cat "$root/state/early-release" 2>/dev/null)" != "$version" ] || rm -f "$root/state/early-release"
 ln -sfn "releases/$version" "$root/current"
-# Uninstall by hand after "ssh lg-tv": sh novos-uninstall.sh
+# Uninstall by hand after "ssh $NOVOS_TV": sh novos-uninstall.sh
 cp "$new/bin/novos-uninstall.sh" /home/root/novos-uninstall.sh
 chmod 755 /home/root/novos-uninstall.sh
 # The new release and the one before stay, for a rollback in one step.
@@ -119,35 +120,35 @@ install)
     remote_status
     ;;
 start)
-    ssh lg-tv "sh $ROOT/current/bin/novos-start.sh manual ${2:-0} 2>&1 | tee -a $ROOT/state/start.log"
+    ssh "$TV" "sh $ROOT/current/bin/novos-start.sh manual ${2:-0} 2>&1 | tee -a $ROOT/state/start.log"
     ;;
 stop)
-    ssh lg-tv "sh $ROOT/current/bin/novos-stop.sh ${2:-} 2>&1 | tee -a $ROOT/state/start.log"
+    ssh "$TV" "sh $ROOT/current/bin/novos-stop.sh ${2:-} 2>&1 | tee -a $ROOT/state/start.log"
     ;;
 status)
     remote_status
     ;;
 log)
-    ssh lg-tv "tail -n 30 $ROOT/state/start.log; echo; tail -n 30 $ROOT/state/supervisor.log"
+    ssh "$TV" "tail -n 30 $ROOT/state/start.log; echo; tail -n 30 $ROOT/state/supervisor.log"
     ;;
 disable)
-    ssh lg-tv "echo \"\$(date '+%Y-%m-%d %H:%M:%S') by hand\" > $ROOT/state/disabled; sync; cat $ROOT/state/disabled"
+    ssh "$TV" "echo \"\$(date '+%Y-%m-%d %H:%M:%S') by hand\" > $ROOT/state/disabled; sync; cat $ROOT/state/disabled"
     ;;
 enable)
-    ssh lg-tv "rm -f $ROOT/state/disabled $ROOT/state/boot-failures; sync; echo enabled"
+    ssh "$TV" "rm -f $ROOT/state/disabled $ROOT/state/boot-failures; sync; echo enabled"
     ;;
 autostart)
     case "${2:-}" in
     once) once=1 ;;
     on) once=0 ;;
     off)
-        ssh lg-tv "rm -f $HOOK; sync; echo autostart off"
+        ssh "$TV" "rm -f $HOOK; sync; echo autostart off"
         exit 0 ;;
     *) echo "usage: novos-on-tv.sh autostart once|on|off" >&2; exit 2 ;;
     esac
-    ssh lg-tv "[ -f $ROOT/current/bin/novos-start.sh ]" || { echo "nothing installed" >&2; exit 1; }
+    ssh "$TV" "[ -f $ROOT/current/bin/novos-start.sh ]" || { echo "nothing installed" >&2; exit 1; }
     sed "s/^ONCE=0$/ONCE=$once/" "$HERE/install/tv/init-hook.sh" |
-        ssh lg-tv "cat > $HOOK.new && chmod 755 $HOOK.new && mv $HOOK.new $HOOK && sync && grep '^ONCE=' $HOOK"
+        ssh "$TV" "cat > $HOOK.new && chmod 755 $HOOK.new && mv $HOOK.new $HOOK && sync && grep '^ONCE=' $HOOK"
     ;;
 early)
     # LG's optional environment files of two services, see bin/novos-early.sh:
@@ -159,7 +160,7 @@ early)
     # removes only those.
     case "${2:-}" in
     on)
-        ssh lg-tv sh -s "$BASE_PATH" <<'REMOTE'
+        ssh "$TV" sh -s "$BASE_PATH" <<'REMOTE'
 set -eu
 dir=/var/systemd/system/env
 root=/var/lib/novos
@@ -191,7 +192,7 @@ head -n 5 "$dir/surface-manager.env" "$dir/rec-info-adapter.env"
 REMOTE
         ;;
     off)
-        ssh lg-tv sh <<REMOTE
+        ssh "$TV" sh <<REMOTE
 for f in /var/systemd/system/env/surface-manager.env /var/systemd/system/env/rec-info-adapter.env; do
     if [ -f \$f ] && grep -q '^# novOS early start' \$f; then rm -f \$f; echo "removed \$f"; fi
 done
@@ -208,8 +209,8 @@ uninstall)
     # Built from the repository, so it works whatever is left on the TV. A terminal
     # lets it read the foreground app and go back to it afterwards.
     "$HERE/install/build-release.sh" --uninstall-script |
-        ssh lg-tv "cat > /tmp/novos-uninstall.sh"
-    ssh -tt lg-tv "sh /tmp/novos-uninstall.sh ${2:-}; rm -f /tmp/novos-uninstall.sh"
+        ssh "$TV" "cat > /tmp/novos-uninstall.sh"
+    ssh -tt "$TV" "sh /tmp/novos-uninstall.sh ${2:-}; rm -f /tmp/novos-uninstall.sh"
     ;;
 *)
     sed -n '2,18p' "$0" >&2

@@ -8,11 +8,12 @@
 #
 # /tmp is RAM: nothing of the copy survives a restart.
 set -eu
+TV=${NOVOS_TV:?"set NOVOS_TV to the SSH target of the TV as root, e.g. root@<tv-ip>"}
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 RELEASE=$HERE/../../lib/release
 REMOTE=/tmp/novos-setupd
-ssh lg-tv "rm -rf $REMOTE && mkdir -p $REMOTE"
-scp -q "$HERE/tv/novos-setupd.py" "$RELEASE/release.py" "$RELEASE/ed25519.py" "$RELEASE/trusted-keys.json" "lg-tv:$REMOTE/"
+ssh "$TV" "rm -rf $REMOTE && mkdir -p $REMOTE"
+scp -q "$HERE/tv/novos-setupd.py" "$RELEASE/release.py" "$RELEASE/ed25519.py" "$RELEASE/trusted-keys.json" "$TV:$REMOTE/"
 quoted=""
 for arg in "$@"; do quoted="$quoted '$(printf '%s' "$arg" | sed "s/'/'\\\\''/g")'"; done
-ssh lg-tv "python3 $REMOTE/novos-setupd.py$quoted"
+ssh "$TV" "python3 $REMOTE/novos-setupd.py$quoted"

@@ -12,6 +12,7 @@
 # Captures use GRAPHIC: only the interface, no video. Every build needs a new name,
 # because surface-manager caches components by URL.
 set -eu
+TV=${NOVOS_TV:?"set NOVOS_TV to the SSH target of the TV as root, e.g. root@<tv-ip>"}
 
 BUILD_NAME=$1
 shift
@@ -39,20 +40,20 @@ cp "$LIB"/fonts/novos-inter-*.ttf "$STAGE/"
 mkdir "$STAGE/backgrounds"
 cp "$HERE"/../../lib/backgrounds/*.jpg "$HERE/../../lib/backgrounds/index.json" "$STAGE/backgrounds/"
 
-ssh lg-tv "find /tmp/novos-setup-preview -mindepth 1 -maxdepth 1 -type d -mmin +10 -exec rm -rf {} + 2>/dev/null; mkdir -p $REMOTE_DIR; echo $FIRST > $CONTROL"
-scp -qr "$STAGE"/* "lg-tv:$REMOTE_DIR/"
+ssh "$TV" "find /tmp/novos-setup-preview -mindepth 1 -maxdepth 1 -type d -mmin +10 -exec rm -rf {} + 2>/dev/null; mkdir -p $REMOTE_DIR; echo $FIRST > $CONTROL"
+scp -qr "$STAGE"/* "$TV:$REMOTE_DIR/"
 
 CLOSE='{"appId":"'$APP'"}'
 LAUNCH='{"appId":"'$APP'","main":"file://'$REMOTE_DIR'/setup.qml"}'
-ssh lg-tv "pkill -f '[n]ovos-setup-guard' 2>/dev/null; true"
-ssh lg-tv "nohup sh -c 'sleep $SECONDS_TOTAL; luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/closeByAppId \"{\\\"appId\\\":\\\"$APP\\\"}\"; rm -f $CONTROL; : novos-setup-guard' >/dev/null 2>&1 &"
-ssh -tt lg-tv "luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/closeByAppId '$CLOSE'; sleep 1; luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/launch '$LAUNCH'" >/dev/null 2>&1
+ssh "$TV" "pkill -f '[n]ovos-setup-guard' 2>/dev/null; true"
+ssh "$TV" "nohup sh -c 'sleep $SECONDS_TOTAL; luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/closeByAppId \"{\\\"appId\\\":\\\"$APP\\\"}\"; rm -f $CONTROL; : novos-setup-guard' >/dev/null 2>&1 &"
+ssh -tt "$TV" "luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/closeByAppId '$CLOSE'; sleep 1; luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/launch '$LAUNCH'" >/dev/null 2>&1
 sleep ${PREVIEW_WAIT:-4}
 
 mkdir -p "$OUT"
 REQUEST='{"path":"/tmp/novos-setup-capture.png","method":"GRAPHIC","format":"PNG","width":1920,"height":1080}'
 for slide in $SLIDES; do
-    ssh -tt lg-tv "echo $slide > $CONTROL; sleep ${SLIDE_WAIT:-1.5}; rm -f /tmp/novos-setup-capture.png; luna-send -n 1 -w 5000 luna://com.webos.service.capture/executeOneShot '$REQUEST'" >/dev/null 2>&1
-    scp -q lg-tv:/tmp/novos-setup-capture.png "$OUT/$BUILD_NAME-$slide.png"
+    ssh -tt "$TV" "echo $slide > $CONTROL; sleep ${SLIDE_WAIT:-1.5}; rm -f /tmp/novos-setup-capture.png; luna-send -n 1 -w 5000 luna://com.webos.service.capture/executeOneShot '$REQUEST'" >/dev/null 2>&1
+    scp -q "$TV:/tmp/novos-setup-capture.png" "$OUT/$BUILD_NAME-$slide.png"
     echo "$OUT/$BUILD_NAME-$slide.png"
 done

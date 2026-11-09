@@ -1,15 +1,16 @@
 #!/bin/sh
 # Reads, without writing anything, the values, descriptors and configs the settings
-# modal asks for, from the TV behind `ssh lg-tv`. Input is the output of
+# modal asks for, from the TV behind `ssh $NOVOS_TV`. Input is the output of
 # `node settings-check.js keys`; output is the state file for `settings-check.js run`.
 set -eu
+: "${NOVOS_TV:?set NOVOS_TV to the SSH target of the TV as root, e.g. root@<tv-ip>}"
 KEYS=$1
 python3 -I - "$KEYS" <<'PY'
-import json, subprocess, sys
+import json, os, subprocess, sys
 
 def luna(uri, params):
     command = "luna-send -f -n 1 -w 8000 %s '%s'" % (uri, json.dumps(params))
-    out = subprocess.run(["ssh", "-tt", "lg-tv", command], capture_output=True, text=True).stdout
+    out = subprocess.run(["ssh", "-tt", os.environ["NOVOS_TV"], command], capture_output=True, text=True).stdout
     try:
         return json.loads(out.replace("\r", ""))
     except ValueError:

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Removes the novOS interface completely and brings back LG's own.
 #
-#   ssh lg-tv
+#   ssh root@<tv-ip>
 #   sh novos-uninstall.sh                 everything goes, this file too
 #   sh novos-uninstall.sh --keep-state    keeps /var/lib/novos/state (app order, debug values)
 #

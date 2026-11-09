@@ -9,6 +9,7 @@
 #        PREVIEW_APP=<app id> runs it as another system window.
 #        PREVIEW_UPLOAD_ONLY=1 uploads and stops before the launch.
 set -eu
+TV=${NOVOS_TV:?"set NOVOS_TV to the SSH target of the TV as root, e.g. root@<tv-ip>"}
 
 BUILD_NAME=$1
 CAPTURE_TARGET=$2
@@ -37,8 +38,8 @@ cp "$HERE/module/output/libnovos-video-backdrop.so" "$HERE/module/vt-feed.py" "$
 
 # /tmp on the TV is RAM (about 730 MB) and each upload holds ~20 MB of pictures: drop
 # previews older than ten minutes so that a series of tests cannot fill it.
-ssh lg-tv "find /tmp/lg-quicksettings-final -mindepth 1 -maxdepth 1 -type d -mmin +10 -exec rm -rf {} + 2>/dev/null; mkdir -p $REMOTE_DIR"
-scp -qr "$STAGE"/* "lg-tv:$REMOTE_DIR/"
+ssh "$TV" "find /tmp/lg-quicksettings-final -mindepth 1 -maxdepth 1 -type d -mmin +10 -exec rm -rf {} + 2>/dev/null; mkdir -p $REMOTE_DIR"
+scp -qr "$STAGE"/* "$TV:$REMOTE_DIR/"
 # PREVIEW_UPLOAD_ONLY=1: the caller launches by itself (perf-on-tv.sh).
 [ -z "${PREVIEW_UPLOAD_ONLY:-}" ] || exit 0
 
@@ -47,9 +48,9 @@ CLOSE_REQUEST='{"appId":"'$APP'"}'
 LAUNCH_REQUEST='{"appId":"'$APP'","main":"file://'$REMOTE_DIR/$ENTRY'"}'
 CAPTURE_REQUEST='{"path":"/tmp/quicksettings-capture.png","method":"GRAPHIC","format":"PNG","width":1920,"height":1080}'
 
-ssh lg-tv "pkill -f '[t]vos-preview-guard' 2>/dev/null; true"
-ssh lg-tv "nohup sh -c 'sleep $SECONDS_OPEN; luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/closeByAppId \"{\\\"appId\\\":\\\"$APP\\\"}\"; : novos-preview-guard' >/dev/null 2>&1 &"
+ssh "$TV" "pkill -f '[t]vos-preview-guard' 2>/dev/null; true"
+ssh "$TV" "nohup sh -c 'sleep $SECONDS_OPEN; luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/closeByAppId \"{\\\"appId\\\":\\\"$APP\\\"}\"; : novos-preview-guard' >/dev/null 2>&1 &"
 # GRAPHIC holds only the interface. DISPLAY comes out black while the feed runs.
-ssh -tt lg-tv "luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/closeByAppId '$CLOSE_REQUEST'; sleep 1; luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/launch '$LAUNCH_REQUEST'; sleep ${PREVIEW_WAIT:-3}; rm -f /tmp/quicksettings-capture.png; luna-send -n 1 -w 5000 luna://com.webos.service.capture/executeOneShot '$CAPTURE_REQUEST'" >/dev/null 2>&1
-scp -q lg-tv:/tmp/quicksettings-capture.png "$CAPTURE_TARGET"
+ssh -tt "$TV" "luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/closeByAppId '$CLOSE_REQUEST'; sleep 1; luna-send -n 1 -w 5000 luna://com.webos.service.systemUIManager/launch '$LAUNCH_REQUEST'; sleep ${PREVIEW_WAIT:-3}; rm -f /tmp/quicksettings-capture.png; luna-send -n 1 -w 5000 luna://com.webos.service.capture/executeOneShot '$CAPTURE_REQUEST'" >/dev/null 2>&1
+scp -q "$TV:/tmp/quicksettings-capture.png" "$CAPTURE_TARGET"
 echo "$CAPTURE_TARGET"
