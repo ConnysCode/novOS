@@ -40,5 +40,13 @@
     "speech.selected": "ausgewählt",
     "speech.time": "{hour} Uhr {minute}",
     "speech.time_hour": "{hour} Uhr"
+  },
+  "restart": {
+    "detail.farewell": "Der Fernseher startet jetzt mit LGs Oberfläche. Bis bald.",
+    "detail.install": "Der Fernseher startet neu · bitte nicht ausschalten",
+    "detail.update": "Neustart {step} von {count} · bitte nicht ausschalten",
+    "title.farewell": "novOS ist entfernt",
+    "title.install": "Einrichtung wird abgeschlossen",
+    "title.update": "Update wird abgeschlossen"
   }
 }

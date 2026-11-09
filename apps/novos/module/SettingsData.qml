@@ -262,6 +262,19 @@ Item {
         property bool settingsOpen: !!tvData.settings && tvData.settings.active
     }
 
+    // Closed while novOS installs: the progress (pill or black screen) shows at once. The
+    // supervisor would do it too, but an update stops it until novOS starts again.
+    Connections {
+        target: tvData.settings
+        onActiveChanged: {
+            var info = updates.info || {};
+            if (tvData.settings.active || info.busy !== true || info.phase !== "running" ||
+                    ["update", "restore", "rollback"].indexOf(info.command) < 0) return;
+            tvData.luna("luna://com.webos.service.systemUIManager", "/launch",
+                        { appId: "com.webos.app.quickinputpicker", params: { novosProgress: true } });
+        }
+    }
+
     Timer {
         id: updateWatch
         interval: tvData.updateTimeout

@@ -60,6 +60,9 @@ UPDATE_SHOWN = UPDATE + "/shown.json"               # progress, ready and instal
 UPDATE_TONIGHT = STATE + "/update-tonight"          # the version to install at night
 AUTO_UPDATE = STATE + "/auto-update"                # "on": install offered updates at night
 LAST_CHECK = STATE + "/last-check.json"
+# The updater's commands that end with another release running: each gets "ist installiert".
+# restore also installs a newer version from the list of versions (novOS 0.9.1-beta.3).
+INSTALLING = ("update", "restore", "rollback")
 SYSTEM_UI_LAUNCH = "luna://com.webos.service.systemUIManager/launch"
 
 STABLE_SECONDS = 120
@@ -247,6 +250,9 @@ def after_update(state, version):
     except (OSError, ValueError):
         notes = {}
     current, before = version_key(version), version_key(previous)
+    if current and before and current < before:
+        # Back to an earlier version (restore, rollback): nothing is new.
+        return {"notice": True, "novos": "installed", "version": version, "back": True}
     since = [name for name in notes if version_key(name) and version_key(name) <= current and
              (version_key(name) > before if before else name == version)] if current else []
     bigger = bool(before and current and current[:2] > before[:2])
@@ -323,7 +329,7 @@ class Updater:
         command = state.get("command", "")
         result = state.get("result") or {}
         found = result.get("check") or {}
-        if command == "update" and state.get("busy") and state.get("phase") == "running":
+        if command in INSTALLING and state.get("busy") and state.get("phase") == "running":
             settings_open = read_ini(UPDATE + "/ui.ini").get("settingsOpen") == "true"
             if shown.get("progress") != serial and not settings_open:
                 self.show({"novosProgress": True})
@@ -341,7 +347,7 @@ class Updater:
             stamp = time.time() - CHECK_EVERY + RETRY_OFFLINE
             os.utime(UPDATE_CHECKED, (stamp, stamp))
             log("daily check without connection, again in an hour")
-        elif command == "update" and state.get("phase") == "done" and result.get("installed"):
+        elif command in INSTALLING and state.get("phase") == "done" and result.get("installed"):
             if shown.get("installed") != serial and \
                     result["installed"] == os.path.basename(os.path.realpath(PANEL)):
                 self.show(after_update(state, result["installed"]))

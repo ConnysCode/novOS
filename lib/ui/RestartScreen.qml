@@ -1,17 +1,23 @@
 import QtQuick 2.12
+import "."
 
-// Full screen in black while the TV restarts, over the "glow" or "black" scene:
-//   "install"   K3-Install-8-Neustart: wordmark, a bar at 88 %, two lines
+// Full screen in black while the TV or novOS restarts, over the "glow" or "black" scene
+// (BootGlow); the owner paints the scene:
+//   "install"   K3-Install-8-Neustart: wordmark, a bar (progress, 88 % unless given), two lines
 //   "update"    K3-Update-5-Neustart: wordmark, one segment per restart, two lines
 //   "farewell"  K3-Entfernen-4-Fertig: dimmed wordmark and two lines, nothing else
+// title and detail replace the variant's own lines: novOS names its update this way.
 Item {
     id: screen
 
     property real unit: 1
     property Item backdrop
     property string variant: "install"
+    property string title: ""
+    property string detail: ""
+    property real progress: 0.88
 
-    function tr(key, params) { return I18n.t("setup", key, params); }
+    function tr(key, params) { return I18n.t("restart", key, params); }
 
     readonly property bool farewell: variant === "farewell"
 
@@ -33,7 +39,7 @@ Item {
             width: 360 * screen.unit
             unit: screen.unit
             barHeight: 6
-            value: 0.88
+            value: screen.progress
         }
 
         SegmentBar {
@@ -49,8 +55,7 @@ Item {
 
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: screen.farewell ? tr("remove.done_title") :
-                      screen.variant === "update" ? tr("restart.update_title") : tr("restart.install_title")
+                text: screen.title !== "" ? screen.title : tr("title." + screen.variant)
                 color: GlassStyle.textPrimary
                 font.family: GlassStyle.titleFont
                 font.pixelSize: (screen.farewell ? 24 : 22) * screen.unit
@@ -59,9 +64,8 @@ Item {
 
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: screen.farewell ? tr("remove.done_detail") :
-                      screen.variant === "update" ? tr("restart.update_detail", { step: 1, count: 2 }) :
-                      tr("restart.install_detail")
+                text: screen.detail !== "" ? screen.detail :
+                      tr("detail." + screen.variant, { step: 1, count: 2 })
                 color: GlassStyle.textSecondary
                 font.family: GlassStyle.valueFont
                 font.pixelSize: (screen.farewell ? 20 : 19) * screen.unit

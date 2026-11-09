@@ -617,6 +617,30 @@ def screen(report, on):
         report.step("panel %s" % ("on" if on else "off"), key="start")
 
 
+# The relay's marker: while it is on, novOS' windows keep LG's Home, toasts and dialogs out
+# of sight. novos-stop.sh --keep-hidden (novOS 0.9.1-beta.4 and newer; older releases
+# ignore it) leaves it on during an update, so that LG's Home does not come up while the
+# release is swapped; novOS shows its black install screen there instead.
+MARKER = system("/tmp/novos-banner-active")
+
+
+class KeepLgHidden:
+    """Arm it once novOS is stopped for an update: if novOS does not run in the end, the
+    marker goes, and LG's Home is back instead of a black screen."""
+
+    def __init__(self):
+        self.stopped = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        if self.stopped and not running():
+            with contextlib.suppress(OSError):
+                os.remove(MARKER)
+        return False
+
+
 def install(report, source, allow_downgrade=False, start=False, before_start=None, after_start=None,
             stay_dark=False):
     """stay_dark (the setup's window): nothing but the setup shows until it is done. The
@@ -624,7 +648,7 @@ def install(report, source, allow_downgrade=False, start=False, before_start=Non
     panel goes off, the source is closed (closing it brings up LG's Home), surface-manager
     restarts without going back to the source, the window opens again, and only then the
     panel comes back on."""
-    with single_run():
+    with single_run(), KeepLgHidden() as hidden:
         folder, manifest = fetch(report, source)
         version = manifest["version"]
         problems = preflight(manifest, allow_downgrade)
@@ -635,7 +659,8 @@ def install(report, source, allow_downgrade=False, start=False, before_start=Non
         if was_running:
             # novos-start.sh restarts surface-manager afterwards anyway: one restart instead of
             # two, and the setup's window stays up until then.
-            run_script(report, "novos-stop.sh", "--no-restart")
+            hidden.stopped = True
+            run_script(report, "novos-stop.sh", "--no-restart", "--keep-hidden")
             if running():
                 raise SetupError("novOS still runs after the stop, nothing was changed")
         try:

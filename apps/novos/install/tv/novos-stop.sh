@@ -5,6 +5,11 @@
 #                                stays loaded, and goes back to what ran before
 #   novos-stop.sh --no-restart    leaves the picture alone; windows already loaded
 #                                stay ours until surface-manager restarts
+#   novos-stop.sh --no-restart --keep-hidden
+#                                as before, for an update: the relay's marker stays, so
+#                                that the windows still loaded keep LG's Home, toasts and
+#                                dialogs out of sight until novos-start.sh restarts the
+#                                interface. The updater removes it if novOS does not start.
 #
 # Exits with 1 when a mount is left or a hash differs.
 set -u
@@ -13,7 +18,16 @@ BIN=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 TARGETS=${NOVOS_TARGETS:-$BIN/../lg-targets.txt}
 [ -f "$TARGETS" ] || TARGETS=$BIN/lg-targets.txt
 RESTART=yes
-[ "${1:-}" = --no-restart ] && RESTART=no
+KEEP_HIDDEN=no
+for arg in "$@"; do
+    case $arg in
+    --no-restart) RESTART=no ;;
+    --keep-hidden) KEEP_HIDDEN=yes ;;
+    esac
+done
+# Only without a restart: a new surface-manager without our overlays would hide LG's Home
+# with nothing in its place.
+[ "$RESTART" = no ] || KEEP_HIDDEN=no
 
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S') stop $*"; }
 # The service's main process: a second one of the same name can linger for a while.
@@ -65,7 +79,8 @@ pkill -f 'novos-early.s[h] watch' 2>/dev/null
 rm -f /tmp/novos-early-mounted /tmp/novos-early-starts /tmp/novos-stable
 pkill -f 'novos-supervisor.p[y] run' 2>/dev/null
 # Without the marker LG's toasts, dialogs and Home come back at once.
-rm -f /tmp/novos-banner-active /tmp/novos-booting /tmp/novos-launcher-open.ini
+[ "$KEEP_HIDDEN" = yes ] || rm -f /tmp/novos-banner-active
+rm -f /tmp/novos-booting /tmp/novos-launcher-open.ini
 pkill -f 'banner-relay.p[y]' 2>/dev/null
 
 app=""

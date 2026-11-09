@@ -125,6 +125,16 @@ StarfishSystemUIWindow {
         // novOS' own update in the background (board Update-3); the supervisor opens it.
         property bool updatePillOpen: false
         property bool updatePillShown: false
+        // The install runs over our launcher, with LG's Home in front: nothing but LG's Home
+        // would show while novOS stops for the update (novos-stop.sh --keep-hidden keeps it
+        // hidden). Then the black restart screen of the setup stands in for the pill, so that
+        // nobody takes the TV for broken.
+        property bool updateOverHome: false
+        readonly property bool updateScreenShown: updatePillOpen && updateOverHome
+        readonly property var installCommands: ["update", "restore", "rollback"]
+        readonly property string updateLabel: I18n.t("picker",
+            updateInfo.stage === "download" || updateInfo.stage === "manifest" ? "update.loading" : "update.installing",
+            { version: updateVersion(updateInfo) }).replace(/\s+/g, " ").trim()
         // "Neu in novOS" after a minor or major update (WhatsNew); the supervisor opens it.
         property bool whatsNewOpen: false
         readonly property var updateInfo: updates.info || ({})
@@ -485,19 +495,43 @@ StarfishSystemUIWindow {
 
         function openUpdatePill() {
             stayOpen();
+            if (!updatePillOpen) updateOverHome = false;
             updatePillOpen = true;
             updatePillShown = liveGlass.pictureReady;
             updatePillCheck.restart();
+            updateScreenLimit.restart();
+            service.call("luna://com.webos.applicationManager", "/getForegroundAppInfo", "{}");
         }
 
         // The pill goes when the update is through or failed; the restart takes the window anyway.
+        // The black screen stays through "restarting": it says that novOS restarts.
         // Read from the bridge itself: in onInfoChanged, updateInfo may not have followed yet.
         function checkUpdatePill() {
             var info = updates.info || {};
-            if (!updatePillOpen || (info.busy === true && info.command === "update" && info.phase === "running")) return;
+            var installing = info.busy === true && installCommands.indexOf(info.command) >= 0;
+            if (!updatePillOpen || (installing && (info.phase === "running" ||
+                                                   (info.phase === "restarting" && updateOverHome)))) return;
+            closeUpdatePill();
+        }
+
+        function closeUpdatePill() {
             updatePillOpen = false;
             updatePillShown = false;
+            updateScreenLimit.stop();
             closeWhenIdle();
+        }
+
+        // The version being installed: the offer of the check, else the updater's steps
+        // ("downloading novOS 0.9.1-beta.3 (18 MB)"); restore and rollback have no check.
+        function updateVersion(info) {
+            var offer = info.result && info.result.check || {};
+            if (offer.available) return offer.available;
+            var steps = info.steps || [];
+            for (var i = 0; i < steps.length; i++) {
+                var found = /novOS (\d[^\s)]*)/.exec(steps[i].message || "");
+                if (found) return found[1];
+            }
+            return "";
         }
 
         // novOS' own notices (boards Update-1 and Update-6), in this window's words.
@@ -536,7 +570,8 @@ StarfishSystemUIWindow {
                                            launchParams: { appId: "com.webos.app.quicksettings",
                                                            params: { page: "settings:info:update" } } } };
             return { title: I18n.t("picker", "update.installed", { version: version }),
-                     detail: fixes > 0 ? I18n.t("picker", fixes === 1 ? "update.fixed_one" : "update.fixed_count",
+                     detail: params.back ? I18n.t("picker", "update.back_detail") :
+                             fixes > 0 ? I18n.t("picker", fixes === 1 ? "update.fixed_one" : "update.fixed_count",
                                                 { count: fixes }) : I18n.t("picker", "update.installed_detail"),
                      icon: "notice-update",
                      buttons: (fixes > 0 ? [details] : []).concat([{ label: I18n.t("global", "ok"), focus: true }]),
@@ -701,6 +736,11 @@ StarfishSystemUIWindow {
                     return;
                 }
             }
+            if (bannerMode && updateScreenShown) {
+                // Nothing to steer while novOS installs; the screen goes by itself.
+                event.accepted = true;
+                return;
+            }
             if (bannerMode) {
                 rootWindow.webOSXInput.invokeFullKeyToAppAction(event.key, event.nativeScanCode, foregroundApp);
                 // The update pill stays while the remote goes on to the source.
@@ -754,6 +794,8 @@ StarfishSystemUIWindow {
                 } else if (method === "/getStatus") {
                     picker.updateFormat(response.video && response.video[0]);
                 } else if (method === "/getForegroundAppInfo") {
+                    if (picker.updatePillOpen)
+                        picker.updateOverHome = !response.appId || response.appId === "com.webos.app.home";
                     if (picker.switchingApp === "") {
                         picker.foregroundApp = response.appId || "";
                         liveGlass.setForeground(picker.foregroundApp);
@@ -1064,6 +1106,41 @@ StarfishSystemUIWindow {
             onTriggered: picker.checkUpdatePill()
         }
 
+        // An updater that ends without a last word must not leave the black screen standing.
+        Timer {
+            id: updateScreenLimit
+            interval: GlassStyle.updateScreenLimit
+            onTriggered: picker.closeUpdatePill()
+        }
+
+        // K3-Update-5-Neustart in novOS: black with the boot light, the wordmark, the bar and
+        // what happens. In place of the pill while LG's Home would be in front.
+        Item {
+            id: updateScreen
+            anchors.fill: parent
+            opacity: picker.updateScreenShown ? 1 : 0
+            visible: opacity > 0
+
+            Behavior on opacity {
+                NumberAnimation { duration: GlassStyle.popoverDuration }
+            }
+
+            BootGlow {
+                anchors.fill: parent
+                pulsing: true
+            }
+
+            RestartScreen {
+                anchors.fill: parent
+                unit: picker.unit
+                variant: "install"
+                title: picker.updateLabel
+                detail: I18n.t("picker", picker.updateInfo.phase === "restarting" ?
+                                         "update.screen_restart" : "update.screen_detail")
+                progress: picker.updateInfo.phase === "restarting" ? 1 : (picker.updateInfo.percent || 0) / 100
+            }
+        }
+
         ProgressPill {
             id: updatePill
             x: picker.width - width - 56 * picker.unit
@@ -1078,12 +1155,10 @@ StarfishSystemUIWindow {
             backdropArea: Qt.rect(picker.pillArea.x - x, picker.pillArea.y - y,
                                   picker.pillArea.width, picker.pillArea.height)
             hasBackdrop: liveGlass.hasFrame ? 1 : 0
-            readonly property var offer: picker.updateInfo.result && picker.updateInfo.result.check || ({})
-            label: I18n.t("picker", picker.updateInfo.stage === "download" || picker.updateInfo.stage === "manifest" ?
-                                    "update.loading" : "update.installing", { version: offer.available || "" })
+            label: picker.updateLabel
             value: I18n.t("picker", "update.percent", { percent: picker.updateInfo.percent || 0 })
             progress: (picker.updateInfo.percent || 0) / 100
-            shown: picker.updatePillShown
+            shown: picker.updatePillShown && !picker.updateOverHome
         }
 
         NoticeBar {

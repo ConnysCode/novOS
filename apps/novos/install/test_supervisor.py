@@ -148,6 +148,21 @@ class UpdatesTest(unittest.TestCase):
         self.assertEqual(self.after("novos-v1.0.0-3-gabc", "1.0.0", notes)["previous"], "")
         # No notes at all: the plain notice.
         self.assertEqual(self.after("1.0.0", "1.2.0", {})["fixes"], 0)
+        # Back to an earlier version: nothing is new, the notice says so.
+        self.assertEqual(self.after("1.1.0", "1.0.1", notes),
+                         {"notice": True, "novos": "installed", "version": "1.0.1", "back": True})
+
+    def test_installed_after_restore_and_rollback(self):
+        # A newer version from the list of versions comes as restore (novOS 0.9.1-beta.3),
+        # the way back as rollback: both end with another release running.
+        for serial, command in (("r1", "restore"), ("b1", "rollback")):
+            self.state(id=serial, command=command, phase="running", busy=True, result=None)
+            self.updater.announce(True)
+            self.state(id=serial, command=command, phase="done", busy=False, result={"installed": "1.0.0"})
+            self.updater.announce(True)
+            self.updater.announce(True)
+        kinds = [params.get("novos") or ("progress" if params.get("novosProgress") else "?") for params in self.shown()]
+        self.assertEqual(kinds, ["progress", "installed", "progress", "installed"])
 
 
 if __name__ == "__main__":

@@ -60,6 +60,7 @@ QtObject {
     readonly property int bootPulseDuration: 6000          // one breath of the light
     readonly property real bootPulseLow: 0.85              // its opacity at the low point
     readonly property real bootPulseSwell: 1.04            // its size at the high point
+    readonly property int updateScreenLimit: 300000        // an install screen goes after this at the latest
     readonly property real shutdownDim: 0.55               // light and wordmark when switching off
     readonly property int shutdownInDuration: 400          // picture to the dimmed boot look
     readonly property int shutdownOutDuration: 500         // the boot look to black; the entry holds the rest

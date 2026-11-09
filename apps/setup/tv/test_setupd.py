@@ -33,6 +33,7 @@ STUBS = {
                         '[ ! -e "$NOVOS_SETUPD_SANDBOX/fail-overlays" ] || exit 3\n',
     # fail-start: this one start fails as a release that does not compile, once.
     "novos-start.sh": 'echo "start $* restore=${NOVOS_RESTORE:-1}" >> "$NOVOS_SETUPD_SANDBOX/calls"\n'
+                      '[ ! -e "$NOVOS_SETUPD_SANDBOX/fail-start-always" ] || exit 1\n'
                       'if [ -e "$NOVOS_SETUPD_SANDBOX/fail-start" ]; then rm "$NOVOS_SETUPD_SANDBOX/fail-start"; '
                       'echo "does not compile" > "$NOVOS_SETUPD_SANDBOX/var/lib/novos/state/disabled"; exit 1; fi\n'
                       'echo "/var/x /usr/lib/qml/QuickSettings/QuickSettings.qml none bind 0 0" > "$NOVOS_SETUPD_SANDBOX/proc/mounts"\n',
@@ -209,7 +210,8 @@ class SetupdTest(unittest.TestCase):
         self.assertEqual(self.calls()[-1], "start manual restore=1")
         code, lines = self.run_setupd("install", self.publish("1.1.0"))
         self.assertEqual(code, 0, lines)
-        self.assertEqual(self.calls()[-3:], ["stop --no-restart", "make-overlays %s" % self.path("/var/lib/novos/releases/.partial"),
+        self.assertEqual(self.calls()[-3:], ["stop --no-restart --keep-hidden",
+                                             "make-overlays %s" % self.path("/var/lib/novos/releases/.partial"),
                                              "start manual restore=1"])
         self.assertTrue(lines[-1]["started"])
 
@@ -225,6 +227,23 @@ class SetupdTest(unittest.TestCase):
         self.assertFalse(os.path.exists(self.path("/var/lib/novos/state/disabled")))
         self.assertTrue(self.setupd.running())
         self.assertEqual(self.calls()[-2:], ["start manual restore=1", "start manual restore=1"])
+
+    def test_lg_home_comes_back_when_nothing_starts(self):
+        # The stop leaves the relay's marker for the update; with no novOS running in the
+        # end it must go, or LG's Home stays hidden behind nothing.
+        marker = self.path("/tmp/novos-banner-active")
+        self.run_setupd("install", self.publish("1.0.0"), "--start")
+        os.makedirs(os.path.dirname(marker), exist_ok=True)
+        with open(marker, "w") as handle:
+            handle.write("on\n")
+        code, lines = self.run_setupd("install", self.publish("1.1.0"))
+        self.assertEqual(code, 0, lines)
+        self.assertTrue(os.path.exists(marker))
+        open(os.path.join(self.sandbox, "fail-start-always"), "w").close()
+        code, lines = self.run_setupd("install", self.publish("1.2.0"))
+        self.assertEqual(code, 1)
+        self.assertFalse(self.setupd.running())
+        self.assertFalse(os.path.exists(marker))
 
     def test_rollback(self):
         self.run_setupd("install", self.publish("1.0.0"))

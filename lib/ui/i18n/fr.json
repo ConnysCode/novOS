@@ -40,5 +40,13 @@
     "speech.selected": "sélectionné",
     "speech.time": "{hour} h {minute_padded}",
     "speech.time_hour": "{hour} h"
+  },
+  "restart": {
+    "detail.farewell": "Le téléviseur démarre désormais avec l’interface LG. À bientôt.",
+    "detail.install": "Le téléviseur redémarre · ne l’éteignez pas",
+    "detail.update": "Redémarrage {step} sur {count} · ne l’éteignez pas",
+    "title.farewell": "novOS est supprimé",
+    "title.install": "Finalisation de la configuration",
+    "title.update": "Finalisation de la mise à jour"
   }
 }
