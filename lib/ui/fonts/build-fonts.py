@@ -27,10 +27,13 @@ CUTS = (
     ("value", "novOS Inter Value", "novos-inter-value.ttf", 18, 400),
 )
 
-# German UI text plus the punctuation the panel can show.
-UNICODES = list(range(0x20, 0x7F)) + [
-    0xA0, 0xB7, 0xC4, 0xD6, 0xDC, 0xDF, 0xE4, 0xF6, 0xFC,
-    0x2013, 0x2014, 0x2026, 0x2212,
+# Every language of the interface: Basic Latin, Latin-1 Supplement and Latin Extended-A
+# (German, English, Spanish, French and their neighbours), plus typographic quotes,
+# dashes, bullet, ellipsis, angle quotes, euro, trademark, arrows and minus.
+# check() fails the build if a text in an i18n file needs a character beyond these.
+UNICODES = list(range(0x20, 0x7F)) + list(range(0xA0, 0x180)) + [
+    0x2013, 0x2014, 0x2018, 0x2019, 0x201A, 0x201C, 0x201D, 0x201E, 0x2022, 0x2026,
+    0x2039, 0x203A, 0x20AC, 0x2122, 0x2190, 0x2191, 0x2192, 0x2193, 0x2212,
 ]
 
 
@@ -83,7 +86,18 @@ def build(family: str, filename: str, optical_size: int, weight: int) -> Path:
     return target
 
 
+def check() -> None:
+    """Every character of every text novOS ships must be in the fonts."""
+    core = HERE.parents[2]
+    covered = set(map(chr, UNICODES)) | {"\n", "\t"}
+    for path in sorted(core.glob("**/i18n/**/*.json")):
+        missing = sorted(set(path.read_text(encoding="utf-8")) - covered)
+        if missing:
+            raise SystemExit("%s needs %s" % (path.relative_to(core), " ".join("U+%04X" % ord(c) for c in missing)))
+
+
 def main() -> None:
+    check()
     OUTPUT.mkdir(exist_ok=True)
     for _role, family, filename, optical_size, weight in CUTS:
         print(build(family, filename, optical_size, weight))
