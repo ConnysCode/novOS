@@ -205,7 +205,7 @@ class SetupdTest(unittest.TestCase):
         self.assertEqual(self.calls()[-1], "start manual")
         code, lines = self.run_setupd("install", self.publish("1.1.0"))
         self.assertEqual(code, 0, lines)
-        self.assertEqual(self.calls()[-3:], ["stop", "make-overlays %s" % self.path("/var/lib/novos/releases/.partial"),
+        self.assertEqual(self.calls()[-3:], ["stop --no-restart", "make-overlays %s" % self.path("/var/lib/novos/releases/.partial"),
                                              "start manual"])
         self.assertTrue(lines[-1]["started"])
 

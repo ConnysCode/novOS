@@ -487,7 +487,9 @@ def install(report, source, allow_downgrade=False, start=False, before_start=Non
             raise SetupError("; ".join(problems))
         was_running = running()
         if was_running:
-            run_script(report, "novos-stop.sh")
+            # novos-start.sh restarts surface-manager afterwards anyway: one restart instead of
+            # two, and the setup's window stays up until then.
+            run_script(report, "novos-stop.sh", "--no-restart")
             if running():
                 raise SetupError("novOS still runs after the stop, nothing was changed")
             mismatched = lg_mismatches(manifest["lg_targets"])
@@ -561,7 +563,7 @@ def rollback(report):
         target = others[-1]
         was_running = running()
         if was_running:
-            run_script(report, "novos-stop.sh")
+            run_script(report, "novos-stop.sh", "--no-restart")
         link = CURRENT + ".new"
         if os.path.lexists(link):
             os.remove(link)
