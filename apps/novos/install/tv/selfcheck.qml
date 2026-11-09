@@ -8,8 +8,9 @@ import SystemUIComponent 1.0
 // The window never shows: it writes its verdict and exits.
 //
 // surface-manager caches components by URL, so every check runs from a folder of its
-// own in /tmp: novos-start.sh copies this file there and fills in @RELEASE@. Releases
-// themselves never change after the install, their URLs may stay cached.
+// own in /tmp: novos-start.sh copies this file there and fills in @RELEASE@ with a mirror
+// of the release whose windows import releases/<version>/module, never the cached
+// current/module of the release that ran before.
 StarfishSystemUIWindow {
     id: checkWindow
 

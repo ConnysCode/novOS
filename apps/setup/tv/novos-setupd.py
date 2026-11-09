@@ -537,6 +537,7 @@ def install(report, source, allow_downgrade=False, start=False, before_start=Non
         if problems:
             raise SetupError("; ".join(problems))
         was_running = running()
+        before = current_release() if was_running else None
         if was_running:
             # novos-start.sh restarts surface-manager afterwards anyway: one restart instead of
             # two, and the setup's window stays up until then.
@@ -567,7 +568,15 @@ def install(report, source, allow_downgrade=False, start=False, before_start=Non
                     close_foreground(report)
                 env["NOVOS_RESTORE"] = "0"
             try:
-                run_script(report, "novos-start.sh", "manual", env=env)
+                try:
+                    run_script(report, "novos-start.sh", "manual", env=env)
+                except SetupError as error:
+                    if not before or before == version:
+                        raise
+                    start_previous(report, version, before, env)
+                    if after_start:
+                        after_start()
+                    raise SetupError("novOS %s did not start (%s); novOS %s runs again" % (version, error, before))
                 if after_start:
                     after_start()
                 if stay_dark:
@@ -578,6 +587,27 @@ def install(report, source, allow_downgrade=False, start=False, before_start=Non
         settle_check(version)
         report.result("installed novOS %s%s" % (version, ", started" if was_running or start else ""),
                       installed=version, started=was_running or start)
+
+
+def start_previous(report, failed, before, env):
+    """An update that does not start (its compile check failed, say) must not leave the TV
+    without novOS: back to the release that ran, which is started again, and the failed
+    one goes, so that a rollback cannot pick it."""
+    report.step("novOS %s did not start, back to %s" % (failed, before), key="start")
+    with contextlib.suppress(OSError):
+        os.remove(STATE + "/disabled")        # written by the failed start for the failed release
+    link = CURRENT + ".new"
+    if os.path.lexists(link):
+        os.remove(link)
+    os.symlink("releases/" + before, link)
+    os.rename(link, CURRENT)
+    if read_setting("early-release") == failed:
+        os.remove(STATE + "/early-release")
+    with contextlib.suppress(OSError):
+        shutil.copy(os.path.join(RELEASES, before, "bin", "novos-uninstall.sh"), HOME_UNINSTALL)
+    shutil.rmtree(os.path.join(RELEASES, failed), ignore_errors=True)
+    sync()
+    run_script(report, "novos-start.sh", "manual", env=env)
 
 
 def place_release(report, folder, manifest):

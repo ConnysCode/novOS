@@ -31,7 +31,10 @@ TARGETS = [("QuickSettings.qml", "/usr/lib/qml/QuickSettings/QuickSettings.qml")
 STUBS = {
     "make-overlays.sh": 'echo "make-overlays $1" >> "$NOVOS_SETUPD_SANDBOX/calls"\n'
                         '[ ! -e "$NOVOS_SETUPD_SANDBOX/fail-overlays" ] || exit 3\n',
+    # fail-start: this one start fails as a release that does not compile, once.
     "novos-start.sh": 'echo "start $* restore=${NOVOS_RESTORE:-1}" >> "$NOVOS_SETUPD_SANDBOX/calls"\n'
+                      'if [ -e "$NOVOS_SETUPD_SANDBOX/fail-start" ]; then rm "$NOVOS_SETUPD_SANDBOX/fail-start"; '
+                      'echo "does not compile" > "$NOVOS_SETUPD_SANDBOX/var/lib/novos/state/disabled"; exit 1; fi\n'
                       'echo "/var/x /usr/lib/qml/QuickSettings/QuickSettings.qml none bind 0 0" > "$NOVOS_SETUPD_SANDBOX/proc/mounts"\n',
     "novos-stop.sh": 'echo "stop $*" >> "$NOVOS_SETUPD_SANDBOX/calls"\n: > "$NOVOS_SETUPD_SANDBOX/proc/mounts"\n',
     "novos-uninstall.sh": 'echo "uninstall $*" >> "$NOVOS_SETUPD_SANDBOX/calls"\n',
@@ -209,6 +212,19 @@ class SetupdTest(unittest.TestCase):
         self.assertEqual(self.calls()[-3:], ["stop --no-restart", "make-overlays %s" % self.path("/var/lib/novos/releases/.partial"),
                                              "start manual restore=1"])
         self.assertTrue(lines[-1]["started"])
+
+    def test_update_that_does_not_start_goes_back(self):
+        self.run_setupd("install", self.publish("1.0.0"), "--start")
+        open(os.path.join(self.sandbox, "fail-start"), "w").close()
+        code, lines = self.run_setupd("install", self.publish("1.1.0"))
+        self.assertEqual(code, 1)
+        self.assertIn("1.1.0 did not start", self.error_of(lines)[0])
+        self.assertIn("1.0.0 runs again", self.error_of(lines)[0])
+        self.assertEqual(self.current(), "1.0.0")
+        self.assertEqual(os.listdir(self.path("/var/lib/novos/releases")), ["1.0.0"])
+        self.assertFalse(os.path.exists(self.path("/var/lib/novos/state/disabled")))
+        self.assertTrue(self.setupd.running())
+        self.assertEqual(self.calls()[-2:], ["start manual restore=1", "start manual restore=1"])
 
     def test_rollback(self):
         self.run_setupd("install", self.publish("1.0.0"))
