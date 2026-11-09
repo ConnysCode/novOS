@@ -1,4 +1,5 @@
 import QtQuick 2.12
+import Qt.labs.folderlistmodel 2.11
 import Qt.labs.settings 1.0
 import WebOSServices 1.0
 import "."
@@ -19,7 +20,8 @@ Item {
         resetHbbtvConnections: true, autoTime: true, sleepTimer: true, setSleepTimer: true,
         timerTime: true, onTimerEnable: true, screenOff: true, resetSound: true, resetGameGenre: true,
         deleteConnectionHistory: true, deepColorChanged: true, toggleInputLock: true,
-        checkUpdates: true, installUpdate: true
+        checkUpdates: true, installUpdate: true, blockUpdates: true, lgAutoUpdate: true,
+        lgUpdateCheck: true, lgUpdateInstall: true, lgUpdateCancel: true
     })
     property var bluetoothFeatures: []
 
@@ -47,6 +49,7 @@ Item {
         readVersion();
         readSleepTimer();
         readUpdates();
+        readLgUpdates();
     }
 
     // The input of a page opened for one input, for example "hdmi2".
@@ -133,6 +136,7 @@ Item {
         settings.store.values.novos.hideInputBanner = NovosSettings.hideInputBanner;
         settings.store.values.novos.keyboardMode = GlassStyle.keyboardMode;
         settings.store.values.novos.updateChannel = settings.store.state.updateChannel || "stable";
+        settings.store.values.novos.blockUpdates = settings.store.state.blockUpdates === true ? "on" : "off";
     }
 
     function writeNovos(name, value) {
@@ -250,8 +254,20 @@ Item {
         state.updateStage = info.busy === true ? info.stage || "" : "";
         state.updatePercent = info.busy === true ? info.percent || 0 : 0;
         // Errors of the own last command; a failed check at night says nothing here.
-        state.updateError = updateLost ? "no updater" : (mine && info.phase === "error" ? info.error || "?" : "");
-        state.updateErrorKind = updateLost ? "failed" : (mine ? info.errorKind || "" : "");
+        var error = updateLost ? "no updater" : (mine && info.phase === "error" ? info.error || "?" : "");
+        var ownCommand = mine ? info.command : sentCommand;
+        // The block of LG's updates goes through the same updater, but is no novOS update.
+        state.blockBusy = waiting && sentCommand === "settings";
+        if (ownCommand === "settings") {
+            state.blockError = error;
+            if (answered && info.choices && typeof info.choices.blockUpdates === "boolean") {
+                state.blockUpdates = info.choices.blockUpdates;
+                state.blockedNow = info.choices.blockedNow === true;
+            }
+        } else {
+            state.updateError = error;
+            state.updateErrorKind = updateLost ? "failed" : (mine ? info.errorKind || "" : "");
+        }
         state.updateChecked = checkedText(state.updateCheck);
         if (answered && checkAfterChannel) {
             checkAfterChannel = false;
@@ -261,11 +277,146 @@ Item {
         settings.changed();
     }
 
+    // ---- LG's system updates ----------------------------------------------------------
+    // The block is the Homebrew Channel's: its flag makes its startup.sh point LG's update
+    // servers to the TV itself, from the next restart on. The flag file is watched here (the
+    // Homebrew Channel's service refuses this window: "Not permitted to send"), /etc/hosts
+    // says whether the block holds in this boot. novos-setupd writes it (command
+    // "settings") and notes once what was there before novOS; the uninstall restores that.
+    // Searching, installing and cancelling are the calls of LG's Support › Software-Update
+    // (com.webos.service.update); the system page offers them while the block is off.
+
+    readonly property int lgCheckTimeout: 90000
+    property bool lgSubscribed: false
+    property bool lgProgressSubscribed: false
+
+    Timer {
+        id: lgCheckWatch
+        interval: tvData.lgCheckTimeout
+        onTriggered: {
+            if (!tvData.settings.store.state.lgChecking) return;
+            tvData.setState("lgChecking", false);
+            tvData.setState("lgCheck", { returnValue: false });
+        }
+    }
+
+    FolderListModel {
+        id: blockFlag
+        folder: "file:///var/luna/preferences"
+        nameFilters: ["webosbrew_block_updates"]
+        showDirs: false
+        showHidden: true
+        onStatusChanged: tvData.readBlockFlag()
+        onCountChanged: tvData.readBlockFlag()
+    }
+
+    function readBlockFlag() {
+        if (!settings || blockFlag.status !== FolderListModel.Ready) return;
+        // While the updater writes the flag, the page keeps what was chosen.
+        if (settings.store.state.blockBusy === true) return;
+        setState("blockUpdates", blockFlag.count > 0);
+        readNovos();
+    }
+
+    function readLgUpdates() {
+        readBlockFlag();
+        setState("blockedNow", readFile("/etc/hosts").indexOf("snu.lge.com") >= 0);
+        luna("luna://com.webos.settingsservice", "/getSystemSettings", { keys: ["eulaStatus"] });
+        luna("luna://com.webos.service.update", "/getVersionChecked", {});
+        if (!lgSubscribed) {
+            lgSubscribed = true;
+            luna("luna://com.webos.service.update", "/getStatus", { subscribe: true });
+        }
+    }
+
+    // A risky step asks first; the panel's dialog runs the action again with confirmed.
+    function ask(params, ctx, action, name, danger, then) {
+        if (params.confirmed === true) {
+            then();
+            return;
+        }
+        var again = { confirmed: true };
+        for (var key in params) again[key] = params[key];
+        settings.hostAction("confirm", { action: action, params: again, danger: danger,
+                                         title: ctx.t("confirm." + name + "_title"),
+                                         text: ctx.t("confirm." + name + "_text"),
+                                         confirm: ctx.t("confirm." + name + "_button") });
+    }
+
+    function setBlock(params, ctx) {
+        var state = settings.store.state;
+        if (state.blockBusy || state.updateBusy) return;
+        var apply = function () {
+            setState("blockUpdates", params.value === "on");     // shown at once, the answer confirms
+            setState("blockError", "");
+            sendUpdate("settings", { blockUpdates: params.value === "on" ? "on" : "off" });
+        };
+        if (params.value === "on") apply();
+        else ask(params, ctx, "blockUpdates", "allow_updates", true, apply);
+    }
+
+    // As LG: without the general terms the switch opens them first and writes nothing.
+    function setLgAutoUpdate(params, ctx) {
+        var write = function () {
+            if (params.value === "on" && settings.store.state.generalTermsAllowed === false) {
+                settings.launchApp({ id: "com.webos.app.firstuse-overlay",
+                                     params: { target: "eula", context: "generalTerms" } });
+                return;
+            }
+            settings.commit({ category: "support", settings: { automaticUpdate: params.value } }, null, ctx);
+            settings.flushWrite();
+        };
+        if (params.value === "on") ask(params, ctx, "lgAutoUpdate", "lg_auto_update", true, write);
+        else write();
+    }
+
+    function checkLg() {
+        if (settings.store.state.lgChecking) return;
+        setState("lgChecking", true);
+        setState("lgCheck", null);
+        luna("luna://com.webos.service.update", "/checkUpdate", { manual: true });
+        lgCheckWatch.restart();
+    }
+
+    // LG's sizes in MB: below one MB counts as one.
+    function megabytes(bytes) {
+        var value = Number(bytes || 0);
+        return value > 1048576 ? Math.floor(value / 1048576) : (value === 0 ? 0 : 1);
+    }
+
+    function applyLgStatus(response) {
+        var type = response.updateType || "";
+        var size = type === "nsu" ? response.nsuImageSize : type === "ssu" ? response.ssuImageSize :
+                   type === "usb" ? response.usbImageSize : 0;
+        setState("lgStatus", { status: response.status || "", updateType: type, size: megabytes(size),
+                               platformUpgrade: response.platformUpgrade === true });
+        var status = response.status;
+        if (!lgProgressSubscribed && (status === "in progress" || status === "ExternalChipInstall" ||
+                                      status === "completed")) {
+            lgProgressSubscribed = true;
+            luna("luna://com.webos.service.update", "/getProgress", { subscribe: true });
+        }
+    }
+
     function run(name, params, ctx) {
         if (name === "checkUpdates") {
             sendUpdate("check");
         } else if (name === "installUpdate") {
             if (!settings.store.state.updateBusy) sendUpdate("update");
+        } else if (name === "blockUpdates") {
+            setBlock(params, ctx);
+        } else if (name === "lgAutoUpdate") {
+            setLgAutoUpdate(params, ctx);
+        } else if (name === "lgUpdateCheck") {
+            checkLg();
+        } else if (name === "lgUpdateInstall") {
+            ask(params, ctx, "lgUpdateInstall", "lg_install", true, function () {
+                luna("luna://com.webos.service.update", "/startUpdate", { confirm: true });
+            });
+        } else if (name === "lgUpdateCancel") {
+            ask(params, ctx, "lgUpdateCancel", "lg_cancel", false, function () {
+                luna("luna://com.webos.service.update", "/cancelUpdate", {});
+            });
         } else if (name === "pinPrompt") {
             luna("luna://com.webos.notification", "/createPincodePrompt", { promptType: "set_match" });
         } else if (name === "resetAdId") {
@@ -400,6 +551,13 @@ Item {
     Service {
         id: service
         appId: "com.webos.app.quicksettings"
+        onError: {
+            if (method === "/checkUpdate") {
+                lgCheckWatch.stop();
+                tvData.setState("lgChecking", false);
+                tvData.setState("lgCheck", { returnValue: false });
+            }
+        }
         onResponse: {
             var response = JSON.parse(payload);
             if (method === "/getConfigs") {
@@ -446,6 +604,21 @@ Item {
                     tvData.pinCallback = null;
                     callback();
                 }
+            } else if (method === "/getSystemSettings") {
+                var eula = (response.settings || {}).eulaStatus;
+                if (eula && typeof eula.generalTermsAllowed === "boolean") {
+                    tvData.setState("generalTermsAllowed", eula.generalTermsAllowed);
+                }
+            } else if (method === "/getVersionChecked") {
+                tvData.setState("lgVersionChecked", response.returnValue === true ? response : null);
+            } else if (method === "/checkUpdate") {
+                lgCheckWatch.stop();
+                tvData.setState("lgChecking", false);
+                tvData.setState("lgCheck", response);
+            } else if (method === "/getStatus") {
+                if (response.status !== undefined) tvData.applyLgStatus(response);
+            } else if (method === "/getProgress") {
+                if (typeof response.progress === "number") tvData.setState("lgProgress", response.progress);
             } else if (method === "/resetIFA") {
                 tvData.luna("luna://com.webos.service.sm", "/deviceid/getIDs", { idType: ["IFAID"], origin: "read" });
             }

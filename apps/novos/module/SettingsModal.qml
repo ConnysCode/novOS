@@ -241,6 +241,10 @@ Item {
     onLayoutChanged: {
         growRows();
         if (focusIndex >= layout.rowY.length) focusIndex = Math.max(0, layout.rowY.length - 1);
+        // A page opened straight from a launch starts at 0, maybe before its focusable rows
+        // have their data: the focus never rests on a row that takes none.
+        var row = page.rows[focusIndex];
+        if (zone === "content" && row && !row.focusable) focusIndex = firstFocusable();
         keepVisible();
     }
 
