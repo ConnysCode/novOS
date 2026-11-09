@@ -34,10 +34,12 @@ uninstall_script() {
 mkdir -p "$OUT"
 [ -z "$(ls -A "$OUT")" ] || { echo "$OUT is not empty" >&2; exit 1; }
 
-# Files that keep values: debug switches with the blur, and the launcher's order.
+# Files that keep values: debug switches with the blur, the launcher's order, and the
+# power-off videos and pictures the user added (bin/novos-upload.py writes them there).
 state() {
     sed -e "s#/tmp/novos-debug.ini#${STATE}debug.ini#g" \
-        -e "s#/tmp/novos-launcher.ini#${STATE}launcher.ini#g"
+        -e "s#/tmp/novos-launcher.ini#${STATE}launcher.ini#g" \
+        -e "s#/tmp/novos-media/#${STATE}media/#g"
 }
 
 # The three windows LG loads from /usr/lib/qml, and our volume view in the compositor.

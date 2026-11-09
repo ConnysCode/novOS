@@ -24,6 +24,8 @@ While it runs it
 - installs between 2 and 5 at night, while the TV is not on, the version planned for
   tonight (state/update-tonight) or, with automatic updates on, what the last check
   offered. A daily check that found no connection is tried again after an hour.
+- starts bin/novos-upload.py when the settings page "Vom Handy oder Computer" left
+  "command=open" in /tmp/novos-upload/command.ini; the service ends by itself.
 - ends when the overlays are no longer mounted, for example after a test rollback.
 """
 
@@ -48,6 +50,7 @@ DISABLED = STATE + "/disabled"
 STABLE = "/tmp/novos-stable"
 EARLY_RELEASE = STATE + "/early-release"
 UPDATE = "/tmp/novos-update"
+UPLOAD = "/tmp/novos-upload"
 UPDATE_CHECKED = STATE + "/update-checked"
 UPDATE_ANNOUNCED = STATE + "/update-announced"     # the version "ist da" was shown for
 UPDATE_SHOWN = UPDATE + "/shown.json"               # progress, ready and installed, per command
@@ -356,6 +359,44 @@ class Updater:
             return True
 
 
+class Uploader:
+    """Starts bin/novos-upload.py when the page "Vom Handy oder Computer" asks for it."""
+
+    def __init__(self):
+        self.process = None
+        self.started = 0.0
+        os.makedirs(UPLOAD, exist_ok=True)
+
+    def check(self):
+        waiting = read_ini(UPLOAD + "/command.ini")
+        if waiting.get("command") != "open" or not waiting.get("serial"):
+            return
+        if self.process is not None and self.process.poll() is None:
+            return
+        if time.time() - self.started < UPDATER_RETRY:
+            return
+        try:
+            with open(UPLOAD + "/state.json") as file:
+                state = json.load(file)
+            # An answered open of a service that ended (closed or ran out) needs a new one.
+            if state.get("id") == waiting.get("serial") and not state.get("serving"):
+                return
+            if state.get("serving"):
+                os.kill(int(state.get("pid") or 0), 0)
+                return
+        except (OSError, ValueError, TypeError):
+            pass
+        self.started = time.time()
+        self.process = subprocess.Popen(["python3", PANEL + "/bin/novos-upload.py", "serve"],
+                                        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                        stderr=subprocess.DEVNULL, start_new_session=True)
+        log("upload service started for %s, pid %d" % (waiting.get("serial"), self.process.pid))
+
+    def stop(self):
+        if self.process is not None and self.process.poll() is None:
+            self.process.terminate()
+
+
 def remove(path):
     try:
         os.remove(path)
@@ -394,6 +435,7 @@ def run():
     files = targets()
     relay = Relay()
     updater = Updater()
+    uploader = Uploader()
     pid = surface_manager()
     since = time.time()
     restarts = []
@@ -444,9 +486,14 @@ def run():
                 updater.at_night(settled and counted)
             except OSError as error:
                 log("updater: %s" % error)
+            try:
+                uploader.check()
+            except OSError as error:
+                log("upload service: %s" % error)
             time.sleep(1)
     finally:
         relay.stop()
+        uploader.stop()
 
 
 def main():

@@ -475,6 +475,8 @@ function listRows(row, ctx) {
             focusable: true,
             selected: item.selected === true,
             external: item.external === true,
+            thumb: item.thumb || "",
+            preview: item.preview || null,
             row: row,
             item: item
         });
@@ -524,7 +526,7 @@ function resolvePage(store, i18n, areaId, pageId, param) {
     }
     var hero = typeof page.hero === "function" ? page.hero(ctx) : null;
     return { id: page.id, title: title, subtitle: subtitle || "", sections: sections, rows: all, hero: hero,
-             note: page.note ? ctx.t(call(page.note, ctx)) : "" };
+             note: page.note ? ctx.t(call(page.note, ctx)) : "", custom: page.custom || "" };
 }
 
 // The page of a choice: one row per visible value, the current one checked.

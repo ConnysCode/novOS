@@ -1,5 +1,4 @@
 .pragma library
-.import "ShutdownScreens.js" as ShutdownScreens
 
 // Area 06 "Oberfläche" of the settings modal. LG's part comes from "System ›
 // Zusätzliche Einstellungen" (Home settings, screen saver, pointer options); the
@@ -43,24 +42,14 @@ function powerOnOptions(ctx) {
     return options;
 }
 
-// One tile per entry of ShutdownScreens.js: name, maker and length, the picture as thumb.
-function shutdownTiles() {
-    var rows = [];
-    for (var i = 0; i < ShutdownScreens.entries.length; i++) {
-        var entry = ShutdownScreens.entries[i];
-        rows.push({ id: "shutdown:" + entry.id, type: "option", key: "novos.shutdownScreen", option: entry.id,
-                    title: "value.shutdown_screen." + entry.id, thumb: "shutdown:" + entry.id,
-                    preview: { action: "previewShutdown", params: { id: entry.id } },
-                    subtitle: (function (shown) {
-                        return function (ctx) {
-                            var seconds = Math.round(shown.duration / 1000);
-                            return ctx.t("detail.shutdown_video." + shown.source,
-                                         { length: ctx.t(seconds === 1 ? "value.second" : "value.seconds",
-                                                         { count: seconds }) });
-                        };
-                    })(entry) });
+// The tiles of Ausschalt-Video come from the host list "shutdownScreens" (SettingsData):
+// novOS' own, the user's videos and pictures, and "Video hinzufügen".
+function chosenShutdown(ctx) {
+    var list = ctx.list("shutdownScreens");
+    for (var i = 0; i < list.length; i++) {
+        if (list[i].selected) return list[i];
     }
-    return rows;
+    return null;
 }
 
 var area = {
@@ -103,7 +92,7 @@ var area = {
                 title: "section.power_off",
                 rows: [
                     { id: "shutdownVideo", type: "page", page: "shutdownVideo", title: "row.shutdown_video",
-                      value: function (ctx) { return ctx.label("novos.shutdownScreen", ctx.val("novos.shutdownScreen")); },
+                      value: function (ctx) { var chosen = chosenShutdown(ctx); return chosen ? chosen.title : ""; },
                       search: "search.shutdown_video" }
                 ]
             },
@@ -134,8 +123,10 @@ var area = {
         ]
     },
     pages: {
-        // K3-Ausschalt-2-Auswahl: tiles in three columns, the check marks the active one.
-        // OK chooses, the red key plays the preview over the whole screen (no play key on LG's remotes).
+        // K3-Ausschalt-2 and -7: tiles in three columns, the check marks the active one. OK
+        // chooses, the red key plays the preview over the whole screen (no play key on LG's
+        // remotes). The last tile adds a video (K3-Ausschalt-5). Below, sound for own videos
+        // with a sound track, shown only while one of those is chosen.
         shutdownVideo: {
             id: "shutdownVideo",
             title: "page.shutdown_video",
@@ -143,7 +134,17 @@ var area = {
                 {
                     columns: 3,
                     keys: [{ cap: "red", text: "hint.play_preview" }, { cap: "OK", text: "hint.ok_choose" }],
-                    rows: shutdownTiles()
+                    rows: [{ id: "shutdownScreens", type: "list", source: "shutdownScreens" }]
+                },
+                {
+                    rows: [
+                        { id: "shutdownSound", type: "toggle", key: "novos.shutdownSound", on: true, off: false,
+                          title: "row.shutdown_sound", subtitle: "detail.shutdown_sound", search: "search.shutdown_video",
+                          requires: function (ctx) {
+                              var chosen = chosenShutdown(ctx);
+                              return !!chosen && chosen.sound === true;
+                          } }
+                    ]
                 }
             ]
         },

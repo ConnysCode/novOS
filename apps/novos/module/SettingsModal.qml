@@ -2,6 +2,7 @@ import QtQuick 2.12
 import "."
 import "SettingsEngine.js" as Engine
 import "ListScroll.js" as ListScroll
+import "ShutdownScreens.js" as ShutdownScreens
 
 // The large settings modal of K3-Einstellungen and K3-Struktur: a side bar with search and
 // twelve areas, on the right the page of the chosen area with up to two levels below it.
@@ -433,8 +434,14 @@ Item {
         } else if (name === "resetPicture") {
             resetPicture(context);
         } else if (name === "previewShutdown") {
+            shutdownPreview.own = ShutdownScreens.ownEntries();
             shutdownPreview.screenId = params && params.id ? params.id : NovosSettings.shutdownScreen;
+            shutdownPreview.sound = NovosSettings.shutdownSound;
             shutdownPreview.play();
+        } else if (name === "chooseShutdown") {
+            tvData.writeNovos("shutdownScreen", String(params.id));
+        } else if (name === "openShutdownUpload") {
+            pushPage({ id: "shutdownUpload", title: "page.shutdown_upload", custom: "shutdownUpload", sections: [] });
         } else if (name === "applySoundToAll") {
             settingsStore.call("luna://com.webos.settingsservice", "/setSystemSettings",
                          JSON.stringify({ category: "sound", settings: { applyToAllInputSSM: "sound" } }));
@@ -622,12 +629,20 @@ Item {
         var columns = layout.rowCols[focusIndex];
         var count = layout.rowCol.length;
         var target = -1;
+        var nextLine = focusIndex - column + columns;
         if (key === Qt.Key_Up && focusIndex - columns >= 0) target = focusIndex - columns;
-        else if (key === Qt.Key_Down && focusIndex - column + columns < count) {
+        else if (key === Qt.Key_Down && nextLine < count && layout.rowCol[nextLine] === 0) {
+            // The next line of tiles, its last tile if it is shorter.
             target = Math.min(focusIndex + columns, count - 1);
+            while (layout.rowCol[target] < 0) target--;
+        } else if (key === Qt.Key_Down) {
+            // Below the last line: the first row after the tiles.
+            for (var i = focusIndex + 1; i < count && target < 0; i++) {
+                if (layout.rowCol[i] < 0 && page.rows[i].focusable) target = i;
+            }
         } else if (key === Qt.Key_Right && column < columns - 1 && focusIndex + 1 < count) target = focusIndex + 1;
         else if (key === Qt.Key_Left && column > 0) target = focusIndex - 1;
-        if (target >= 0 && layout.rowCol[target] >= 0 && page.rows[target].focusable) focusIndex = target;
+        if (target >= 0 && page.rows[target].focusable) focusIndex = target;
         else if (key === Qt.Key_Left) toSidebar();
     }
 
@@ -960,6 +975,9 @@ Item {
                 visible: settings.zone !== "content" || (settings.page.rows.length > 0 && !settings.focusOnCard)
                 unit: settings.unit
                 pressScale: settings.zone === "search" ? searchPage.focusScale : 1
+                // A tile grows on focus (OptionCard); the plate grows with it, so that its
+                // corners stay concentric with the tile's picture.
+                focusScale: settings.focusOnTile ? GlassStyle.focusScale : 1
                 radius: settings.zone === "search" ? searchPage.focusRadius : (settings.zone === "sidebar" ? (settings.sideIndex === 0 ? 26 : 22) : (settings.focusOnTile ? 28 : 26))
             }
 
@@ -1084,12 +1102,26 @@ Item {
                     x: 20 * settings.unit
                     y: (settings.listTop - settings.paneY) * settings.unit
                     width: parent.width - 40 * settings.unit
-                    visible: settings.page.rows.length === 0
+                    visible: settings.page.rows.length === 0 && !settings.page.custom
                     wrapMode: Text.WordWrap
                     text: settings.revision === 0 ? "" : I18n.t("settings", "detail.nothing_here")
                     color: settings.textSecondary
                     font.family: settings.valueFont
                     font.pixelSize: 20 * settings.unit
+                }
+
+                // A page with its own content instead of rows: the upload of power-off videos.
+                Loader {
+                    y: (settings.listTop - settings.paneY) * settings.unit
+                    width: parent.width
+                    height: settings.listHeight * settings.unit
+                    active: settings.page.custom === "shutdownUpload"
+                    sourceComponent: Component {
+                        ShutdownUpload {
+                            unit: settings.unit
+                            host: tvData     // a property named like the id would bind to itself
+                        }
+                    }
                 }
 
                 // The list scrolls under the head and fades out at an end with more.

@@ -212,7 +212,8 @@ Item {
                 ShutdownThumb {
                     anchors.fill: parent
                     unit: cell.unit
-                    screenId: String(cell.row.thumb || "").replace(/^shutdown:/, "")
+                    item: cell.row.item || ({})
+                    focused: cell.focused
                 }
 
                 MouseArea {

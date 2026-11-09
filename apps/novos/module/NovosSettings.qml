@@ -10,6 +10,7 @@ QtObject {
     property alias hideInputBanner: values.hideInputBanner
     property alias demoDevices: values.demoDevices
     property alias shutdownScreen: values.shutdownScreen
+    property alias shutdownSound: values.shutdownSound
 
     // LG's Home starts its preview with this role, and its input apps then leave out their
     // banner. It lasts until the next launch of that input, and touches a few of LG's
@@ -30,5 +31,7 @@ QtObject {
         // An id of ShutdownScreens.js. The overlay of LG's MasterBrand.qml reads the line
         // "shutdownScreen=<id>" from this file at power off.
         property string shutdownScreen: "lg"
+        // Own videos play their sound track, if they have one ("shutdownSound=false" turns it off).
+        property bool shutdownSound: true
     }
 }

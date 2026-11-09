@@ -4,6 +4,7 @@ import Qt.labs.settings 1.0
 import WebOSServices 1.0
 import "."
 import "SourceList.js" as SourceList
+import "ShutdownScreens.js" as ShutdownScreens
 
 // Lists, facts and actions of the settings modal that are more than one settings key.
 // Every Luna call here is the one LG's own settings app makes (docs/lg-settings and the
@@ -137,6 +138,8 @@ Item {
         settings.store.values.novos.hideInputBanner = NovosSettings.hideInputBanner;
         settings.store.values.novos.keyboardMode = GlassStyle.keyboardMode;
         settings.store.values.novos.shutdownScreen = NovosSettings.shutdownScreen;
+        settings.store.values.novos.shutdownSound = NovosSettings.shutdownSound;
+        settings.store.lists.shutdownScreens = shutdownTiles();
         settings.store.values.novos.updateChannel = settings.store.state.updateChannel || "stable";
         settings.store.values.novos.betaChannel = settings.store.state.updateChannel === "beta";
         settings.store.values.novos.autoUpdate = settings.store.state.autoUpdate === true;
@@ -147,6 +150,7 @@ Item {
         if (name === "hideInputBanner") NovosSettings.hideInputBanner = value === true || value === "on";
         else if (name === "keyboardMode") GlassStyle.keyboardMode = String(value);
         else if (name === "shutdownScreen") NovosSettings.shutdownScreen = String(value);
+        else if (name === "shutdownSound") NovosSettings.shutdownSound = value === true || value === "on";
         else if (name === "updateChannel" || name === "betaChannel") {
             // The updater stores it; a check of the new channel follows its answer.
             var channel = name === "betaChannel" ? (value === true || value === "on" ? "beta" : "stable") : String(value);
@@ -163,6 +167,42 @@ Item {
     }
 
     Component.onCompleted: readNovos()
+
+    // The tiles of Oberfläche › Ausschalt-Video: novOS' own entries, the user's videos and
+    // pictures from the media folder, and "Video hinzufügen". OK chooses, red plays.
+    function shutdownTiles() {
+        var t = function (key, params) { return I18n.t("settings_interface", key, params); };
+        var seconds = function (ms) {
+            var count = Math.max(1, Math.round(ms / 1000));
+            return count === 1 ? t("value.second") : t("value.seconds", { count: count });
+        };
+        var tiles = [];
+        var add = function (entry, title, subtitle) {
+            tiles.push({ id: entry.id, title: title, subtitle: subtitle, kind: entry.kind,
+                         file: entry.file || "", still: entry.still || "", sound: entry.sound === true,
+                         selected: NovosSettings.shutdownScreen === entry.id, thumb: "shutdown",
+                         action: "chooseShutdown", params: { id: entry.id },
+                         preview: { action: "previewShutdown", params: { id: entry.id } } });
+        };
+        for (var i = 0; i < ShutdownScreens.entries.length; i++) {
+            var builtIn = ShutdownScreens.entries[i];
+            add(builtIn, t("value.shutdown_screen." + builtIn.id),
+                t("detail.shutdown_video." + (builtIn.id === "lg" ? "lg" : "novos"), { length: seconds(builtIn.duration) }));
+        }
+        var own = ShutdownScreens.ownEntries();
+        for (var j = 0; j < own.length; j++) {
+            add(own[j], own[j].name, t("detail.shutdown_video." + own[j].kind, { length: seconds(own[j].length) }));
+        }
+        tiles.push({ id: "add", title: t("row.shutdown_add"), subtitle: t("detail.shutdown_add"), kind: "add",
+                     thumb: "shutdown", action: "openShutdownUpload", params: {} });
+        return tiles;
+    }
+
+    // After an upload or a choice: the tiles anew from the media folder.
+    function refreshShutdown() {
+        settings.store.lists.shutdownScreens = shutdownTiles();
+        settings.changed();
+    }
 
     // LG's own PIN prompt; the PIN itself never reaches this window.
     function askPin(kind, callback) {

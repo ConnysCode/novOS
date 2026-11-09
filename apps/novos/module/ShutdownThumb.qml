@@ -1,20 +1,23 @@
 import QtQuick 2.12
+import QtGraphicalEffects 1.0
 import "."
-import "ShutdownScreens.js" as ShutdownScreens
 
-// The picture on a tile of Oberfläche › Ausschalt-Video (K3-Ausschalt-2): what the entry
-// shows in the middle of its run, small, with rounded corners.
+// The picture on a tile of Oberfläche › Ausschalt-Video (K3-Ausschalt-2 and -7): what the
+// entry shows in the middle of its run, small, with rounded corners. item is the entry of
+// the host list "shutdownScreens" (SettingsData): kind, and for own entries file and still.
+//   "add"   the last tile, "Video hinzufügen": a ring with a plus
 Item {
     id: thumb
 
     property real unit: 1
-    property string screenId: ""
-    readonly property var entry: ShutdownScreens.entry(screenId)
+    property var item: ({})
+    property bool focused: false
+    readonly property string kind: item && item.kind ? item.kind : ""
 
     // The boot look: light and wordmark, larger than on the screen so that it reads.
     BootGlow {
         anchors.fill: parent
-        visible: thumb.entry.kind === "glow"
+        visible: thumb.kind === "glow"
         radius: 20 * thumb.unit
         spread: 1780
         strength: 1.15
@@ -22,26 +25,79 @@ Item {
 
     Wordmark {
         anchors.centerIn: parent
-        visible: thumb.entry.kind === "glow"
+        visible: thumb.kind === "glow"
         unit: thumb.unit
         size: 30
         opacity: 0.6
     }
 
-    // LG's logo on black, from LG's own folder.
+    // LG's logo, and own pictures and videos, on black.
     Rectangle {
+        id: plate
         anchors.fill: parent
-        visible: thumb.entry.kind === "lg"
+        visible: thumb.kind === "lg" || thumb.kind === "video" || thumb.kind === "image"
         radius: 20 * thumb.unit
         color: "#000000"
 
         Image {
             anchors.centerIn: parent
+            visible: thumb.kind === "lg"
             width: 120 * thumb.unit
             height: width
             fillMode: Image.PreserveAspectFit
             smooth: true
-            source: parent.visible ? "file:///usr/lib/qml/MasterBrand/LG_logo_2k.png" : ""
+            source: visible ? "file:///usr/lib/qml/MasterBrand/LG_logo_2k.png" : ""
+        }
+
+        // The page that sent a video made a still of it; without one the tile shows a
+        // play symbol.
+        Image {
+            id: picture
+            anchors.fill: parent
+            visible: false
+            fillMode: Image.PreserveAspectCrop
+            sourceSize: Qt.size(640, 360)
+            asynchronous: true
+            cache: false
+            source: thumb.kind === "image" ? "file://" + thumb.item.file :
+                    (thumb.kind === "video" && thumb.item.still ? "file://" + thumb.item.still : "")
+        }
+
+        Rectangle {
+            id: corners
+            anchors.fill: parent
+            radius: plate.radius
+            visible: false
+        }
+
+        OpacityMask {
+            anchors.fill: parent
+            visible: picture.status === Image.Ready
+            source: picture
+            maskSource: corners
+        }
+
+        Image {
+            anchors.centerIn: parent
+            visible: thumb.kind === "video" && picture.status !== Image.Ready
+            source: visible ? Qt.resolvedUrl("icons/play-18.png") : ""
+        }
+    }
+
+    // "Video hinzufügen": a ring and a plus, dark on the focus surface.
+    Rectangle {
+        anchors.fill: parent
+        visible: thumb.kind === "add"
+        radius: 20 * thumb.unit
+        color: "#00ffffff"
+        border.width: 2 * thumb.unit
+        border.color: thumb.focused ? "#400b0c10" : "#47ffffff"
+
+        Image {
+            anchors.centerIn: parent
+            width: 40 * thumb.unit
+            height: width
+            source: Qt.resolvedUrl(thumb.focused ? "icons/plus-28-dark.png" : "icons/plus-28.png")
         }
     }
 }

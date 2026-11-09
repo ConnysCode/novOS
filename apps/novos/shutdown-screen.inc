@@ -3,23 +3,28 @@
     // before the standby and waits for responseOffLogoRequest(true). The entry chosen
     // under Oberfläche › Ausschalten (NovosSettings.shutdownScreen) decides:
     //   "lg", the default, or anything unknown: LG's own animation above, unchanged.
-    //   any other entry of ShutdownScreens.js: module/ShutdownScreen.qml plays it and the
-    //   answer goes out once it is black, so the length follows the entry (a video its
-    //   running time). If our file does not load, LG's animation runs after all.
+    //   any other entry of ShutdownScreens.js, the user's own videos and pictures too:
+    //   module/ShutdownScreen.qml plays it, with sound where the video has a sound track,
+    //   and the answer goes out once it is black, so the length follows the entry (a video
+    //   its running time). If our file does not load, LG's animation runs after all.
     // build-release.sh fills in the release folder and the settings file.
     property bool novosShutdownStarted: false
     property bool novosShutdownAnswered: false
 
-    function novosShutdownChoice() {
+    function novosSetting(name, fallback) {
         try {
             var request = new XMLHttpRequest();
             request.open("GET", "file:///tmp/novos-debug.ini", false);
             request.send();
-            var match = /^shutdownScreen=([A-Za-z0-9_-]+)\s*$/m.exec(request.responseText);
-            return match ? match[1] : "lg";
+            var match = new RegExp("^" + name + "=([A-Za-z0-9_-]+)\\s*$", "m").exec(request.responseText);
+            return match ? match[1] : fallback;
         } catch (error) {
-            return "lg";
+            return fallback;
         }
+    }
+
+    function novosShutdownChoice() {
+        return novosSetting("shutdownScreen", "lg");
     }
 
     function novosStartLogo() {
@@ -61,6 +66,8 @@
         onLoaded: {
             item.unit = root.width / 1920;
             item.screenId = root.novosShutdownChosen;
+            // Own videos play their sound track unless the settings turned it off.
+            item.sound = root.novosSetting("shutdownSound", "true") !== "false";
             // An id the release does not know falls back to LG's picture: LG's own file draws it.
             if (item.kind === "lg") {
                 root.novosShutdownFailed();

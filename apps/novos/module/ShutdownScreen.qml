@@ -9,16 +9,23 @@ import "ShutdownScreens.js" as ShutdownScreens
 //           breathing, then both to black.
 //   "lg"    LG's logo with LG's own times from MasterBrand.qml. Only the preview draws
 //           it: at power off LG's file runs unchanged for this entry.
+//   "video" a video the user added: in from the picture, played for its length (at most
+//           15 s), with sound if it has a sound track and sound is on, then to black.
+//   "image" a picture the user added, the same way for its length.
 Item {
     id: screen
 
     property real unit: 1
     property string screenId: ShutdownScreens.fallback
-    readonly property var entry: ShutdownScreens.entry(screenId)
+    property bool sound: true             // NovosSettings.shutdownSound
+    property var own: ShutdownScreens.ownEntries()
+    readonly property var entry: ShutdownScreens.entry(screenId, own)
     readonly property string kind: entry.kind
 
     // How long the whole run takes, in ms, from the entry. The power service waits this long.
-    readonly property int duration: kind === "lg" ? lgFade + lgShow + lgHide : entry.duration
+    readonly property int duration: kind === "lg" ? lgFade + lgShow + lgHide :
+                                    kind === "glow" ? entry.duration :
+                                    GlassStyle.shutdownInDuration + entry.length + GlassStyle.shutdownOutDuration
     readonly property int hold: Math.max(0, duration - GlassStyle.shutdownInDuration -
                                             GlassStyle.shutdownOutDuration)
     readonly property bool running: glowRun.running || lgRun.running
@@ -41,11 +48,13 @@ Item {
         stop();
         if (kind === "lg") lgRun.start();
         else glowRun.start();
+        if (kind === "video" && video.item) video.item.play();
     }
 
     function stop() {
         glowRun.stop();
         lgRun.stop();
+        if (video.item) video.item.stop();
         cover = 0;
         look = 0;
     }
@@ -95,6 +104,32 @@ Item {
         opacity: screen.look
     }
 
+    // The user's own picture, whole on black.
+    Image {
+        anchors.fill: parent
+        visible: screen.kind === "image"
+        source: visible ? "file://" + screen.entry.file : ""
+        sourceSize: Qt.size(1920, 1080)
+        fillMode: Image.PreserveAspectFit
+        asynchronous: false
+        opacity: screen.look
+    }
+
+    // The user's own video; it fades in and out with the look.
+    Loader {
+        id: video
+        anchors.fill: parent
+        active: screen.kind === "video"
+        opacity: screen.look
+        sourceComponent: Component {
+            ShutdownVideo {
+                source: "file://" + screen.entry.file
+                sound: screen.sound && screen.entry.sound === true
+                volume: screen.look        // the sound fades with the picture
+            }
+        }
+    }
+
     SequentialAnimation {
         id: glowRun
 
@@ -112,7 +147,12 @@ Item {
             to: 0
             duration: GlassStyle.shutdownOutDuration
         }
-        ScriptAction { script: screen.finished() }
+        ScriptAction {
+            script: {
+                if (video.item) video.item.stop();
+                screen.finished();
+            }
+        }
     }
 
     SequentialAnimation {
