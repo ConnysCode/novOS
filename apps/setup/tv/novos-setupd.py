@@ -890,14 +890,16 @@ def put_back(report, target):
 
 def rollback(report):
     """Back to the release before the last update, with the user data it had then."""
-    with single_run():
+    with single_run(), KeepLgHidden() as hidden:
         current = current_release()
         target = rollback_target()
         if not target:
             raise SetupError("there is no way back to an earlier version")
         was_running = running()
         if was_running:
-            run_script(report, "novos-stop.sh", "--no-restart")
+            # LG's Home stays covered while the release is swapped, as in install().
+            hidden.stopped = True
+            run_script(report, "novos-stop.sh", "--no-restart", "--keep-hidden")
             if running():
                 raise SetupError("novOS still runs after the stop, nothing was changed")
         put_back(report, target)

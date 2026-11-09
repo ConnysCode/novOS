@@ -297,7 +297,7 @@ class SetupdTest(unittest.TestCase):
         code, lines = self.run_setupd("rollback")
         self.assertEqual(code, 0, lines)
         self.assertEqual(self.current(), "1.0.0")
-        self.assertEqual(self.calls()[-2:], ["stop --no-restart", "start manual restore=1"])
+        self.assertEqual(self.calls()[-2:], ["stop --no-restart --keep-hidden", "start manual restore=1"])
         self.assertEqual(self.read_state("debug.ini"), "[General]\nkeyboardMode=t9\n")
         self.assertEqual(sorted(os.listdir(self.path("/var/lib/novos/state/media"))), ["a1"])
         self.assertEqual(self.read_state("media/a1/video.mp4"), "old video")
