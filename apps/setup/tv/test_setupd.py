@@ -582,6 +582,86 @@ class SetupdTest(unittest.TestCase):
         self.setupd.serve(folder, "", "app", 1, None, True, True)
         self.assertEqual(len(self.calls()), calls)
 
+    def bridge_run(self, folder, text):
+        """One command through the bridge as novOS' settings send it; returns state.json."""
+        with open(os.path.join(folder, "command.ini"), "w") as handle:
+            handle.write("[General]\n" + text)
+        bridge = self.setupd.Bridge(folder, "", "app", None, True)
+        command = self.setupd.read_ini(os.path.join(folder, "command.ini"))
+        answered = bridge.run(command)
+        with open(os.path.join(folder, "state.json")) as handle:
+            state = json.load(handle)
+        self.assertEqual(state["id"], answered)
+        return state
+
+    def test_download_first_then_install(self):
+        folder = os.path.join(self.sandbox, "update")
+        os.makedirs(folder)
+        self.run_setupd("install", self.publish("1.0.0"), "--start")
+        self.publish("1.1.0", channel="stable")
+        state = self.bridge_run(folder, "command=check\nserial=c\n")
+        self.assertFalse(state["result"]["check"]["downloaded"])
+        state = self.bridge_run(folder, "command=download\nserial=d\n")
+        self.assertEqual(state["result"]["downloaded"], "1.1.0")
+        self.assertEqual((state["bytes"], state["total"]), (state["total"], os.path.getsize(
+            os.path.join(self.server, "novos-1.1.0.tar.xz"))))
+        self.assertEqual(self.current(), "1.0.0")
+        with open(self.path("/var/lib/novos/state/last-check.json")) as handle:
+            self.assertTrue(json.load(handle)["downloaded"])
+        state = self.bridge_run(folder, "command=update\nserial=u\n")
+        self.assertEqual(state["phase"], "done", state)
+        self.assertEqual(self.current(), "1.1.0")
+        messages = [step["message"] for step in state["steps"]]
+        self.assertIn("novOS 1.1.0 was downloaded already", messages)
+        self.assertFalse(any(m.startswith("downloading") for m in messages))
+
+    def test_cancel_a_download(self):
+        folder = os.path.join(self.sandbox, "update")
+        os.makedirs(folder)
+        self.run_setupd("install", self.publish("1.0.0"), "--start")
+        self.publish("1.1.0", channel="stable")
+        bridge = self.setupd.Bridge(folder, "", "app", None, True)
+        with open(os.path.join(folder, "command.ini"), "w") as handle:
+            handle.write("[General]\ncommand=cancel\nserial=x\n")       # arrives during the download
+        answered = bridge.run({"command": "download", "serial": "d"})
+        self.assertEqual(answered, "x")
+        self.assertEqual((bridge.state["command"], bridge.state["phase"]), ("cancel", "done"))
+        self.assertFalse(os.path.exists(self.path("/var/lib/novos/downloads/1.1.0")))
+        self.assertEqual(self.current(), "1.0.0")
+
+    def test_versions_restore_and_tonight(self):
+        folder = os.path.join(self.sandbox, "update")
+        os.makedirs(folder)
+        urls = {}
+        for version in ("1.0.0", "1.1.0", "1.2.0"):
+            urls[version] = self.publish(version)
+            manifest = urls[version][len("file://"):]
+            index = os.path.join(self.server, "novos", "releases.json")
+            os.makedirs(os.path.dirname(index), exist_ok=True)
+            self.call_release(["index", manifest, "--manifest-url", urls[version],
+                               "--signature-url", urls[version] + ".sig", "--keep", index], index + ".new")
+            os.replace(index + ".new", index)
+        self.run_setupd("install", urls["1.1.0"], "--start")
+        self.run_setupd("install", urls["1.2.0"])
+        state = self.bridge_run(folder, "command=versions\nserial=v\n")
+        result = state["result"]
+        self.assertEqual([item["version"] for item in result["versions"]], ["1.2.0", "1.1.0", "1.0.0"])
+        self.assertEqual((result["installed"], result["kept"]), ("1.2.0", ["1.1.0"]))
+        # The kept release: back at once, without a download.
+        state = self.bridge_run(folder, "command=restore\nserial=r1\nversion=1.1.0\n")
+        self.assertEqual(state["phase"], "done", state)
+        self.assertEqual(self.current(), "1.1.0")
+        # An older one from its signed release, as a downgrade.
+        state = self.bridge_run(folder, "command=restore\nserial=r2\nversion=1.0.0\nmanifest=%s\n" % urls["1.0.0"])
+        self.assertEqual(state["phase"], "done", state)
+        self.assertEqual(self.current(), "1.0.0")
+        self.assertEqual(self.calls()[-1], "start manual restore=1")
+        state = self.bridge_run(folder, "command=tonight\nserial=t\nversion=1.2.0\n")
+        with open(self.path("/var/lib/novos/state/update-tonight")) as handle:
+            self.assertEqual(handle.read().strip(), "1.2.0")
+        self.bridge_run(folder, "command=tonight\nserial=t2\nversion=\n")
+        self.assertFalse(os.path.exists(self.path("/var/lib/novos/state/update-tonight")))
+
     def test_uninstall(self):
         self.run_setupd("install", self.publish("1.0.0"))
         code, lines = self.run_setupd("uninstall", "--keep-state")

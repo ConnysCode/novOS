@@ -21,6 +21,12 @@ init-hook.sh and novos-uninstall.sh.
     novos-setupd.py serve --dir <folder> [--window <url>] [--app <id>] [--idle <seconds>]
                           [--channel stable|beta] [--in-novos] [--pending]
 
+serve also runs what only windows ask for: download (fetch without installing; a later
+install takes the download), cancel (ends a running download), versions (releases.json,
+every published version with its notes), restore (back to a given version, the kept
+previous release without a download) and tonight (the version the supervisor installs
+between 2 and 5 at night, or none).
+
 settings stores the setup's choices: the keyboard novOS starts with, whether novOS updates
 itself at night (used from step 6 of the plan on) and whether LG's system updates are
 blocked. The block is the Homebrew Channel's own: its flag file makes its startup.sh point
@@ -96,6 +102,10 @@ OVERLAY_ROOTS = ("/usr/lib/qml/", "/usr/palm/applications/com.palm.app.settings/
 
 class SetupError(Exception):
     pass
+
+
+class Cancelled(SetupError):
+    """A window asked to stop a download."""
 
 
 class Reporter:
@@ -379,7 +389,8 @@ def check(report, source):
     current = current_release()
     found = {"available": manifest["version"], "installed": current or None, "size": manifest["archive"]["size"],
              "published": manifest.get("published", ""), "channel": source if source in ("stable", "beta") else None,
-             "checked": int(time.time())}
+             "checked": int(time.time()), "restarts": manifest.get("restarts"), "notes": manifest.get("notes"),
+             "downloaded": downloaded(manifest)}
     if manifest["version"] == current:
         found.update(newer=False, problems=[])
         remember_check(found)
@@ -403,6 +414,18 @@ def remember_check(found):
         write_file(STATE + "/last-check.json", json.dumps(found, ensure_ascii=False) + "\n")
 
 
+def settle_download(version):
+    """The remembered answer notes that its release lies ready."""
+    try:
+        with open(STATE + "/last-check.json") as handle:
+            found = json.load(handle)
+    except (OSError, ValueError):
+        return
+    if found.get("available") == version:
+        found["downloaded"] = True
+        remember_check(found)
+
+
 def settle_check(installed):
     """After an install the remembered answer names the new release as installed."""
     try:
@@ -413,6 +436,10 @@ def settle_check(installed):
     if found.get("available") == installed:
         found.update(installed=installed, newer=False, problems=[])
         remember_check(found)
+    # A planned night install of this version is done.
+    if read_setting("update-tonight") == installed:
+        with contextlib.suppress(OSError):
+            os.remove(STATE + "/update-tonight")
 
 
 def is_newer(version, installed):
@@ -471,6 +498,16 @@ def fetch(report, source):
     os.makedirs(partial)
     report.step("reading %s" % source, key="manifest")
     manifest = fetch_manifest(source, partial)
+    if downloaded(manifest):
+        # Fetched before (the settings load first and install later): the same signed archive.
+        folder = os.path.join(DOWNLOADS, manifest["version"])
+        for name in ("manifest.json", "manifest.json.sig"):
+            os.replace(os.path.join(partial, name), os.path.join(folder, name))
+        shutil.rmtree(partial, ignore_errors=True)
+        report.step("novOS %s was downloaded already" % manifest["version"], key="download",
+                    size=manifest["archive"]["size"])
+        report.step("signature and archive of novOS %s are right" % manifest["version"], key="verify")
+        return folder, manifest
     archive = os.path.join(partial, manifest["archive"]["name"])
     report.step("downloading novOS %s (%d MB)" % (manifest["version"], manifest["archive"]["size"] // 1000000),
                 key="download", size=manifest["archive"]["size"])
@@ -484,6 +521,63 @@ def fetch(report, source):
         if name not in (manifest["version"], ".check"):
             shutil.rmtree(os.path.join(DOWNLOADS, name), ignore_errors=True)
     return folder, manifest
+
+
+def downloaded(manifest):
+    """Whether downloads/<version> holds this manifest's archive, checked again."""
+    archive = os.path.join(DOWNLOADS, manifest["version"], manifest["archive"]["name"])
+    if not os.path.isfile(archive):
+        return False
+    try:
+        release.check_archive(manifest, archive)
+    except (release.ReleaseError, OSError):
+        return False
+    return True
+
+
+def versions(report):
+    """Every published version (releases.json, not signed: display only) and what lies here."""
+    folder = os.path.join(DOWNLOADS, ".versions")
+    shutil.rmtree(folder, ignore_errors=True)
+    os.makedirs(folder)
+    try:
+        path = os.path.join(folder, "releases.json")
+        release.download("%s/novos/releases.json" % release.PAGES, path)
+        with open(path) as handle:
+            listed = json.load(handle).get("releases", [])
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+    current = current_release()
+    kept = [name for name in installed_releases() if name != current]
+    report.result("%d versions published" % len(listed), versions=listed, installed=current, kept=kept)
+
+
+def restore(report, version, source, **options):
+    """Back to an earlier version: the kept previous release at once, else its signed release."""
+    if not version_or_none(version):
+        raise SetupError("not a version: %r" % version)
+    if version == current_release():
+        raise SetupError("novOS %s is installed already" % version)
+    if version in installed_releases():
+        rollback(report, target=version)
+        return
+    if not source:
+        raise SetupError("novOS %s is not here and no manifest was named" % version)
+    install(report, source, allow_downgrade=True, start=True, **options)
+
+
+def plan_tonight(report, version):
+    """The version the supervisor installs at night (state/update-tonight); empty: none."""
+    os.makedirs(STATE, exist_ok=True)
+    path = STATE + "/update-tonight"
+    if version:
+        if not version_or_none(version):
+            raise SetupError("not a version: %r" % version)
+        write_file(path, version + "\n")
+    elif os.path.exists(path):
+        os.remove(path)
+    sync()
+    report.result("tonight: %s" % (version or "nothing"), tonight=version or None)
 
 
 def download_with_progress(report, url, path, total):
@@ -681,13 +775,16 @@ def switch_to(report, version):
     report.step("current -> releases/%s (before: %s)" % (version, previous or "nothing"), key="switch")
 
 
-def rollback(report):
+def rollback(report, target=None):
     with single_run():
         current = current_release()
         others = [name for name in installed_releases() if name != current]
         if not others:
             raise SetupError("there is no release to go back to")
-        target = others[-1]
+        if target is None:
+            target = others[-1]
+        elif target not in others:
+            raise SetupError("novOS %s is not kept here" % target)
         was_running = running()
         if was_running:
             run_script(report, "novos-stop.sh", "--no-restart")
@@ -954,8 +1051,10 @@ class Bridge:
         self.state = {"serving": True, "pid": os.getpid(), "id": "", "command": "", "phase": "idle", "busy": False,
                       "stage": "", "percent": 0, "steps": [], "result": None, "error": None, "errorKind": None,
                       "choices": current_choices(), "tv": {} if in_novos else tv_facts(),
-                      "channel": channel or default_source(), "installed": current_release(), "updated": time.time()}
+                      "channel": channel or default_source(), "installed": current_release(), "updated": time.time(),
+                      "bytes": 0, "total": 0, "eta": None}
         self.last_written = 0.0
+        self.download_started = 0.0
 
     def write(self, force=True):
         now = time.time()
@@ -972,10 +1071,19 @@ class Bridge:
             if key and self.state["phase"] != "done":
                 self.state["stage"] = key
                 self.state["percent"] = self.stage_start(key)
+            if key == "download":
+                self.download_started = time.time()
+                self.state.update(bytes=0, total=fields.get("size", 0), eta=None)
             self.write()
         elif event == "progress":
+            self.check_cancel()
             span = dict(STAGES).get(self.state["stage"], 0)
             self.state["percent"] = self.stage_start(self.state["stage"]) + span * fields.get("percent", 0) // 100
+            done, total = fields.get("done", 0), fields.get("total", 0)
+            elapsed = time.time() - self.download_started
+            # The rest at the rate so far, once there is a rate to speak of.
+            rate = done / elapsed if elapsed > 2 and done > 0 else 0
+            self.state.update(bytes=done, total=total, eta=int((total - done) / rate) if rate else None)
             self.write(force=False)
         elif event == "result":
             self.state["result"] = {k: v for k, v in fields.items() if k not in ("event", "message")}
@@ -994,6 +1102,13 @@ class Bridge:
             total += span
         return 0
 
+    def check_cancel(self):
+        """A download asked to stop: the window wrote "cancel" with a serial of its own."""
+        command = read_ini(self.command_path)
+        if command.get("command") == "cancel" and command_serial(command) not in ("", self.state["id"]):
+            self.cancel_serial = command_serial(command)
+            raise Cancelled("cancelled")
+
     def restarting(self):
         self.state["phase"] = "restarting"
         self.write()
@@ -1009,6 +1124,8 @@ class Bridge:
                  {"appId": self.app, "main": self.window, "params": {"setup": "reopened"}})
 
     def run(self, command):
+        """Runs one command; returns the serial it answered (a cancel answers in its place)."""
+        self.cancel_serial = None
         name = command.get("command", "")
         self.state.update(id=command_serial(command), command=name, phase="running", stage="", percent=0,
                           steps=[], result=None, error=None, errorKind=None, busy=True)
@@ -1035,6 +1152,20 @@ class Bridge:
                 result = apply_choices(report, command.get("keyboard") or None, command.get("autoUpdate") or None,
                                        command.get("blockUpdates") or None)
                 report.result("settings stored", choices=result)
+            elif name == "download":
+                with single_run():
+                    folder, manifest = fetch(report, source)
+                settle_download(manifest["version"])
+                report.result("novOS %s is downloaded" % manifest["version"], downloaded=manifest["version"])
+            elif name == "cancel":
+                report.result("nothing to cancel")
+            elif name == "versions":
+                versions(report)
+            elif name == "restore":
+                restore(report, command.get("version", ""), command.get("manifest", ""),
+                        before_start=self.restarting, after_start=self.reopen, stay_dark=not self.in_novos)
+            elif name == "tonight":
+                plan_tonight(report, command.get("version", ""))
             elif name == "rollback":
                 rollback(report)
             elif name == "uninstall":
@@ -1045,6 +1176,10 @@ class Bridge:
             else:
                 raise SetupError("unknown command %r" % name)
             self.state["phase"] = "done"
+        except Cancelled:
+            # The cancel is the answer: the window waits for its serial.
+            self.state.update(id=self.cancel_serial, command="cancel", phase="done", stage="", percent=0,
+                              result={"cancelled": name, "message": "cancelled"}, eta=None)
         except (SetupError, release.ReleaseError, OSError, ValueError, KeyError) as error:
             self.state["phase"] = "error"
             self.state["error"] = str(error)
@@ -1053,6 +1188,7 @@ class Bridge:
         self.state["installed"] = current_release()
         self.state["busy"] = False
         self.write()
+        return self.state["id"]
 
 
 def command_serial(command):
@@ -1098,7 +1234,7 @@ def serve(folder, window, app, idle, channel=None, in_novos=False, pending=False
                     with contextlib.suppress(OSError):
                         luna("luna://com.webos.service.systemUIManager/launch", {"appId": "com.webos.app.store-streamer"})
                 break
-            bridge.run(command)
+            last_id = bridge.run(command)
             last_activity = time.time()
         if idle and time.time() - last_activity > idle:
             break

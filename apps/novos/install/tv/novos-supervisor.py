@@ -19,7 +19,11 @@ While it runs it
   interface ran stable, leaves a check there itself.
 - has the source window show novOS' update notices: "novOS X ist da" once per version
   after a daily check, the progress pill while an update runs and the settings are
-  closed, and "novOS X ist installiert" once after the restart into the new release.
+  closed, "novOS X ist bereit" once a download from the settings is through, and
+  "novOS X ist installiert" once after the restart into the new release.
+- installs between 2 and 5 at night, while the TV is not on, the version planned for
+  tonight (state/update-tonight) or, with automatic updates on, what the last check
+  offered. A daily check that found no connection is tried again after an hour.
 - ends when the overlays are no longer mounted, for example after a test rollback.
 """
 
@@ -46,7 +50,10 @@ EARLY_RELEASE = STATE + "/early-release"
 UPDATE = "/tmp/novos-update"
 UPDATE_CHECKED = STATE + "/update-checked"
 UPDATE_ANNOUNCED = STATE + "/update-announced"     # the version "ist da" was shown for
-UPDATE_SHOWN = UPDATE + "/shown.json"               # progress and installed, per command
+UPDATE_SHOWN = UPDATE + "/shown.json"               # progress, ready and installed, per command
+UPDATE_TONIGHT = STATE + "/update-tonight"          # the version to install at night
+AUTO_UPDATE = STATE + "/auto-update"                # "on": install offered updates at night
+LAST_CHECK = STATE + "/last-check.json"
 SYSTEM_UI_LAUNCH = "luna://com.webos.service.systemUIManager/launch"
 
 STABLE_SECONDS = 120
@@ -58,6 +65,8 @@ RELAY_DELAY = 2
 BEAT_TIMEOUT = 5
 UPDATER_RETRY = 15
 NOTICE_DELAY = 8          # seconds of a running surface-manager before a notice
+RETRY_OFFLINE = 3600      # a daily check without connection is tried again after this
+NIGHT_HOURS = (2, 5)      # local time, from 2:00 to 4:59
 CHECK_EVERY = 24 * 3600
 
 
@@ -207,6 +216,8 @@ class Updater:
     def __init__(self):
         self.process = None
         self.started = 0.0
+        self.night = ""           # the date of the night install asked for
+        self.retried = ""         # the failed daily check already moved to an hour later
         os.makedirs(UPDATE, exist_ok=True)
 
     def answering(self):
@@ -269,6 +280,19 @@ class Updater:
             if shown.get("progress") != serial and not settings_open:
                 self.show({"novosProgress": True})
                 shown["progress"] = serial
+        elif command == "download" and state.get("phase") == "done" and result.get("downloaded"):
+            settings_open = read_ini(UPDATE + "/ui.ini").get("settingsOpen") == "true"
+            if shown.get("ready") != serial and not settings_open:
+                self.show({"notice": True, "novos": "ready", "version": result["downloaded"],
+                           "restarts": found.get("restarts") or 1})
+                shown["ready"] = serial
+        elif command == "check" and serial.startswith("auto-") and state.get("phase") == "error" and \
+                state.get("errorKind") == "offline" and self.retried != serial:
+            # No connection at the daily check: again in an hour instead of tomorrow.
+            self.retried = serial
+            stamp = time.time() - CHECK_EVERY + RETRY_OFFLINE
+            os.utime(UPDATE_CHECKED, (stamp, stamp))
+            log("daily check without connection, again in an hour")
         elif command == "update" and state.get("phase") == "done" and result.get("installed"):
             if shown.get("installed") != serial and \
                     result["installed"] == os.path.basename(os.path.realpath(PANEL)):
@@ -287,6 +311,37 @@ class Updater:
                 write_text(UPDATE_ANNOUNCED, found.get("available", "") + "\n")
         if shown != before:
             write_text(UPDATE_SHOWN, json.dumps(shown))
+
+    def at_night(self, settled):
+        """Between 2 and 5 at night, with the TV not on: the planned or offered update."""
+        now = time.localtime()
+        today = time.strftime("%Y-%m-%d", now)
+        if not settled or not NIGHT_HOURS[0] <= now.tm_hour < NIGHT_HOURS[1] or self.night == today:
+            return
+        try:
+            with open(UPDATE_TONIGHT) as file:
+                planned = file.read().strip()
+        except OSError:
+            planned = ""
+        offered = ""
+        try:
+            with open(AUTO_UPDATE) as file:
+                automatic = file.read().strip() == "on"
+            with open(LAST_CHECK) as file:
+                found = json.load(file)
+            if automatic and found.get("newer") and not found.get("problems"):
+                offered = found.get("available", "")
+        except (OSError, ValueError):
+            pass
+        current = os.path.basename(os.path.realpath(PANEL))
+        if not (planned or offered) or (planned or offered) == current:
+            return
+        power = luna("luna://com.webos.service.tvpower/power/getPowerState", {}).get("state", "")
+        if power in ("", "Active"):
+            return            # someone watches, or the question failed: not now
+        self.night = today
+        write_text(UPDATE + "/command.ini", "[General]\ncommand=update\nserial=night-%d\n" % time.time())
+        log("night update of %s asked for, TV %s" % (planned or offered, power))
 
     @staticmethod
     def show(params):
@@ -384,7 +439,9 @@ def run():
             grow_video()
             try:
                 updater.check(counted)
-                updater.announce(bool(pid) and time.time() - since >= NOTICE_DELAY and relay.alive())
+                settled = bool(pid) and time.time() - since >= NOTICE_DELAY and relay.alive()
+                updater.announce(settled)
+                updater.at_night(settled and counted)
             except OSError as error:
                 log("updater: %s" % error)
             time.sleep(1)

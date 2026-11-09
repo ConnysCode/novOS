@@ -133,6 +133,30 @@ class ReleaseTest(unittest.TestCase):
         with self.assertRaises(release.ReleaseError):
             release.verify_files(manifest, signature, app="setup")
 
+    def test_notes_and_index(self):
+        notes = os.path.join(self.folder, "notes.json")
+        entry = {"date": "2026-11-09", "topics": {"de": "Update-Seite"},
+                 "items": [{"title": {"de": "Neu"}, "text": {"de": "Mehr"}}]}
+        with open(notes, "w") as handle:
+            json.dump({"1.0.0": entry}, handle)
+        index = os.path.join(self.folder, "releases.json")
+        for version in ("1.0.0", "0.9.0", "1.0.0"):
+            manifest = os.path.join(self.folder, "m-%s.json" % version)
+            self.run_to(["manifest", "--app", "novos", "--version", version, "--tag", "novos-v" + version,
+                         "--archive", self.archive, "--url", "https://example.invalid/a.tar.xz",
+                         "--notes", notes], manifest)
+            self.run_to(["index", manifest, "--manifest-url", "m/" + version, "--signature-url", "s/" + version,
+                         "--keep", index], index + ".new")
+            os.replace(index + ".new", index)
+        with open(index) as handle:
+            listed = json.load(handle)
+        self.assertEqual([item["version"] for item in listed["releases"]], ["1.0.0", "0.9.0"])
+        self.assertEqual(listed["releases"][0]["items"], entry["items"])
+        self.assertEqual(listed["releases"][0]["date"], "2026-11-09")
+        self.assertEqual(listed["releases"][1]["items"], [])
+        with open(os.path.join(self.folder, "m-1.0.0.json")) as handle:
+            self.assertEqual(json.load(handle)["notes"], entry)
+
     def test_version_order(self):
         ordered = ["0.9.0", "1.0.0-beta.1", "1.0.0-beta.2", "1.0.0-beta.10", "1.0.0-rc.1", "1.0.0", "1.0.1", "1.10.0"]
         self.assertEqual(sorted(reversed(ordered), key=release.version_key), ordered)

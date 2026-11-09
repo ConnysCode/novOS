@@ -10,12 +10,20 @@ archive's hash are checked against a key in trusted-keys.json.
     release.py keygen <secret-file> [--trust]
     release.py manifest --app novos --version 1.0.0 --tag novos-v1.0.0 --archive <file>
                         --url <download-url> [--targets <lg-targets.txt>] [--restarts 1]
-                        [--commit <sha>]                               > manifest.json
+                        [--commit <sha>] [--notes <release-notes.json>]  > manifest.json
     release.py sign <manifest>              (secret in NOVOS_SIGNING_KEY)  > manifest.json.sig
     release.py verify <manifest> <signature> [--archive <file>]
     release.py channel --app novos --version 1.0.0 --manifest-url <url> --signature-url <url>
                        [--keep-newer <current channel file>]
     release.py fetch <stable|beta|manifest-url> --app novos --out <dir>
+    release.py index <manifest> --manifest-url <url> --signature-url <url>
+                     [--keep <current releases.json>]                   > releases.json
+
+--notes takes a file of release notes keyed by version ({"<version>": {"date", "topics",
+"items": [{"title", "text"}]}}, each text keyed by language); the entry of this version goes
+into the signed manifest. index keeps <app>/releases.json, every published version with its
+date, size, topics and notes, newest first: what "Frühere Versionen" in novOS lists. It is
+not signed; installing one of them goes through its signed manifest.
 
 extract() unpacks a checked archive. novOS' release and the setup's updater both use it.
 
@@ -123,7 +131,29 @@ def make_manifest(args):
         manifest["lg_targets"] = read_targets(args.targets)
     if args.restarts is not None:
         manifest["restarts"] = args.restarts
+    if getattr(args, "notes", None):
+        with open(args.notes) as handle:
+            notes = json.load(handle).get(args.version)
+        if notes:
+            manifest["notes"] = notes
     return manifest
+
+
+def index_entry(manifest, manifest_url, signature_url):
+    notes = manifest.get("notes") or {}
+    return {"version": manifest["version"], "channel": manifest["channel"],
+            "published": manifest.get("published", ""), "date": notes.get("date", ""),
+            "size": manifest["archive"]["size"], "restarts": manifest.get("restarts"),
+            "manifest": manifest_url, "signature": signature_url,
+            "topics": notes.get("topics", {}), "items": notes.get("items", [])}
+
+
+def merge_index(current, entry):
+    """releases.json with entry in place of the same version, newest first."""
+    releases = [item for item in (current or {}).get("releases", []) if item.get("version") != entry["version"]]
+    releases.append(entry)
+    releases.sort(key=lambda item: version_key(item["version"]), reverse=True)
+    return {"format": FORMAT, "app": (current or {}).get("app") or "", "releases": releases}
 
 
 def sign_bytes(data):
@@ -257,6 +287,7 @@ def main(argv=None):
     manifest.add_argument("--targets")
     manifest.add_argument("--restarts", type=int)
     manifest.add_argument("--commit")
+    manifest.add_argument("--notes", help="release notes keyed by version")
 
     sign = sub.add_parser("sign")
     sign.add_argument("manifest")
@@ -273,6 +304,13 @@ def main(argv=None):
     channel.add_argument("--manifest-url", required=True)
     channel.add_argument("--signature-url", required=True)
     channel.add_argument("--keep-newer", help="channel file to keep when it already names a newer version")
+
+    index_parser = sub.add_parser("index")
+    index_parser.add_argument("manifest")
+    index_parser.add_argument("--manifest-url", required=True)
+    index_parser.add_argument("--signature-url", required=True)
+    index_parser.add_argument("--keep", help="the current releases.json, kept apart from this version")
+    index_parser.add_argument("--notes", help="release notes for a manifest signed without them")
 
     fetch_parser = sub.add_parser("fetch")
     fetch_parser.add_argument("source", help="stable, beta or the URL of a manifest")
@@ -317,6 +355,19 @@ def main(argv=None):
             sys.stdout.write(dump({"format": FORMAT, "app": args.app, "version": args.version,
                                    "channel": channel_of(args.version),
                                    "manifest": args.manifest_url, "signature": args.signature_url}))
+        elif args.command == "index":
+            with open(args.manifest) as handle:
+                manifest = json.load(handle)
+            if args.notes and not manifest.get("notes"):
+                with open(args.notes) as handle:
+                    manifest["notes"] = json.load(handle).get(manifest["version"]) or {}
+            current = None
+            if args.keep and os.path.exists(args.keep):
+                with open(args.keep) as handle:
+                    current = json.load(handle)
+            merged = merge_index(current, index_entry(manifest, args.manifest_url, args.signature_url))
+            merged["app"] = manifest["app"]
+            sys.stdout.write(dump(merged))
         elif args.command == "fetch":
             result = fetch(args.source, args.app, args.out)
             print(result["version"])

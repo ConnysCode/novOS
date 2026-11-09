@@ -17,6 +17,8 @@ jobs:
         run: python3 apps/setup/tv/test_setupd.py
       - name: Test novOS' updater start in a sandbox
         run: python3 apps/novos/install/test_updater.py
+      - name: Test the supervisor's update notices and night installs
+        run: python3 apps/novos/install/test_supervisor.py
 
   cli:
     runs-on: ubuntu-24.04

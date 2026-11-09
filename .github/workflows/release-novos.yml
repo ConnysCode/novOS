@@ -54,7 +54,8 @@ jobs:
           tar -C dist --sort=name --owner=0 --group=0 --numeric-owner -cJf "dist/$name.tar.xz" "$VERSION"
           python3 lib/release/release.py manifest --app novos --version "$VERSION" --tag "$TAG" \
               --commit "$GITHUB_SHA" --archive "dist/$name.tar.xz" --url "$BASE/$name.tar.xz" \
-              --targets apps/novos/install/lg-targets.txt --restarts 1 > "dist/$name.manifest.json"
+              --targets apps/novos/install/lg-targets.txt --restarts 1 \
+              --notes apps/novos/release-notes.json > "dist/$name.manifest.json"
           python3 lib/release/release.py sign "dist/$name.manifest.json" > "dist/$name.manifest.json.sig"
           python3 lib/release/release.py verify "dist/$name.manifest.json" "dist/$name.manifest.json.sig" \
               --archive "dist/$name.tar.xz" --app novos
@@ -70,6 +71,8 @@ jobs:
               "dist/$name.tar.xz" "dist/$name.manifest.json" "dist/$name.manifest.json.sig"
 
       - name: Point the channels to this release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           name="novos-$VERSION"
           git config user.name "github-actions[bot]"
@@ -92,6 +95,24 @@ jobs:
                   --keep-newer "pages/novos/$channel.json" > "pages/novos/$channel.json.new"
               mv "pages/novos/$channel.json.new" "pages/novos/$channel.json"
           done
+          # releases.json lists every version for novOS' "Frühere Versionen". The first run
+          # fills it from the releases published before it existed.
+          if [ ! -f pages/novos/releases.json ]; then
+              gh release list --limit 200 --json tagName -q '.[].tagName' | grep '^novos-v' | while read -r tag; do
+                  old="${tag#novos-v}"
+                  [ "$old" != "$VERSION" ] || continue
+                  url="https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/novos-$old.manifest.json"
+                  curl -fsSL "$url" -o "dist/old.manifest.json" || continue
+                  python3 lib/release/release.py index dist/old.manifest.json --manifest-url "$url" \
+                      --signature-url "$url.sig" --notes apps/novos/release-notes.json \
+                      --keep pages/novos/releases.json > pages/novos/releases.json.new
+                  mv pages/novos/releases.json.new pages/novos/releases.json
+              done
+          fi
+          python3 lib/release/release.py index "dist/$name.manifest.json" \
+              --manifest-url "$BASE/$name.manifest.json" --signature-url "$BASE/$name.manifest.json.sig" \
+              --keep pages/novos/releases.json > pages/novos/releases.json.new
+          mv pages/novos/releases.json.new pages/novos/releases.json
           git -C pages add -A
           git -C pages diff --cached --quiet && exit 0
           git -C pages commit -q -m "chore(release): point the novOS channels to $VERSION"
