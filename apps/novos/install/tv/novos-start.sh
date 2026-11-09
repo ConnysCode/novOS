@@ -6,6 +6,10 @@
 #   novos-start.sh manual [seconds]  by hand; with seconds a guard stops it again,
 #                                   without restarting surface-manager
 #
+# NOVOS_RESTORE=0 keeps the TV where it is after the restart instead of going back to the
+# app or source that ran before: the setup closes the source itself and opens its window
+# again, so that nothing but the setup shows until it is done.
+#
 # Nothing of LG is written: the bind mounts vanish with every restart of the TV.
 set -u
 
@@ -242,6 +246,7 @@ if [ -n "$pid" ] && [ "$(awk '{ print $22 }' "/proc/$pid/stat")" -lt "$mounted_a
         waited=0
         while [ -e "$FAILSAFE" ] && [ "$waited" -lt 90 ]; do sleep 1; waited=$((waited + 1)); done
     fi
+    [ "${NOVOS_RESTORE:-1}" = 0 ] && app=""
     log "restarting surface-manager $pid${app:+, then back to $app}"
     release_clients
     systemctl restart --no-block surface-manager-daemon.service

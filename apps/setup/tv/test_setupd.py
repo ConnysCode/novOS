@@ -30,7 +30,7 @@ TARGETS = [("QuickSettings.qml", "/usr/lib/qml/QuickSettings/QuickSettings.qml")
 # mounts, so that setupd sees novOS run and stop.
 STUBS = {
     "make-overlays.sh": 'echo "make-overlays $1" >> "$NOVOS_SETUPD_SANDBOX/calls"\n',
-    "novos-start.sh": 'echo "start $*" >> "$NOVOS_SETUPD_SANDBOX/calls"\n'
+    "novos-start.sh": 'echo "start $* restore=${NOVOS_RESTORE:-1}" >> "$NOVOS_SETUPD_SANDBOX/calls"\n'
                       'echo "/var/x /usr/lib/qml/QuickSettings/QuickSettings.qml none bind 0 0" > "$NOVOS_SETUPD_SANDBOX/proc/mounts"\n',
     "novos-stop.sh": 'echo "stop $*" >> "$NOVOS_SETUPD_SANDBOX/calls"\n: > "$NOVOS_SETUPD_SANDBOX/proc/mounts"\n',
     "novos-uninstall.sh": 'echo "uninstall $*" >> "$NOVOS_SETUPD_SANDBOX/calls"\n',
@@ -202,11 +202,11 @@ class SetupdTest(unittest.TestCase):
 
     def test_running_novos_is_stopped_and_started_again(self):
         self.run_setupd("install", self.publish("1.0.0"), "--start")
-        self.assertEqual(self.calls()[-1], "start manual")
+        self.assertEqual(self.calls()[-1], "start manual restore=1")
         code, lines = self.run_setupd("install", self.publish("1.1.0"))
         self.assertEqual(code, 0, lines)
         self.assertEqual(self.calls()[-3:], ["stop --no-restart", "make-overlays %s" % self.path("/var/lib/novos/releases/.partial"),
-                                             "start manual"])
+                                             "start manual restore=1"])
         self.assertTrue(lines[-1]["started"])
 
     def test_rollback(self):
@@ -396,6 +396,8 @@ class SetupdTest(unittest.TestCase):
         for key in ("manifest", "download", "verify", "unpack", "overlays", "switch", "settings", "start"):
             self.assertIn(key, keys)
         self.assertEqual(result["choices"]["keyboard"], "t9")
+        # The setup's window keeps the TV dark: no way back to the source after the restart.
+        self.assertIn("start manual restore=0", self.calls())
         result = send("command=check\nid=2\n", "1")
         self.assertIn("installed", result["result"]["message"])
         result = send("command=rollback\nid=3\n", "2")

@@ -266,14 +266,16 @@ def version_or_none(name):
 
 # ---- the release's own scripts ----------------------------------------------------------
 
-def run_script(report, script, *args):
+def run_script(report, script, *args, **options):
+    """Runs a script of the installed release; options["env"] adds variables."""
     path = os.path.join(CURRENT, "bin", script)
     if not os.path.isfile(path):
         raise SetupError("the installed release has no bin/%s" % script)
     key = {"novos-stop.sh": "stop", "novos-start.sh": "start"}.get(script)
     report.step(("%s %s" % (script, " ".join(args))).strip(), key=key)
     with open(STATE + "/start.log", "a") as output:
-        code = subprocess.call(["sh", path] + list(args), stdout=output, stderr=subprocess.STDOUT)
+        env = dict(os.environ, **options.get("env", {}))
+        code = subprocess.call(["sh", path] + list(args), stdout=output, stderr=subprocess.STDOUT, env=env)
     if code != 0:
         raise SetupError("%s failed with %d, see %s/start.log" % (script, code, STATE))
 
@@ -478,7 +480,23 @@ def check_tree(folder):
                 raise SetupError("the archive holds a link: %s" % os.path.join(base, name))
 
 
-def install(report, source, allow_downgrade=False, start=False, before_start=None, after_start=None):
+# Apps that show no picture of their own: closing them is not needed to keep the screen dark.
+NO_PICTURE = ("", "com.webos.app.home", "com.webos.app.store-streamer", "com.webos.app.quicksettings")
+
+
+def close_foreground(report):
+    """Closes the app or source in front, so that its picture is gone from the video plane."""
+    app = luna("luna://com.webos.applicationManager/getForegroundAppInfo", {}).get("appId", "")
+    if app not in NO_PICTURE:
+        luna("luna://com.webos.applicationManager/closeByAppId", {"id": app})
+        report.step("closed %s, so that nothing but the setup shows" % app, key="start")
+    return app
+
+
+def install(report, source, allow_downgrade=False, start=False, before_start=None, after_start=None,
+            stay_dark=False):
+    """stay_dark (the setup's window): close the source before surface-manager restarts and
+    do not go back to it, so that nothing but the setup shows until it is done."""
     with single_run():
         folder, manifest = fetch(report, source)
         version = manifest["version"]
@@ -499,7 +517,12 @@ def install(report, source, allow_downgrade=False, start=False, before_start=Non
         if was_running or start:
             if before_start:
                 before_start()
-            run_script(report, "novos-start.sh", "manual")
+            env = {}
+            if stay_dark:
+                with contextlib.suppress(OSError):
+                    close_foreground(report)
+                env["NOVOS_RESTORE"] = "0"
+            run_script(report, "novos-start.sh", "manual", env=env)
             if after_start:
                 after_start()
         report.result("installed novOS %s%s" % (version, ", started" if was_running or start else ""),
@@ -887,7 +910,8 @@ class Bridge:
                               command.get("blockUpdates") or None)
                 if name == "update" and not check(report, source):
                     raise SetupError("nothing newer to install")
-                install(report, source, start=True, before_start=self.restarting, after_start=self.reopen)
+                install(report, source, start=True, before_start=self.restarting, after_start=self.reopen,
+                        stay_dark=True)
             elif name == "check":
                 check(report, source)
             elif name == "settings":
@@ -932,6 +956,10 @@ def serve(folder, window, app, idle):
             last_id = serial
             last_activity = time.time()
             if command.get("command") == "close":
+                # "Zum Startbildschirm": the setup ends on novOS' own Home, as the home key opens it.
+                if bridge.state["command"] in ("install", "update") and bridge.state["phase"] == "done" and running():
+                    with contextlib.suppress(OSError):
+                        luna("luna://com.webos.service.systemUIManager/launch", {"appId": "com.webos.app.store-streamer"})
                 break
             bridge.run(command)
             last_activity = time.time()
