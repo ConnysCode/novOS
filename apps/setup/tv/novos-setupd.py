@@ -17,6 +17,20 @@ init-hook.sh and novos-uninstall.sh.
     novos-setupd.py autostart once|on|off
     novos-setupd.py early on|off
     novos-setupd.py uninstall [--keep-state]
+    novos-setupd.py settings [--keyboard qwertz|t9] [--auto-update on|off] [--block-updates on|off]
+    novos-setupd.py serve --dir <folder> [--window <url>] [--app <id>] [--idle <seconds>]
+
+settings stores the setup's choices: the keyboard novOS starts with, whether novOS updates
+itself at night (used from step 6 of the plan on) and whether LG's system updates are
+blocked. The block is the Homebrew Channel's own: its flag file makes its startup.sh point
+LG's update servers to the TV itself, from the next restart on. Whether the flag was there
+before novOS is kept, and the uninstall restores that.
+
+serve is the bridge to the setup's window, which runs inside surface-manager and can neither
+start programs nor delete files: the window writes commands into <folder>/command.ini
+(Qt.labs.settings), serve runs them and keeps <folder>/state.json up to date. When an
+install restarts surface-manager, the window goes with it; serve opens it again (--window,
+--app) once novOS runs.
 
 Without a source, check, fetch and install use the channel set with "channel" (stable by
 default). install stops a running novOS first and starts it again afterwards; --start
@@ -29,6 +43,7 @@ Runs on Python 3.6 and later, with the standard library only.
 
 import argparse
 import contextlib
+import select
 import fcntl
 import hashlib
 import json
@@ -64,6 +79,9 @@ ENV_DIR = system("/var/systemd/system/env")
 ENV_FILES = ("surface-manager", "rec-info-adapter")
 ENV_MARK = "# novOS early start"
 HOME_UNINSTALL = system("/home/root/novos-uninstall.sh")
+# The Homebrew Channel blocks LG's update servers at boot while this file exists.
+BLOCK_FLAG = system("/var/luna/preferences/webosbrew_block_updates")
+HOSTS = system("/etc/hosts")
 LOCK = system("/tmp/novos-setupd.lock")
 PROC = system("/proc")
 # PATH of surface-manager-daemon.service and rec-info-adapter.service on 10.3.2-33. The
@@ -78,11 +96,14 @@ class SetupError(Exception):
 
 
 class Reporter:
-    def __init__(self, as_json):
+    def __init__(self, as_json, listener=None):
         self.as_json = as_json
+        self.listener = listener
         self.last_percent = -1
 
     def emit(self, event, message, **fields):
+        if self.listener:
+            self.listener(event, message, dict(fields))
         if self.as_json:
             fields.update(event=event, message=message)
             sys.stdout.write(json.dumps(fields, ensure_ascii=False) + "\n")
@@ -92,7 +113,11 @@ class Reporter:
         if event in ("step", "result", "error"):
             log("%s: %s" % (event, message))
 
-    def step(self, message, **fields):
+    def step(self, message, key=None, **fields):
+        """key names the stage for the setup's screens: manifest, download, verify, stop,
+        unpack, overlays, switch, settings, start."""
+        if key:
+            fields["key"] = key
         self.emit("step", message, **fields)
 
     def progress(self, what, done, total):
@@ -100,7 +125,7 @@ class Reporter:
         if percent == self.last_percent:
             return
         self.last_percent = percent
-        if self.as_json:
+        if self.as_json or self.listener:
             self.emit("progress", what, done=done, total=total, percent=percent)
         elif percent % 10 == 0:
             sys.stdout.write("  %s %d %%\n" % (what, percent))
@@ -245,7 +270,8 @@ def run_script(report, script, *args):
     path = os.path.join(CURRENT, "bin", script)
     if not os.path.isfile(path):
         raise SetupError("the installed release has no bin/%s" % script)
-    report.step(("%s %s" % (script, " ".join(args))).strip())
+    key = {"novos-stop.sh": "stop", "novos-start.sh": "start"}.get(script)
+    report.step(("%s %s" % (script, " ".join(args))).strip(), key=key)
     with open(STATE + "/start.log", "a") as output:
         code = subprocess.call(["sh", path] + list(args), stdout=output, stderr=subprocess.STDOUT)
     if code != 0:
@@ -377,13 +403,14 @@ def fetch(report, source):
     partial = os.path.join(DOWNLOADS, ".partial")
     shutil.rmtree(partial, ignore_errors=True)
     os.makedirs(partial)
-    report.step("reading %s" % source)
+    report.step("reading %s" % source, key="manifest")
     manifest = fetch_manifest(source, partial)
     archive = os.path.join(partial, manifest["archive"]["name"])
-    report.step("downloading novOS %s (%d MB)" % (manifest["version"], manifest["archive"]["size"] // 1000000))
+    report.step("downloading novOS %s (%d MB)" % (manifest["version"], manifest["archive"]["size"] // 1000000),
+                key="download", size=manifest["archive"]["size"])
     download_with_progress(report, manifest["archive"]["url"], archive, manifest["archive"]["size"])
     release.check_archive(manifest, archive)
-    report.step("signature and archive of novOS %s are right" % manifest["version"])
+    report.step("signature and archive of novOS %s are right" % manifest["version"], key="verify")
     folder = os.path.join(DOWNLOADS, manifest["version"])
     shutil.rmtree(folder, ignore_errors=True)
     os.rename(partial, folder)
@@ -450,7 +477,7 @@ def check_tree(folder):
                 raise SetupError("the archive holds a link: %s" % os.path.join(base, name))
 
 
-def install(report, source, allow_downgrade=False, start=False):
+def install(report, source, allow_downgrade=False, start=False, before_start=None, after_start=None):
     with single_run():
         folder, manifest = fetch(report, source)
         version = manifest["version"]
@@ -467,7 +494,11 @@ def install(report, source, allow_downgrade=False, start=False):
                 raise SetupError("LG's files differ from what the release was built for: %s" % mismatched[0])
         place_release(report, folder, manifest)
         if was_running or start:
+            if before_start:
+                before_start()
             run_script(report, "novos-start.sh", "manual")
+            if after_start:
+                after_start()
         report.result("installed novOS %s%s" % (version, ", started" if was_running or start else ""),
                       installed=version, started=was_running or start)
 
@@ -482,13 +513,13 @@ def place_release(report, folder, manifest):
     os.makedirs(RELEASES, exist_ok=True)
     os.makedirs(STATE, exist_ok=True)
     shutil.rmtree(partial, ignore_errors=True)
-    report.step("unpacking novOS %s" % version)
+    report.step("unpacking novOS %s" % version, key="unpack")
     safe_extract(os.path.join(folder, manifest["archive"]["name"]), version, partial)
     if read_version_file(partial).get("version") != version:
         raise SetupError("the archive's VERSION is not %s" % version)
     if release.read_targets(os.path.join(partial, "lg-targets.txt")) != manifest["lg_targets"]:
         raise SetupError("the archive's lg-targets.txt differs from the signed manifest")
-    report.step("deriving the overlays of LG's files")
+    report.step("deriving the overlays of LG's files", key="overlays")
     code = subprocess.call(["sh", os.path.join(partial, "bin", "make-overlays.sh"), partial])
     if code != 0:
         shutil.rmtree(partial, ignore_errors=True)
@@ -517,7 +548,7 @@ def place_release(report, folder, manifest):
         if name not in (version, previous):
             shutil.rmtree(os.path.join(RELEASES, name), ignore_errors=True)
     sync()
-    report.step("current -> releases/%s (before: %s)" % (version, previous or "nothing"))
+    report.step("current -> releases/%s (before: %s)" % (version, previous or "nothing"), key="switch")
 
 
 def rollback(report):
@@ -631,6 +662,260 @@ def uninstall(report, keep_state):
     report.result("novOS removed", installed=None)
 
 
+# ---- the setup's choices ------------------------------------------------------------------
+
+def read_ini(path):
+    """Keys of a Qt.labs.settings file; quotes around values are dropped."""
+    values = {}
+    try:
+        with open(path) as handle:
+            for line in handle:
+                line = line.strip()
+                if "=" in line and not line.startswith(("[", "#", ";")):
+                    key, value = line.split("=", 1)
+                    values[key.strip()] = value.strip().strip('"')
+    except OSError:
+        pass
+    return values
+
+
+def set_ini_value(path, key, value):
+    """Sets one key below [General] of an ini file and keeps every other line."""
+    try:
+        with open(path) as handle:
+            lines = handle.read().splitlines()
+    except OSError:
+        lines = ["[General]", "blur=84", "hideInputBanner=true"]
+    if "[General]" not in lines:
+        lines.insert(0, "[General]")
+    for index, line in enumerate(lines):
+        if line.split("=", 1)[0].strip() == key:
+            lines[index] = "%s=%s" % (key, value)
+            break
+    else:
+        lines.insert(lines.index("[General]") + 1, "%s=%s" % (key, value))
+    write_file(path, "\n".join(lines) + "\n")
+
+
+def updates_blocked_now():
+    """Whether LG's update servers point to the TV in this boot."""
+    try:
+        with open(HOSTS) as handle:
+            return "snu.lge.com" in handle.read()
+    except OSError:
+        return False
+
+
+def block_updates(report, mode):
+    """The Homebrew Channel's block of LG's system updates: its flag, from the next restart on."""
+    os.makedirs(STATE, exist_ok=True)
+    before = STATE + "/block-updates-before"
+    if mode in ("on", "off") and not os.path.exists(before):
+        write_file(before, ("present" if os.path.exists(BLOCK_FLAG) else "absent") + "\n")
+    if mode == "on" and not os.path.exists(BLOCK_FLAG):
+        write_file(BLOCK_FLAG, "")
+        report.step("LG's system updates are blocked from the next restart on", key="settings")
+    elif mode == "off" and os.path.exists(BLOCK_FLAG):
+        os.remove(BLOCK_FLAG)
+        report.step("LG's system updates are allowed again from the next restart on", key="settings")
+    sync()
+    return {"blockUpdates": os.path.exists(BLOCK_FLAG), "blockedNow": updates_blocked_now(),
+            "before": read_setting("block-updates-before") or None}
+
+
+def current_choices():
+    return {"keyboard": read_ini(STATE + "/debug.ini").get("keyboardMode", "qwertz"),
+            "autoUpdate": read_setting("auto-update", "off") == "on",
+            "blockUpdates": os.path.exists(BLOCK_FLAG),
+            "blockedNow": updates_blocked_now()}
+
+
+def apply_choices(report, keyboard=None, auto_update=None, block=None):
+    os.makedirs(STATE, exist_ok=True)
+    if keyboard:
+        if keyboard not in ("qwertz", "t9"):
+            raise SetupError("the keyboard is qwertz or t9")
+        set_ini_value(STATE + "/debug.ini", "keyboardMode", keyboard)
+        report.step("keyboard %s" % keyboard, key="settings")
+    if auto_update:
+        if auto_update not in ("on", "off"):
+            raise SetupError("auto-update is on or off")
+        write_file(STATE + "/auto-update", auto_update + "\n")
+        report.step("automatic updates %s" % auto_update, key="settings")
+    if block:
+        if block not in ("on", "off"):
+            raise SetupError("block-updates is on or off")
+        block_updates(report, block)
+    sync()
+    return current_choices()
+
+
+# ---- the bridge to the setup's window ---------------------------------------------------------
+
+def luna(url, payload, timeout=6.0):
+    """luna-send only writes its answer to a terminal, so it gets one (as in the supervisor)."""
+    master, slave = os.openpty()
+    process = subprocess.Popen(["luna-send", "-n", "1", "-w", str(int(timeout * 1000)), url, json.dumps(payload)],
+                               stdin=subprocess.DEVNULL, stdout=slave, stderr=slave)
+    os.close(slave)
+    output = b""
+    deadline = time.time() + timeout + 1
+    try:
+        while time.time() < deadline:
+            ready, _, _ = select.select([master], [], [], 0.5)
+            if ready:
+                try:
+                    chunk = os.read(master, 4096)
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                output += chunk
+            elif process.poll() is not None:
+                break
+    finally:
+        if process.poll() is None:
+            process.kill()
+        process.wait()
+        os.close(master)
+    text = output.decode("utf-8", "replace")
+    start = text.find("{")
+    try:
+        return json.JSONDecoder().raw_decode(text[start:])[0] if start >= 0 else {}
+    except ValueError:
+        return {}
+
+
+# Share of the whole install each stage stands for, for one progress bar.
+STAGES = [("manifest", 2), ("download", 55), ("verify", 3), ("stop", 8), ("unpack", 10),
+          ("overlays", 8), ("switch", 2), ("settings", 2), ("start", 10)]
+
+
+class Bridge:
+    def __init__(self, folder, window, app):
+        self.folder = folder
+        self.window = window
+        self.app = app
+        self.state_path = os.path.join(folder, "state.json")
+        self.command_path = os.path.join(folder, "command.ini")
+        self.state = {"serving": True, "pid": os.getpid(), "id": "", "command": "", "phase": "idle",
+                      "stage": "", "percent": 0, "steps": [], "result": None, "error": None,
+                      "choices": current_choices(), "updated": time.time()}
+        self.last_written = 0.0
+
+    def write(self, force=True):
+        now = time.time()
+        if not force and now - self.last_written < 0.25:
+            return
+        self.state["updated"] = now
+        write_file(self.state_path, json.dumps(self.state, ensure_ascii=False))
+        self.last_written = now
+
+    def listen(self, event, message, fields):
+        if event == "step":
+            key = fields.get("key", "")
+            self.state["steps"].append({"key": key, "message": message})
+            if key:
+                self.state["stage"] = key
+                self.state["percent"] = self.stage_start(key)
+            self.write()
+        elif event == "progress":
+            span = dict(STAGES).get(self.state["stage"], 0)
+            self.state["percent"] = self.stage_start(self.state["stage"]) + span * fields.get("percent", 0) // 100
+            self.write(force=False)
+        elif event == "result":
+            self.state["result"] = {k: v for k, v in fields.items() if k not in ("event", "message")}
+            self.state["result"]["message"] = message
+            self.write()
+        elif event == "error":
+            self.state["error"] = message.replace("novos-setupd: ", "")
+            self.write()
+
+    @staticmethod
+    def stage_start(key):
+        total = 0
+        for name, span in STAGES:
+            if name == key:
+                return total
+            total += span
+        return 0
+
+    def restarting(self):
+        self.state["phase"] = "restarting"
+        self.write()
+
+    def reopen(self):
+        """surface-manager restarted and took the window along: open it again."""
+        self.state["phase"] = "done"
+        self.state["percent"] = 100
+        self.write()
+        if self.window:
+            time.sleep(2)
+            luna("luna://com.webos.service.systemUIManager/launch",
+                 {"appId": self.app, "main": self.window, "params": {"setup": "reopened"}})
+
+    def run(self, command):
+        name = command.get("command", "")
+        self.state.update(id=command.get("id", ""), command=name, phase="running", stage="", percent=0,
+                          steps=[], result=None, error=None)
+        self.write()
+        report = Reporter(False, self.listen)
+        source = command.get("source") or read_setting("channel", "stable")
+        try:
+            if name in ("install", "update"):
+                apply_choices(report, command.get("keyboard") or None, command.get("autoUpdate") or None,
+                              command.get("blockUpdates") or None)
+                if name == "update" and not check(report, source):
+                    raise SetupError("nothing newer to install")
+                install(report, source, start=True, before_start=self.restarting, after_start=self.reopen)
+            elif name == "check":
+                check(report, source)
+            elif name == "settings":
+                result = apply_choices(report, command.get("keyboard") or None, command.get("autoUpdate") or None,
+                                       command.get("blockUpdates") or None)
+                report.result("settings stored", choices=result)
+            elif name == "rollback":
+                rollback(report)
+            elif name == "uninstall":
+                self.restarting()
+                uninstall(report, command.get("keepState") == "true")
+            elif name == "status":
+                status(report)
+            else:
+                raise SetupError("unknown command %r" % name)
+            self.state["phase"] = "done"
+        except (SetupError, release.ReleaseError, OSError, ValueError, KeyError) as error:
+            self.state["phase"] = "error"
+            self.state["error"] = str(error)
+        self.state["choices"] = current_choices()
+        self.write()
+
+
+def serve(folder, window, app, idle):
+    os.makedirs(folder, exist_ok=True)
+    bridge = Bridge(folder, window, app)
+    # A command left over from an earlier run is not run again.
+    last_id = read_ini(bridge.command_path).get("id", "")
+    bridge.state["id"] = last_id
+    bridge.write()
+    log("serve %s, window %s" % (folder, window or "-"))
+    last_activity = time.time()
+    while True:
+        command = read_ini(bridge.command_path)
+        if command.get("id", "") not in ("", last_id):
+            last_id = command["id"]
+            last_activity = time.time()
+            if command.get("command") == "close":
+                break
+            bridge.run(command)
+            last_activity = time.time()
+        if idle and time.time() - last_activity > idle:
+            break
+        time.sleep(0.3)
+    bridge.state["serving"] = False
+    bridge.write()
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--json", action="store_true", help="one JSON object per line")
@@ -649,6 +934,15 @@ def main(argv=None):
     sub.add_parser("autostart").add_argument("mode", choices=("once", "on", "off"))
     sub.add_parser("early").add_argument("mode", choices=("on", "off"))
     sub.add_parser("uninstall").add_argument("--keep-state", action="store_true")
+    settings_parser = sub.add_parser("settings")
+    settings_parser.add_argument("--keyboard", choices=("qwertz", "t9"))
+    settings_parser.add_argument("--auto-update", choices=("on", "off"))
+    settings_parser.add_argument("--block-updates", choices=("on", "off"))
+    serve_parser = sub.add_parser("serve")
+    serve_parser.add_argument("--dir", required=True)
+    serve_parser.add_argument("--window", help="file:// URL of the setup's window, opened again after a restart")
+    serve_parser.add_argument("--app", default="com.webos.app.quicksettings")
+    serve_parser.add_argument("--idle", type=int, default=1800, help="ends after this many seconds without a command")
     args = parser.parse_args(argv)
     report = Reporter(args.json)
     try:
@@ -677,6 +971,15 @@ def main(argv=None):
             early(report, args.mode)
         elif args.command == "uninstall":
             uninstall(report, args.keep_state)
+        elif args.command == "settings":
+            choices = apply_choices(report, args.keyboard, args.auto_update, args.block_updates)
+            report.result("keyboard %s, automatic updates %s, LG updates %s%s" % (
+                choices["keyboard"], "on" if choices["autoUpdate"] else "off",
+                "blocked" if choices["blockUpdates"] else "allowed",
+                "" if choices["blockUpdates"] == choices["blockedNow"] else " (from the next restart on)"),
+                choices=choices)
+        elif args.command == "serve":
+            serve(args.dir, args.window, args.app, args.idle)
         else:
             parser.print_help()
             return 2

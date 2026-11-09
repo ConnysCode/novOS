@@ -327,6 +327,86 @@ class SetupdTest(unittest.TestCase):
             self.assertEqual(handle.read(), "FOO=1\n")
         self.assertFalse(os.path.exists(self.path("/var/systemd/system/env/surface-manager.env")))
 
+    def test_settings_and_block(self):
+        flag = self.path("/var/luna/preferences/webosbrew_block_updates")
+        code, lines = self.run_setupd("settings", "--keyboard", "t9", "--auto-update", "on", "--block-updates", "on")
+        self.assertEqual(code, 0, lines)
+        choices = lines[-1]["choices"]
+        self.assertEqual((choices["keyboard"], choices["autoUpdate"], choices["blockUpdates"], choices["blockedNow"]),
+                         ("t9", True, True, False))
+        self.assertTrue(os.path.exists(flag))
+        with open(self.path("/var/lib/novos/state/block-updates-before")) as handle:
+            self.assertEqual(handle.read().strip(), "absent")
+        with open(self.path("/var/lib/novos/state/debug.ini")) as handle:
+            text = handle.read()
+        self.assertIn("keyboardMode=t9", text)
+        self.assertIn("blur=84", text)
+        self.run_setupd("settings", "--block-updates", "off", "--keyboard", "qwertz")
+        self.assertFalse(os.path.exists(flag))
+        with open(self.path("/var/lib/novos/state/debug.ini")) as handle:
+            self.assertEqual(handle.read().count("keyboardMode="), 1)
+        # The state before novOS stays the first one noted.
+        self.run_setupd("settings", "--block-updates", "on")
+        with open(self.path("/var/lib/novos/state/block-updates-before")) as handle:
+            self.assertEqual(handle.read().strip(), "absent")
+
+    def test_settings_keep_other_debug_values(self):
+        path = self.path("/var/lib/novos/state/debug.ini")
+        os.makedirs(os.path.dirname(path))
+        with open(path, "w") as handle:
+            handle.write("[General]\nblur=60\ndemoDevices=true\nkeyboardMode=qwertz\n")
+        self.run_setupd("settings", "--keyboard", "t9")
+        with open(path) as handle:
+            self.assertEqual(handle.read(), "[General]\nblur=60\ndemoDevices=true\nkeyboardMode=t9\n")
+
+    def test_serve_bridge(self):
+        import threading
+        import time
+        folder = os.path.join(self.sandbox, "bridge")
+        os.makedirs(folder)
+        command = os.path.join(folder, "command.ini")
+        with open(command, "w") as handle:
+            handle.write("[General]\ncommand=install\nid=old\n")     # left over: not run
+        self.publish("1.0.0", channel="stable")
+        thread = threading.Thread(target=self.setupd.serve, args=(folder, "", "app", 0))
+        thread.start()
+        def state():
+            for _ in range(100):
+                try:
+                    with open(os.path.join(folder, "state.json")) as handle:
+                        return json.load(handle)
+                except (OSError, ValueError):
+                    time.sleep(0.05)
+        def send(text, phase_from):
+            with open(command, "w") as handle:
+                handle.write("[General]\n" + text)
+            for _ in range(200):
+                current = state()
+                if current and current["id"] != phase_from and current["phase"] in ("done", "error"):
+                    return current
+                time.sleep(0.05)
+            self.fail("no answer to " + text)
+        self.assertEqual(state()["phase"], "idle")
+        self.assertFalse(os.path.lexists(self.path("/var/lib/novos/current")))
+        result = send("command=install\nid=1\nkeyboard=t9\nautoUpdate=on\nblockUpdates=on\n", "old")
+        self.assertEqual(result["phase"], "done", result)
+        self.assertEqual(result["percent"], 100)
+        self.assertEqual(self.current(), "1.0.0")
+        keys = [step["key"] for step in result["steps"] if step["key"]]
+        for key in ("manifest", "download", "verify", "unpack", "overlays", "switch", "settings", "start"):
+            self.assertIn(key, keys)
+        self.assertEqual(result["choices"]["keyboard"], "t9")
+        result = send("command=check\nid=2\n", "1")
+        self.assertIn("installed", result["result"]["message"])
+        result = send("command=rollback\nid=3\n", "2")
+        self.assertEqual(result["phase"], "error")
+        self.assertIn("no release to go back to", result["error"])
+        with open(command, "w") as handle:
+            handle.write("[General]\ncommand=close\nid=4\n")
+        thread.join(10)
+        self.assertFalse(thread.is_alive())
+        self.assertFalse(state()["serving"])
+
     def test_uninstall(self):
         self.run_setupd("install", self.publish("1.0.0"))
         code, lines = self.run_setupd("uninstall", "--keep-state")

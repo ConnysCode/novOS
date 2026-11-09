@@ -136,6 +136,14 @@ if [ -n "$bad" ]; then
 fi
 say "all $(targets | wc -l | tr -d ' ') LG originals proven"
 
+# The Homebrew Channel's block of LG's updates goes back to how it was before novOS: the
+# setup notes in state/block-updates-before whether its flag existed then.
+BLOCK=/var/luna/preferences/webosbrew_block_updates
+if [ "$(cat "$ROOT/state/block-updates-before" 2>/dev/null)" = absent ] && [ -e "$BLOCK" ]; then
+    rm -f "$BLOCK"
+    say "LG's system updates allowed again from the next restart on, as before novOS"
+fi
+
 if [ "${1:-}" = --keep-state ]; then
     rm -rf "$ROOT/releases" "$ROOT/current"
     say "removed releases, kept $ROOT/state"
