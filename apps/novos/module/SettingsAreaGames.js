@@ -99,8 +99,10 @@ var area = {
                   summary: ["sound.aigamesound", "sound.supportATMOS"] },
                 { id: "wide", type: "page", page: "wide", title: "page.wide",
                   summary: ["other.gameScreenRatio", "other.gameScreenPosition"], search: "search.wide" },
-                { id: "dashboard", type: "page", page: "dashboard", title: "page.dashboard",
-                  summary: ["other.enableQuickGame", "other.gameUIColor"], search: "search.dashboard" }
+                // novOS' game bar on the gear key (GameBar.qml). LG's menu colour is gone: the bar
+                // has no accent, so the page with this one switch went as well.
+                { id: "dashboard", type: "toggle", key: "other.enableQuickGame", title: "row.dashboard",
+                  subtitle: "detail.dashboard", search: "search.dashboard" }
             ] }
         ]
     },
@@ -243,18 +245,6 @@ var area = {
                       disabled: withOptimizer([{ when: function (ctx) {
                           return ctx.val("other.gameScreenRatio") === "16:9";
                       }, reason: "reason.ratio_16_9" }]) }
-                ] }
-            ]
-        },
-
-        dashboard: {
-            id: "dashboard",
-            title: "page.dashboard",
-            sections: [
-                { rows: [
-                    { id: "enable", type: "toggle", key: "other.enableQuickGame", title: "row.dashboard",
-                      subtitle: "detail.dashboard" },
-                    { id: "color", type: "choice", key: "other.gameUIColor", title: "row.menu_color" }
                 ] }
             ]
         }
