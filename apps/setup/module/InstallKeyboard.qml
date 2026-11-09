@@ -16,6 +16,7 @@ Item {
         anchors.fill: parent
         unit: screen.unit
         backdrop: screen.backdrop
+        focusKey: screen.live ? (screen.live.focus || "") : ""
         label: tr("header.install")
         step: 5
         title: tr("keyboard.title")
@@ -25,6 +26,7 @@ Item {
         rightButtons: [{ label: tr("button.next"), focused: (screen.live !== null && screen.live.focus === "next") }]
 
         OptionCard {
+            ownFocus: false
             width: 574 * screen.unit
             height: 290 * screen.unit
             unit: screen.unit
@@ -55,6 +57,7 @@ Item {
         }
 
         OptionCard {
+            ownFocus: false
             x: 594 * screen.unit
             width: 574 * screen.unit
             height: 290 * screen.unit

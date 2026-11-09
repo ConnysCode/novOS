@@ -16,6 +16,7 @@ Item {
         anchors.fill: parent
         unit: screen.unit
         backdrop: screen.backdrop
+        focusKey: screen.live ? (screen.live.focus || "") : ""
         label: tr("header.update")
         title: tr("update.title", { version: screen.live ? screen.live.version : "1.0" })
         // The board pulls the cards 8 px up under the title.

@@ -13,6 +13,10 @@ Item {
     property string icon: ""
     property bool focused: false
     property bool ownFocus: false
+    // A focus target for an owner's single gliding surface (see apps/setup WizardDialog).
+    readonly property bool focusTarget: !ownFocus && !disabled
+    readonly property real plateRadius: 32
+    readonly property real plateScale: GlassStyle.focusScale
     property bool danger: false
     property bool disabled: false
     signal clicked()

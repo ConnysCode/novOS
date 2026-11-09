@@ -16,6 +16,7 @@ Item {
         anchors.fill: parent
         unit: screen.unit
         backdrop: screen.backdrop
+        focusKey: screen.live ? (screen.live.focus || "") : ""
         label: tr("header.install")
         step: 3
         title: tr("change.title")

@@ -3,7 +3,8 @@ import "."
 
 // A large choice card: a drawing at the top (the default content), title and second
 // line at the bottom. selected draws a white ring and a check badge; focused turns the
-// card into the white focus surface at 103 %.
+// card into the white focus surface at 103 %. With ownFocus false the card draws no white
+// of its own and is a focus target for its owner's single gliding surface.
 Item {
     id: card
 
@@ -12,6 +13,10 @@ Item {
     property string subtitle: ""
     property bool selected: false
     property bool focused: false
+    property bool ownFocus: true
+    readonly property bool focusTarget: !ownFocus
+    readonly property real plateRadius: 30
+    readonly property real plateScale: GlassStyle.focusScale
     default property alias content: drawing.data
 
     scale: focused ? GlassStyle.focusScale : 1
@@ -21,7 +26,7 @@ Item {
     }
 
     SoftShadow {
-        visible: card.focused
+        visible: card.focused && card.ownFocus
         anchors.centerIn: parent
         unit: card.unit
         radius: 30
@@ -30,7 +35,8 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: 30 * card.unit
-        color: card.focused ? GlassStyle.focusFill : (card.selected ? "#29ffffff" : "#0fffffff")
+        color: card.focused ? (card.ownFocus ? GlassStyle.focusFill : "transparent")
+                            : (card.selected ? "#29ffffff" : "#0fffffff")
         border.width: card.selected && !card.focused ? 2 * card.unit : 0
         border.color: "#8cffffff"
         antialiasing: true

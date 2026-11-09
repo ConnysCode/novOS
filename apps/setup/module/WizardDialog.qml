@@ -3,6 +3,10 @@ import QtQuick 2.12
 // The glass dialog of the setup (K3-Install-*, K3-Update-*, K3-Entfernen-*): 1280 px wide,
 // centred, as tall as its content. Header with the wordmark, the section and the steps;
 // title and lead; the screen's content; footer buttons at the left and the right.
+// One white focus surface glides between the focused elements, as everywhere in novOS:
+// buttons, switch rows and choice cards are focus targets (focusTarget, focused,
+// plateRadius, plateScale) and draw no white of their own. focusKey tells the dialog that
+// the focus moved.
 // The owner gives the content's height in logical px. Measures are the boards':
 // padding 44 / 56, 44 from header to title, 12 to the lead, 32 to the content,
 // 48 to the footer.
@@ -19,6 +23,7 @@ Item {
     property real contentHeight: 0          // logical px
     property var leftButtons: []            // [{ label, icon, focused, disabled, danger }]
     property var rightButtons: []
+    property string focusKey: ""
     default property alias content: contentArea.data
 
     readonly property bool hasFooter: leftButtons.length + rightButtons.length > 0
@@ -28,6 +33,49 @@ Item {
     readonly property real contentY: (lead !== "" ? leadY + leadText.height : titleY + 54 * unit) + 32 * unit
     readonly property real footerY: contentY + (contentHeight + 48) * unit
     readonly property real cardHeight: (hasFooter ? footerY + 64 * unit : contentY + contentHeight * unit) + 44 * unit
+
+    property Item focusItem: null
+    property bool plateShown: false
+
+    function findFocused(item) {
+        for (var i = 0; i < item.children.length; ++i) {
+            var child = item.children[i];
+            if (child.focusTarget === true && child.focused === true && child.visible) return child;
+            var found = findFocused(child);
+            if (found) return found;
+        }
+        return null;
+    }
+
+    // Measured from the target's parent, so that a target grown to 103 % still gives its
+    // own size; the surface grows by itself.
+    function placePlate() {
+        var target = findFocused(card);
+        focusItem = target;
+        if (!target) return;
+        var point = target.parent.mapToItem(card, target.x, target.y);
+        plate.animated = plateShown;
+        plate.x = point.x;
+        plate.y = point.y;
+        plate.width = target.width;
+        plate.height = target.height;
+        plate.radius = target.plateRadius;
+        plate.focusScale = target.plateScale;
+        plateShown = true;
+    }
+
+    // Rows lay out their buttons before the next frame; measure after that.
+    Timer {
+        id: placeTimer
+        interval: 30
+        onTriggered: dialog.placePlate()
+    }
+
+    onFocusKeyChanged: placeTimer.restart()
+    onLeftButtonsChanged: placeTimer.restart()
+    onRightButtonsChanged: placeTimer.restart()
+    onCardHeightChanged: placeTimer.restart()
+    Component.onCompleted: placeTimer.restart()
 
     ImageGlass {
         id: glass
@@ -49,6 +97,14 @@ Item {
         backdropMargin: glass.margin
         backdropArea: glass.area
         hasBackdrop: 1
+
+        // Below everything else of the card, so that text and drawings lie on it.
+        FocusSurface {
+            id: plate
+            visible: dialog.focusItem !== null
+            unit: dialog.unit
+            animated: false
+        }
 
         Wordmark {
             id: wordmark
@@ -142,7 +198,6 @@ Item {
                     label: modelData.label
                     icon: modelData.icon || ""
                     focused: modelData.focused === true
-                    ownFocus: true
                     disabled: modelData.disabled === true
                     danger: modelData.danger === true
                 }
@@ -161,7 +216,6 @@ Item {
                     label: modelData.label
                     icon: modelData.icon || ""
                     focused: modelData.focused === true
-                    ownFocus: true
                     disabled: modelData.disabled === true
                     danger: modelData.danger === true
                 }

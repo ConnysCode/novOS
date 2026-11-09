@@ -52,14 +52,15 @@ Item {
     function grid() {
         switch (page) {
         case "install-1": return [["cancel", "start"]];
-        case "install-2": return [["back", checkFailed ? "retry" : "next"]];
+        // A disabled "next" takes no focus.
+        case "install-2": return [checkFailed ? ["back", "retry"] : (canInstall ? ["back", "next"] : ["back"])];
         case "install-3": return [["back", "next"]];
         case "install-4": return [["row0"], ["row1"], ["row2"], ["row3"], ["back", "next"]];
         case "install-5": return [["qwertz", "t9"], ["auto"], ["block"], ["back", "next"]];
         case "install-6": return [["back", "install"]];
         case "install-9": return [["home"]];
         case "install-x": return [["close", "retry"]];
-        case "update-2": return [["later", "now"]];
+        case "update-2": return [canInstall ? ["later", "now"] : ["later"]];
         case "remove-2": return [["data"], ["cancel", "remove"]];
         default: return [];
         }
@@ -74,7 +75,7 @@ Item {
         case "install-6": return "install";
         case "install-9": return "home";
         case "install-x": return "retry";
-        case "update-2": return "now";
+        case "update-2": return canInstall ? "now" : "later";
         case "remove-2": return "cancel";
         default: return grid().length > 0 ? "next" : "";
         }

@@ -1,7 +1,7 @@
 import QtQuick 2.12
 
 // Switches in an inner card: rows of 80 px with a second line, 68 px without, 4 px apart
-// in 8 px of padding. The focused row is the white focus surface. rows: [{ title,
+// in 8 px of padding. The focused row is where the dialog's focus surface stands. rows: [{ title,
 // detail, on, focused, disabled }].
 InsetCard {
     id: list
@@ -26,14 +26,11 @@ InsetCard {
             Item {
                 width: parent.width
                 height: (modelData.detail ? 80 : 68) * list.unit
-
-                FocusSurface {
-                    anchors.fill: parent
-                    visible: modelData.focused === true
-                    unit: list.unit
-                    radius: 26
-                    animated: false
-                }
+                // A focus target: the dialog's single surface glides here.
+                readonly property bool focusTarget: true
+                readonly property bool focused: modelData.focused === true
+                readonly property real plateRadius: 26
+                readonly property real plateScale: 1
 
                 GlassRow {
                     anchors.fill: parent
