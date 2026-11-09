@@ -8,6 +8,7 @@
 #        PREVIEW_SED and PREVIEW_MODULE_SED change only the uploaded copy.
 #        PREVIEW_APP=<app id> runs it as another system window.
 #        PREVIEW_UPLOAD_ONLY=1 uploads and stops before the launch.
+#        PREVIEW_PAGE=<page> opens that page at once, for example "game" for the game bar.
 set -eu
 TV=${NOVOS_TV:?"set NOVOS_TV to the SSH target of the TV as root, e.g. root@<tv-ip>"}
 
@@ -23,6 +24,7 @@ STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
 
 sed -e "s/property int initialFocus: 0/property int initialFocus: $FOCUS_INDEX/" \
+    -e "s/property string initialPage: \"\"/property string initialPage: \"${PREVIEW_PAGE:-}\"/" \
     -e "${PREVIEW_SED:-s/^$//}" \
     "$HERE/quick-settings-glass.qml" > "$STAGE/QuickSettings.glass.qml"
 sed -e "${PREVIEW_SED:-s/^$//}" "$HERE/source-picker.qml" > "$STAGE/source-picker.qml"

@@ -3,6 +3,8 @@ import "."
 
 // Glass popover left of the panel: a list of values or the time of a timer. It sits
 // outside the panel, so the panel keeps its backdrop crop wide enough to serve both.
+// An owner elsewhere sets x, y and width itself; the rows follow the width. An option
+// may carry a second line (detail), for example the genres of the game bar.
 Item {
     id: popover
 
@@ -21,7 +23,7 @@ Item {
     property bool shown: false
     property string kind: "list"             // list or time
     property string title: ""
-    property var options: []                 // [{ label, value }]
+    property var options: []                 // [{ label, value, detail (optional) }]
     property string selected: ""
     property string focusId: ""
     property int hour: 0
@@ -69,7 +71,7 @@ Item {
     function rectOf(id) {
         var u = unit;
         if (id.indexOf("option-") === 0) {
-            return Qt.rect(10 * u, (52 + Number(id.substring(7)) * 64) * u, 380 * u, 60 * u);
+            return Qt.rect(10 * u, (52 + Number(id.substring(7)) * 64) * u, width - 20 * u, 60 * u);
         }
         if (id === "hour") return Qt.rect(49 * u, 130 * u, 132 * u, 104 * u);
         if (id === "minute") return Qt.rect(219 * u, 130 * u, 132 * u, 104 * u);
@@ -140,7 +142,8 @@ Item {
         if (!option) return { intro: title, subject: "", text: "" };
         var chosen = option.value === selected ? I18n.t("popover", "speech.selected") : "";
         return { intro: title, subject: "option:" + option.value,
-                 text: option.label + (chosen !== "" ? ", " + chosen : ""), change: chosen };
+                 text: option.label + (option.detail ? ", " + option.detail : "") + (chosen !== "" ? ", " + chosen : ""),
+                 change: chosen };
     }
 
     x: 840 * unit
@@ -223,18 +226,29 @@ Item {
             readonly property bool focused: popover.focusId === "option-" + index
             x: 10 * popover.unit
             y: (52 + index * 64) * popover.unit
-            width: 380 * popover.unit
+            width: popover.width - 20 * popover.unit
             height: 60 * popover.unit
 
-            Text {
+            Column {
                 x: 18 * popover.unit
-                height: parent.height
-                verticalAlignment: Text.AlignVCenter
-                text: modelData.label
-                color: parent.focused ? GlassStyle.focusText : "#ffffff"
-                font.family: popover.rowFont
-                font.pixelSize: 22 * popover.unit
-                font.hintingPreference: Font.PreferNoHinting
+                anchors.verticalCenter: parent.verticalCenter
+
+                Text {
+                    text: modelData.label
+                    color: parent.parent.focused ? GlassStyle.focusText : "#ffffff"
+                    font.family: popover.rowFont
+                    font.pixelSize: GlassStyle.rowSize * popover.unit
+                    font.hintingPreference: Font.PreferNoHinting
+                }
+
+                Text {
+                    visible: modelData.detail !== undefined && modelData.detail !== ""
+                    text: modelData.detail || ""
+                    color: parent.parent.focused ? GlassStyle.focusSecondary : GlassStyle.textDetail
+                    font.family: GlassStyle.valueFont
+                    font.pixelSize: GlassStyle.detailSize * popover.unit
+                    font.hintingPreference: Font.PreferNoHinting
+                }
             }
 
             Image {

@@ -38,7 +38,7 @@ StarfishSystemUIWindow {
                 rootWindow.show();
                 rootWindow.opened = true;
                 panel.launchPage = payload && payload.params && payload.params.page || panel.initialPage;
-                panel.open();
+                panel.launch();
             }
         }
         onClose: {
@@ -105,7 +105,10 @@ StarfishSystemUIWindow {
         // The large settings modal, 1680 × 920 in the centre (K3-Einstellungen).
         readonly property rect settingsArea: Qt.rect((width - 1680 * unit) / 2, (height - 920 * unit) / 2,
                                                      1680 * unit, 920 * unit)
-        readonly property rect backdropArea: !modalBackdrop ? sideArea : (settingsBackdrop ? settingsArea : modalArea)
+        // The game bar along the top edge and its genre list below it (module/GameBar.qml).
+        readonly property rect gameArea: Qt.rect(panelInset, 40 * unit, width - 2 * panelInset, 620 * unit)
+        readonly property rect backdropArea: !modalBackdrop ? (mode === "game" ? gameArea : sideArea)
+                                                            : (settingsBackdrop ? settingsArea : modalArea)
         // Three times the hand-off's 28 px: it hides the low capture rate at no
         // measurable extra CPU load.
         readonly property int openTimeout: 900
@@ -148,6 +151,11 @@ StarfishSystemUIWindow {
         // Opened for the settings modal alone (long press of the gear key, LG's settings app):
         // the panel never shows, and leaving the modal closes the window.
         property bool settingsLaunch: false
+        // While a game runs the gear key shows the game bar instead of the panel
+        // (docs/game-overlay-plan.md). "panel" or "game".
+        property string mode: "panel"
+        property bool fromGame: false         // the panel came from the bar: Back on its overview returns
+        property string gameFocus: ""         // the action the bar opens on, "" for the genre
         property var pendingSettings: null   // the modal was asked for and is still being built
         property var pendingFlow: []          // work for the flow, which is still being built
         property bool flowWaiting: false      // a flow the user asked for is still being built
@@ -160,7 +168,7 @@ StarfishSystemUIWindow {
         readonly property real modalVeil: {
             if (!modalBackdrop) return 0;
             var sheet = settingsLoader.item;
-            var total = settingsLaunch ? 0 : GlassStyle.modalScrim;
+            var total = settingsLaunch || mode === "game" ? 0 : GlassStyle.modalScrim;
             if (settingsBackdrop && sheet !== null) total = GlassStyle.stackScrims(total, sheet.backdropVeil);
             return GlassStyle.veilBeyondContent(total);
         }
@@ -1332,7 +1340,8 @@ StarfishSystemUIWindow {
         }
 
         function backOrClose() {
-            if (page === "overview") close();
+            if (page === "overview" && fromGame) panelToGame();
+            else if (page === "overview") close();
             else if (page === "appDetail") changePage("apps", 0);
             else if (page === "sourceDetail") changePage("sources", sourceRowOf(detailDeviceId));
             else if (page === "languages") changePage("system", 1);
@@ -1630,6 +1639,83 @@ StarfishSystemUIWindow {
             if (JSON.stringify(sounds) !== JSON.stringify(soundModes)) soundModes = sounds;
         }
 
+        // A press of the gear key: the game bar while a game runs, otherwise the panel. A launch
+        // with a page opens it straight away; page "game" shows the bar with stand-in values.
+        function launch() {
+            mode = "panel";
+            fromGame = false;
+            if (launchPage === "game") {
+                openGame("");
+            } else if (launchPage === "") {
+                PerfProbe.mark("game.check");
+                gameStatus.check();
+            } else {
+                open();
+            }
+        }
+
+        function gameDecided(game) {
+            PerfProbe.mark("game.decided", game ? "game" : "panel");
+            if (!rootWindow.opened || closing) return;
+            if (game) openGame("");
+            else open();
+        }
+
+        function openGame(focusKey) {
+            mode = "game";
+            page = "overview";
+            popover = "";
+            modalStep.stop();
+            choicePopover.shown = false;
+            settingsLaunch = false;
+            panelHidden = false;
+            modalBackdrop = false;
+            settingsBackdrop = false;
+            gameFocus = focusKey;
+            gameBar.demo = launchPage === "game";
+            guide.reset();
+            closing = false;
+            panelShown = false;
+            forceActiveFocus();
+            openTimer.restart();
+            backdropService.call("luna://com.webos.applicationManager",
+                                 "/getForegroundAppInfo", "{}");
+            PerfProbe.beginPhase("open");
+            settingsStore.request();
+            gameStatus.live = true;
+            if (liveGlass.pictureReady) startOpenAnimation();
+        }
+
+        // "Schnellmenü" on the bar: the panel comes in, and Back on its overview returns to
+        // the bar on "Schnellmenü". Glass never stands over glass: what stands fades out
+        // first, then the backdrop moves to the other area (modeSwitch).
+        function gameToPanel() {
+            gameBar.hide();
+            fromGame = true;
+            modeSwitch.target = "panel";
+            modeSwitch.restart();
+        }
+
+        function panelToGame() {
+            fromGame = false;
+            openAnimation.stop();
+            panelOut.restart();
+            modeSwitch.target = "game";
+            modeSwitch.restart();
+        }
+
+        function modeSwitched(target) {
+            if (closing) return;
+            mode = target;
+            liveGlass.snap();
+            if (target === "game") {
+                gameBar.open("quick");
+            } else {
+                launchPage = "";
+                open();
+            }
+        }
+
         function open() {
             page = "overview";
             popover = "";
@@ -1668,12 +1754,22 @@ StarfishSystemUIWindow {
             if (modalLoader.item) modalLoader.item.closeFlow();
             if (settingsLoader.item) settingsLoader.item.close();
             openTimer.stop();
+            gameBar.hide();
+            gameStatus.live = false;
             liveGlass.stop();
             openAnimation.stop();
             closeAnimation.restart();
         }
 
         function startOpenAnimation() {
+            if (mode === "game") {
+                if (closing || gameBar.shown || gameStatus.checking) return;
+                PerfProbe.mark("open.animation", "game");
+                openTimer.stop();
+                panelShown = true;
+                gameBar.open(gameFocus);
+                return;
+            }
             if (closing || openAnimation.running || glass.opacity > 0) return;
             PerfProbe.mark("open.animation");
             openTimer.stop();
@@ -1709,13 +1805,17 @@ StarfishSystemUIWindow {
         SettingsStore {
             id: settingsStore
             extraKeys: ({ network: ["deviceName"], option: ["country"],
+                          // The game bar: latency and LG's list of its values.
+                          picture: ["memcDelayLevel"], other: ["gameDashboardStatusList"],
                           general: ["remotePointer", "tvOnSound"],
                           time: ["onTimerHour", "onTimerMinute", "onTimerAppId", "offTimerHour", "offTimerMinute"] })
             // The descriptors the panel itself reads (value lists, picture dimensions); the
             // settings modal asks for the rest when it opens.
             descKeys: ["picture.pictureMode", "picture.backlight", "picture.energySaving",
                        "picture.eyeComfortMode", "sound.soundMode", "sound.soundOutput",
-                       "sound.audioDescription", "option.audioGuidanceSpeed"]
+                       "sound.audioDescription", "option.audioGuidanceSpeed",
+                       // The game bar shows VRR only where the TV has it.
+                       "other.gameOptimization", "other.freesync"]
             onRevisionChanged: panel.applyStore()
         }
 
@@ -1874,12 +1974,14 @@ StarfishSystemUIWindow {
         }
 
         function handlePress(key, autoRepeat) {
-            if (pendingSettings !== null || flowWaiting) {
+            if (pendingSettings !== null || flowWaiting || modeSwitch.running) {
                 return true;
             } else if (modalActive) {
                 modalLoader.item.handleKey(key, autoRepeat);
             } else if (settingsActive) {
                 settingsLoader.item.handleKey(key, autoRepeat);
+            } else if (mode === "game") {
+                return gameBar.handlePress(key, autoRepeat);
             } else if (choicePopover.shown) {
                 choicePopover.handleKey(key, autoRepeat);
             } else if (popover !== "") {
@@ -1920,7 +2022,9 @@ StarfishSystemUIWindow {
         }
 
         function handleRelease(key) {
-            if (flowWaiting) {
+            if (modeSwitch.running) {
+                return true;
+            } else if (flowWaiting) {
                 // Back while a dialog is still being built: it does not open after all.
                 if (isBackKey(key)) {
                     pendingFlow = [];
@@ -1935,6 +2039,8 @@ StarfishSystemUIWindow {
             } else if (settingsActive) {
                 if (isBackKey(key)) settingsLoader.item.back();
                 else return false;
+            } else if (mode === "game") {
+                return gameBar.handleRelease(key);
             } else if (choicePopover.shown) {
                 if (isBackKey(key)) choicePopover.close();
                 else return false;
@@ -2901,6 +3007,38 @@ StarfishSystemUIWindow {
             onTimerOff: panel.disableTimer()
         }
 
+        Timer {
+            id: modeSwitch
+            property string target: "panel"
+            interval: panel.panelDuration + 20
+            onTriggered: panel.modeSwitched(target)
+        }
+
+        GameStatus {
+            id: gameStatus
+            onDecided: panel.gameDecided(game)
+        }
+
+        GameBar {
+            id: gameBar
+            anchors.fill: parent
+            z: 9
+            unit: panel.unit
+            store: settingsStore
+            status: gameStatus
+            covered: panel.panelHidden
+            backdrop: liveGlass.texture
+            glassShader: liveGlass.glassShader
+            shadowShader: liveGlass.shadowShader
+            backdropMargin: panel.backdropMargin
+            backdropArea: panel.gameArea
+            hasBackdrop: liveGlass.hasFrame ? 1 : 0
+            fadeDuration: panel.panelDuration
+            onCloseRequested: panel.close()
+            onQuickMenu: panel.gameToPanel()
+            onGamesSettings: panel.openSettings("games", "")
+        }
+
         // A launch with page "settings:<area>" opens the modal once the panel stands.
         Timer {
             id: settingsOpenTimer
@@ -2943,6 +3081,27 @@ StarfishSystemUIWindow {
                 target: glassOffset
                 property: "x"
                 to: 0
+                duration: panel.panelDuration
+                easing.type: Easing.Bezier
+                easing.bezierCurve: panel.standardCurve
+            }
+        }
+
+        // The panel steps back to the game bar; the window stays.
+        ParallelAnimation {
+            id: panelOut
+            NumberAnimation {
+                target: glass
+                property: "opacity"
+                to: 0
+                duration: panel.panelDuration
+                easing.type: Easing.Bezier
+                easing.bezierCurve: panel.standardCurve
+            }
+            NumberAnimation {
+                target: glassOffset
+                property: "x"
+                to: 48 * panel.unit
                 duration: panel.panelDuration
                 easing.type: Easing.Bezier
                 easing.bezierCurve: panel.standardCurve

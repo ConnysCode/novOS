@@ -236,6 +236,14 @@ ICONS = [
     ("feature-sparkle-28", 28, 1.7, path("M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9-1.9 5.1-1.9-5.1-5.1-1.9 5.1-1.9z") +
      path("M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"), BOTH),
     ("feature-update-28", 28, 1.7, path("M20 12a8 8 0 1 1-2.4-5.7") + path("M20 4v4.5h-4.5"), BOTH),
+    # The game bar (K3-Spiel-A-HUD): the genre chip, then the four actions.
+    ("game-genre", 30, 1.8, '<circle cx="12" cy="12" r="7"/>' + path("M12 2.5v5M12 16.5v5M2.5 12h5M16.5 12h5"), BOTH),
+    ("game-dark-room", 24, 1.8, path("M19.5 14.2A8 8 0 1 1 9.8 4.5a6.4 6.4 0 0 0 9.7 9.7z"), BOTH),
+    ("game-multi-view", 24, 1.8, '<rect x="3" y="5" width="8.5" height="14" rx="2"/>'
+     '<rect x="12.5" y="5" width="8.5" height="14" rx="2"/>', BOTH),
+    ("game-games", 24, 1.8, '<circle cx="12" cy="12" r="3"/>' +
+     path("M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"), BOTH),
+    ("game-quick", 24, 1.8, MANAGE, BOTH),
 ] + [(f"settings-{name}", 28, 1.7, body, BOTH) for name, body in SETTINGS_AREAS] + [
     (f"device-{name}", 36, 1.5, body, BOTH) for name, body in DEVICES] + [
     (f"device-{name}-48", 48, 1.5, body, LIGHT_ONLY) for name, body in DEVICES]

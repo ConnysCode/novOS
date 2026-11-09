@@ -74,6 +74,15 @@ QtObject {
     readonly property int pillTextSize: 20                 // status pill of background work
     readonly property int sectionSize: 16
     readonly property real sectionTracking: 0.96          // 0.06 em, as in the hand-off
+    readonly property int statSize: 34                     // a live value, for example of the game bar
+    readonly property int statUnitSize: 15                 // its unit beside it
+    readonly property int chipValueSize: 26                // the value of a chip, for example the genre
+    // A bar along the top edge (K3-Spiel-A-HUD), in logical px.
+    readonly property real topBarInset: 48
+    readonly property real topBarRadius: 44
+    readonly property int chipRadius: 28
+    readonly property int pillRadius: 32
+    readonly property color divider: "#24ffffff"           // white 14 %, between groups of a bar
     property alias blur: values.blur
     property alias keyboardMode: values.keyboardMode
     readonly property real edgeGain: Math.max(0.5, Math.min(2.5, Math.pow(referenceBlur / blur, 0.7)))
