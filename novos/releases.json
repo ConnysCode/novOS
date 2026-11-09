@@ -3,6 +3,40 @@
   "app": "novos",
   "releases": [
     {
+      "version": "0.9.1-beta.3",
+      "channel": "beta",
+      "published": "2026-11-09T22:09:33Z",
+      "date": "2026-11-09",
+      "size": 18437724,
+      "restarts": 1,
+      "level": "patch",
+      "manifest": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.1-beta.3/novos-0.9.1-beta.3.manifest.json",
+      "signature": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.9.1-beta.3/novos-0.9.1-beta.3.manifest.json.sig",
+      "topics": {
+        "de": "Update-Seite",
+        "en": "Update page",
+        "es": "Página de actualización",
+        "fr": "Page de mise à jour"
+      },
+      "items": [
+        {
+          "kind": "fix",
+          "title": {
+            "de": "Auswahl bei der Update-Suche",
+            "en": "Selection while searching for updates",
+            "es": "Selección al buscar actualizaciones",
+            "fr": "Sélection pendant la recherche de mises à jour"
+          },
+          "text": {
+            "de": "Während novOS nach Updates sucht, bleibt die Auswahl auf der Update-Karte statt nach unten zu springen.",
+            "en": "While novOS searches for updates, the selection stays on the update card instead of jumping down.",
+            "es": "Mientras novOS busca actualizaciones, la selección se queda en la tarjeta en lugar de saltar hacia abajo.",
+            "fr": "Pendant que novOS cherche des mises à jour, la sélection reste sur la carte au lieu de descendre."
+          }
+        }
+      ]
+    },
+    {
       "version": "0.9.1-beta.2",
       "channel": "beta",
       "published": "2026-11-09T21:51:57Z",
