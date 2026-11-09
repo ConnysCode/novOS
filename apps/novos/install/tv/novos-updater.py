@@ -78,6 +78,7 @@ def fetch(name):
     """Downloads and checks the setup release of channel name; returns its folder."""
     work = os.path.join(UPDATER, ".download")
     shutil.rmtree(work, ignore_errors=True)
+    used = name
     try:
         try:
             manifest = release.fetch(name, "setup", work)
@@ -86,6 +87,7 @@ def fetch(name):
             if name != "stable" or error_kind(error) != "missing":
                 raise
             shutil.rmtree(work, ignore_errors=True)
+            used = "beta"
             manifest = release.fetch("beta", "setup", work)
         version = manifest["version"]
         target = os.path.join(UPDATER, version)
@@ -103,7 +105,7 @@ def fetch(name):
             path = os.path.join(UPDATER, entry)
             if entry not in (version, before, ".download") and os.path.isdir(path) and not os.path.islink(path):
                 shutil.rmtree(path, ignore_errors=True)
-        log("setup %s from %s checked" % (version, name))
+        log("setup %s from %s checked%s" % (version, used, "" if used == name else " (%s has none)" % name))
         return target
     finally:
         shutil.rmtree(work, ignore_errors=True)
