@@ -29,6 +29,7 @@ uninstaller brings LG's interface back completely.
 | --- | --- |
 | [`apps/novos/`](apps/novos) | novOS itself: the interface, the video plugin, the release build and everything that runs on the TV |
 | [`apps/setup/`](apps/setup) | The setup that installs, updates and removes novOS: `tv/novos-setupd.py`, the root service that installs only signed releases (for now run over SSH with `setupd-on-tv.sh`), and the screens as visual debug slides |
+| [`apps/cli/`](apps/cli) | `novos`, the program for Mac, Windows and Linux: finds the TVs on the network and installs, updates or removes novOS over SSH |
 | [`lib/ui/`](lib/ui) | The glass components every app shares: style tokens, glass cards, focus surface, rows, switches, sliders, buttons, notices, popovers, progress, status lists, the on-screen keyboard, texts, icons and fonts |
 | [`lib/backgrounds/`](lib/backgrounds) | The pictures behind the launcher, the hub and the setup, with their credits |
 | [`lib/release/`](lib/release) | Signed releases: Ed25519 in plain Python, manifests, channel files, checked downloads |
@@ -55,6 +56,19 @@ after `ssh lg-tv`: `sh novos-uninstall.sh`.
 
 Releases are named after the commit of this repository. `install` refuses
 uncommitted changes.
+
+### The novos program
+
+```sh
+novos                    # find the TVs, choose one, install or update
+novos status --tv 192.168.1.20
+novos install beta --tv 192.168.1.20 --yes
+```
+
+`novos help` lists every command. It logs in as root over SSH (agent, `~/.ssh` keys, or a
+password; `novos key` sets up a key) and runs `novos-setupd`, which it carries and copies to
+`/tmp` on the TV. A tag `cli-v<version>` builds it for every system. Without Go installed,
+`apps/cli/dev.sh` runs the toolchain in Docker.
 
 ### Releases
 
