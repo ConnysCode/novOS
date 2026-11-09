@@ -39,7 +39,7 @@ LAUNCHER = "com.webos.app.store-streamer"
 # here.
 LG_HUB = "com.webos.app.homeconnect"
 CLOSE = "luna://com.webos.applicationManager/closeByAppId"
-# If the app below LG's Home Hub never reports, the hub opens anyway after this.
+# How long the relay waits for the app below LG's Home Hub to come back.
 HUB_WAIT_SECONDS = 2
 LAUNCHER_STATE = "/tmp/novos-launcher-open.ini"
 # The launcher writes its state about 0.3 s after it shows.
@@ -78,19 +78,32 @@ def show_launcher():
 
 
 def close_lg_hub():
-    """LG's Home Hub came to the front. The compositor keeps it out of sight
-    (fullscreen-home.inc, splash-hide.inc); it goes, and our hub opens once the app
-    below it is back, see open_hub."""
     subprocess.run(["luna-send", "-n", "1", "-w", "3000", CLOSE, json.dumps({"id": LG_HUB})],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def return_to(app_id):
+    """Brings back the app that ran before LG's Home Hub, which goes to the background.
+    Closing LG's Home Hub in front would end on LG's Home instead (tested on 10.3.2-33).
+    A source comes back without LG's banner, as in hide_banner."""
+    params = {"appViewRole": "appViewGuest"} if app_id.startswith("com.webos.app.hdmi") and banner_hidden() else {}
+    subprocess.run(["luna-send", "-n", "1", "-w", "3000", START, json.dumps({"id": app_id, "params": params})],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def wait_for_launcher():
+    deadline = time.time() + LAUNCHER_CHECK_SECONDS
+    while not launcher_open() and time.time() < deadline:
+        time.sleep(0.1)
+
+
 def open_hub(below):
     """Our hub in place of LG's. Over LG's Home it opens over the launcher, so that back
-    leads there and not to the hidden Home; over a source or an app it opens alone."""
+    leads there and not to the hidden Home; over a source or an app it opens alone. A hub
+    asked for before the launcher's window stands gets lost, hence the wait."""
     if below == HOME and not launcher_open():
         show_launcher()
-        time.sleep(SETTLE_SECONDS)
+        wait_for_launcher()
     open_window_of(LAUNCHER, {"page": "hub"})
 
 
@@ -199,14 +212,23 @@ def main():
     # example. LG's Home stays hidden, the screen would stay black: ask again.
     launcher_due = 0
     launcher_tries = 0
-    # Set while LG's Home Hub goes: our hub opens over the app that comes back.
+    # While LG's Home Hub goes: "returning" while the app before it comes back, "closing"
+    # while LG's Home Hub closes in front. Our hub opens over the app that is then in front.
+    # The compositor keeps LG's Home Hub out of sight (fullscreen-home.inc, splash-hide.inc).
+    hub_state = ""
     hub_due = 0
     try:
         while time.time() < deadline and os.path.exists(marker):
             ready, _, _ = select.select([foreground, toasts, alerts], [], [], 0.5)
-            if hub_due and time.time() >= hub_due:
-                hub_due = 0
-                open_hub("")
+            if hub_state and time.time() >= hub_due:
+                if hub_state == "returning":
+                    # The app before did not come back: LG's Home Hub closes in front.
+                    close_lg_hub()
+                    hub_state = "closing"
+                    hub_due = time.time() + HUB_WAIT_SECONDS
+                else:
+                    hub_state = ""
+                    open_hub(previous)
             if launcher_due and time.time() >= launcher_due:
                 launcher_due = 0
                 if previous == HOME and not launcher_open() and launcher_tries > 0:
@@ -230,11 +252,18 @@ def main():
                     continue
                 current = found.group(1)
                 if current == LG_HUB:
-                    close_lg_hub()
+                    if previous and previous != HOME:
+                        return_to(previous)
+                        hub_state = "returning"
+                    else:
+                        close_lg_hub()
+                        hub_state = "closing"
                     hub_due = time.time() + HUB_WAIT_SECONDS
-                elif hub_due:
+                elif hub_state:
                     # The app below LG's Home Hub is back: no pill, no launcher of its own.
-                    hub_due = 0
+                    if hub_state == "returning":
+                        close_lg_hub()
+                    hub_state = ""
                     open_hub(current)
                     if current == HOME:
                         launcher_due = time.time() + LAUNCHER_CHECK_SECONDS
