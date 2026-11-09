@@ -23,7 +23,7 @@ HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 LIB=$(CDPATH= cd -- "$HERE/../../lib" && pwd)
 APP=com.webos.app.quicksettings
 BRIDGE=/tmp/novos-setup
-TV=${NOVOS_TV_SSH_TARGET:-lg-tv}
+TV=${NOVOS_TV:?"set NOVOS_TV to the SSH target of the TV as root, e.g. root@<tv-ip>"}
 
 case "${1:-}" in
 key)

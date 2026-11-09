@@ -29,7 +29,7 @@ spec.loader.exec_module(express)
 class ExpressServerTest(unittest.TestCase):
     def setUp(self):
         self.server = express.ExpressServer(0)
-        self.server.devices = {"known-tv": "lg-tv"}
+        self.server.devices = {"known-tv": "root@192.168.1.10"}
         self.server.devices_until = time.monotonic() + 300
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
@@ -81,8 +81,8 @@ class ExpressServerTest(unittest.TestCase):
             status, data = self.request("POST", "/api/start?tv=known-tv", headers=headers)
             self.assertEqual(status, 200)
             self.assertTrue(json.loads(data)["ok"])
-            preflight.assert_called_once_with("lg-tv")
-            launch.assert_called_once_with("lg-tv")
+            preflight.assert_called_once_with("root@192.168.1.10")
+            launch.assert_called_once_with("root@192.168.1.10")
 
     def test_failed_preflight_never_launches(self):
         headers = {
@@ -114,7 +114,7 @@ class ExpressServerTest(unittest.TestCase):
             {"address": "192.168.1.11", "name": "Schlafzimmer", "model": "LG B", "ssh": False},
         ]
         with patch.object(express, "discover_lg_tvs", return_value=found), patch.object(
-            express, "configured_tv_address", return_value="192.168.1.10"
+            express, "configured_tv", return_value=("mein-tv", "192.168.1.10")
         ):
             status, data = self.request("GET", "/api/tvs")
         self.assertEqual(status, 200)
@@ -122,7 +122,7 @@ class ExpressServerTest(unittest.TestCase):
         self.assertEqual(len(devices), 2)
         self.assertNotEqual(devices[0]["id"], devices[1]["id"])
         by_address = {device["address"]: device for device in devices}
-        self.assertEqual(self.server.target_for(by_address["192.168.1.10"]["id"]), "lg-tv")
+        self.assertEqual(self.server.target_for(by_address["192.168.1.10"]["id"]), "mein-tv")
         self.assertEqual(self.server.target_for(by_address["192.168.1.11"]["id"]), "root@192.168.1.11")
         with patch.object(express, "preflight", return_value={"ready": True}) as preflight:
             status, _ = self.request(
@@ -146,7 +146,7 @@ class ExpressServerTest(unittest.TestCase):
 
     def test_manual_address_rejects_invalid_and_public_addresses(self):
         with patch.object(express, "ssh_reachable", return_value=True) as probe:
-            for value in ("", "lg-tv", "192.168.1.256", "192.168.001.20", "8.8.8.8", "127.0.0.1"):
+            for value in ("", "mein-tv", "192.168.1.256", "192.168.001.20", "8.8.8.8", "127.0.0.1"):
                 status, data = self.request(
                     "POST", "/api/device?address=" + value, headers=self.authorized()
                 )
@@ -166,7 +166,7 @@ class ExpressServerTest(unittest.TestCase):
 
     def test_manual_address_is_added_and_kept_on_rescan(self):
         with patch.object(express, "ssh_reachable", return_value=True), patch.object(
-            express, "configured_tv_address", return_value=""
+            express, "configured_tv", return_value=("", "")
         ):
             status, data = self.request(
                 "POST", "/api/device?address=192.168.1.20", headers=self.authorized()
@@ -175,7 +175,7 @@ class ExpressServerTest(unittest.TestCase):
             device = json.loads(data)["device"]
             self.assertEqual(device["address"], "192.168.1.20")
             self.assertEqual(self.server.target_for(device["id"]), "root@192.168.1.20")
-            self.assertEqual(self.server.target_for("known-tv"), "lg-tv")
+            self.assertEqual(self.server.target_for("known-tv"), "root@192.168.1.10")
             with patch.object(express, "discover_lg_tvs", return_value=[]):
                 status, data = self.request("GET", "/api/tvs")
         devices = json.loads(data)["devices"]
@@ -225,10 +225,10 @@ class ExpressServerTest(unittest.TestCase):
             visible.assert_called_with(visible.call_args.args[0], "root@192.168.1.11")
             relaunch.assert_called_once_with(visible.call_args.args[0], "root@192.168.1.11")
             self.assertEqual(
-                popen.call_args.kwargs["env"]["NOVOS_TV_SSH_TARGET"], "root@192.168.1.11"
+                popen.call_args.kwargs["env"]["NOVOS_TV"], "root@192.168.1.11"
             )
 
-    def test_setup_runner_uses_selected_target_and_keeps_alias_default(self):
+    def test_setup_runner_needs_novos_tv_and_uses_it(self):
         script = express.SETUP_SCRIPT
         with tempfile.TemporaryDirectory() as folder:
             capture = Path(folder) / "target"
@@ -240,13 +240,26 @@ class ExpressServerTest(unittest.TestCase):
                 "PATH": folder + os.pathsep + os.environ["PATH"],
                 "NOVOS_TEST_CAPTURE": str(capture),
             }
-            environment.pop("NOVOS_TV_SSH_TARGET", None)
-            subprocess.run(["sh", str(script), "state"], env=environment, check=True, capture_output=True)
-            self.assertEqual(capture.read_text(), "lg-tv")
-            environment["NOVOS_TV_SSH_TARGET"] = "root@192.168.1.11"
+            environment.pop("NOVOS_TV", None)
+            result = subprocess.run(["sh", str(script), "state"], env=environment, capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(b"NOVOS_TV", result.stderr)
+            self.assertFalse(capture.exists())
+            environment["NOVOS_TV"] = "root@192.168.1.11"
             subprocess.run(["sh", str(script), "state"], env=environment, check=True, capture_output=True)
             self.assertEqual(capture.read_text(), "root@192.168.1.11")
 
+    def test_configured_tv_comes_only_from_novos_tv(self):
+        with patch.object(express, "target_address", return_value="192.168.1.10") as resolve:
+            with patch.dict(os.environ, {}, clear=False):
+                os.environ.pop("NOVOS_TV", None)
+                self.assertEqual(express.configured_tv(), ("", ""))
+            with patch.dict(os.environ, {"NOVOS_TV": "-oProxyCommand=x"}):
+                self.assertEqual(express.configured_tv(), ("", ""))
+            resolve.assert_not_called()
+            with patch.dict(os.environ, {"NOVOS_TV": "mein-tv"}):
+                self.assertEqual(express.configured_tv(), ("mein-tv", "192.168.1.10"))
+            resolve.assert_called_once_with("mein-tv")
 
 if __name__ == "__main__":
     unittest.main()

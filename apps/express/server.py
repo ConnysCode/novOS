@@ -60,7 +60,7 @@ class TVUnavailable(Exception):
     """A preflight check did not establish that the TV is ready."""
 
 
-def remote(command, target="lg-tv", tty=False):
+def remote(command, target, tty=False):
     try:
         result = subprocess.run(
             [
@@ -79,7 +79,7 @@ def remote(command, target="lg-tv", tty=False):
     return result.stdout
 
 
-def preflight(target="lg-tv"):
+def preflight(target):
     """Read version, service, hashes and mounts before opening a TV window."""
     sections = {marker: [] for marker in MARKERS}
     current = None
@@ -114,7 +114,7 @@ def preflight(target="lg-tv"):
     }
 
 
-def luna(method, payload, target="lg-tv"):
+def luna(method, payload, target):
     command = "luna-send -n 1 -w 5000 " + method + " "
     command += shlex.quote(json.dumps(payload, separators=(",", ":")))
     output = remote(command, target=target, tty=True)
@@ -162,7 +162,7 @@ def png_has_graphics(path):
     return False
 
 
-def wizard_visible(build, target="lg-tv"):
+def wizard_visible(build, target):
     remote_file = "/tmp/novos-express-" + build + ".png"
     with tempfile.TemporaryDirectory(prefix="novos-express-") as folder:
         local_file = Path(folder) / "graphic.png"
@@ -195,7 +195,7 @@ def wizard_visible(build, target="lg-tv"):
                 pass
 
 
-def relaunch_wizard(build, target="lg-tv"):
+def relaunch_wizard(build, target):
     luna(
         "luna://com.webos.service.systemUIManager/closeByAppId",
         {"appId": "com.webos.app.quicksettings"},
@@ -213,7 +213,7 @@ def relaunch_wizard(build, target="lg-tv"):
     )
 
 
-def close_test_wizard(target="lg-tv"):
+def close_test_wizard(target):
     try:
         result = subprocess.run(
             ["sh", str(SETUP_SCRIPT), "stop"],
@@ -222,7 +222,7 @@ def close_test_wizard(target="lg-tv"):
             text=True,
             timeout=20,
             check=False,
-            env={**os.environ, "NOVOS_TV_SSH_TARGET": target},
+            env={**os.environ, "NOVOS_TV": target},
         )
         if result.returncode != 0:
             print("Wizard-Rückbau fehlgeschlagen; TV bitte prüfen.", file=sys.stderr)
@@ -230,7 +230,7 @@ def close_test_wizard(target="lg-tv"):
         print("Wizard-Rückbau fehlgeschlagen; TV bitte prüfen.", file=sys.stderr)
 
 
-def start_wizard(target="lg-tv"):
+def start_wizard(target):
     build = "express-" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     build += "-" + secrets.token_hex(3)
     process = subprocess.Popen(
@@ -240,7 +240,7 @@ def start_wizard(target="lg-tv"):
         stderr=subprocess.PIPE,
         text=True,
         start_new_session=True,
-        env={**os.environ, "NOVOS_TV_SSH_TARGET": target},
+        env={**os.environ, "NOVOS_TV": target},
     )
     try:
         stdout, stderr = process.communicate(timeout=120)
@@ -263,11 +263,20 @@ def start_wizard(target="lg-tv"):
         raise
 
 
-def configured_tv_address():
-    """Resolve the existing SSH alias without reading or copying its config file."""
+def configured_tv():
+    """The TV from NOVOS_TV, if set, as (SSH target, private address)."""
+    target = os.environ.get("NOVOS_TV", "").strip()
+    if not target or target.startswith("-"):
+        return "", ""
+    address = target_address(target)
+    return (target, address) if address else ("", "")
+
+
+def target_address(target):
+    """Resolve an SSH target without reading or copying the ssh config file."""
     try:
         result = subprocess.run(
-            ["ssh", "-G", "lg-tv"], capture_output=True, text=True, timeout=5, check=False
+            ["ssh", "-G", target], capture_output=True, text=True, timeout=5, check=False
         )
     except (OSError, subprocess.TimeoutExpired):
         return ""
@@ -290,10 +299,11 @@ def manual_entry(address, ssh):
     return {"address": address, "name": address, "model": "", "ssh": ssh, "manual": True}
 
 
-def listed_device(item, alias_address):
+def listed_device(item, configured):
     """Give a found TV a random id; the browser never sees an SSH target."""
     address = item["address"]
-    target = "lg-tv" if address == alias_address else "root@" + address
+    configured_target, configured_address = configured
+    target = configured_target if address == configured_address else "root@" + address
     device = {
         "id": secrets.token_urlsafe(16),
         "name": item["name"],
@@ -324,9 +334,10 @@ class ExpressServer(ThreadingHTTPServer):
         except OSError:
             found = []
             message = "Die Netzwerksuche war nicht möglich."
-        alias_address = configured_tv_address()
-        if alias_address and all(item["address"] != alias_address for item in found):
-            found.append({"address": alias_address, "name": "Konfigurierter LG-TV", "model": "", "ssh": True})
+        configured = configured_tv()
+        configured_address = configured[1]
+        if configured_address and all(item["address"] != configured_address for item in found):
+            found.append({"address": configured_address, "name": "Konfigurierter LG-TV", "model": "", "ssh": True})
             if not message:
                 message = "Der konfigurierte TV antwortete nicht auf die Netzwerksuche."
         with self.device_lock:
@@ -339,7 +350,7 @@ class ExpressServer(ThreadingHTTPServer):
         for item in found:
             if not private_ipv4(item["address"]):
                 continue
-            device, target = listed_device(item, alias_address)
+            device, target = listed_device(item, configured)
             registry[device["id"]] = target
             devices.append(device)
         with self.device_lock:
@@ -359,7 +370,7 @@ class ExpressServer(ThreadingHTTPServer):
             raise ValueError("Nur Adressen aus dem Heimnetz sind erlaubt, etwa 192.168.… oder 10.….")
         if not ssh_reachable(address, timeout=2):
             raise TVUnavailable("Unter " + address + " antwortet kein Fernseher per SSH.")
-        device, target = listed_device(manual_entry(address, True), configured_tv_address())
+        device, target = listed_device(manual_entry(address, True), configured_tv())
         with self.device_lock:
             if time.monotonic() > self.devices_until:
                 self.devices = {}
