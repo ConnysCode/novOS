@@ -107,5 +107,5 @@ while read -r name target hash; do
     fi
 done < "$TARGETS"
 [ "$status" = 0 ] && log "all $(grep -c '^[^#]' "$TARGETS") originals restored"
-log "jail copies left: $(grep -cE '(QuickSettings\.qml|InputPicker\.qml|Notification/Services\.qml|StoreStreamer\.qml|systemUi\.js|StarfishFullscreenContainer\.qml|StarfishImageSplash\.qml|StarfishSystemUIManager\.qml|StarfishViewStateController\.qml|StarfishVolumeView\.qml|appLaunch\.js|com\.palm\.app\.settings/index[.a-z]*html) ' /proc/mounts)"
+log "jail copies left: $(grep -cE '(QuickSettings\.qml|InputPicker\.qml|Notification/Services\.qml|StoreStreamer\.qml|systemUi\.js|StarfishFullscreenContainer\.qml|StarfishImageSplash\.qml|StarfishSystemUIManager\.qml|StarfishViewStateController\.qml|StarfishVolumeView\.qml|appLaunch\.js|MasterBrand\.qml|com\.palm\.app\.settings/index[.a-z]*html) ' /proc/mounts)"
 exit "$status"

@@ -69,7 +69,7 @@ set -eu
 root=/var/lib/novos
 version=$1
 if pgrep -f 'novos-supervisor.p[y] run' >/dev/null ||
-   grep -Eq ' /usr/lib/qml/(QuickSettings/QuickSettings\.qml|InputPicker/InputPicker\.qml|StoreStreamer/StoreStreamer\.qml|KeyFilters/systemUi\.js|SystemUI/Notification/Services\.qml|WebOSCompositor/views/fullscreen/StarfishFullscreenContainer\.qml|WebOSCompositor/views/StarfishImageSplash\.qml|WebOSCompositor/views/systemUi/StarfishSystemUIManager\.qml|WebOSCompositor/controllers/StarfishViewStateController\.qml|WebOSCompositor/views/StarfishVolumeView\.qml|KeyFilters/appLaunch\.js) ' /proc/mounts ||
+   grep -Eq ' /usr/lib/qml/(QuickSettings/QuickSettings\.qml|InputPicker/InputPicker\.qml|StoreStreamer/StoreStreamer\.qml|KeyFilters/systemUi\.js|SystemUI/Notification/Services\.qml|WebOSCompositor/views/fullscreen/StarfishFullscreenContainer\.qml|WebOSCompositor/views/StarfishImageSplash\.qml|WebOSCompositor/views/systemUi/StarfishSystemUIManager\.qml|WebOSCompositor/controllers/StarfishViewStateController\.qml|WebOSCompositor/views/StarfishVolumeView\.qml|KeyFilters/appLaunch\.js|MasterBrand/MasterBrand\.qml) ' /proc/mounts ||
    grep -Eq ' /usr/palm/applications/com\.palm\.app\.settings/index(\.multi)?\.html ' /proc/mounts; then
     echo "an overlay is mounted: first novos-on-tv.sh stop or gear-test-on-tv.sh rollback" >&2
     exit 1
