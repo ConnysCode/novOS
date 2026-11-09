@@ -6,7 +6,8 @@
 #   setup-on-tv.sh <build-name> [install|update|remove]   start the setup with this flow
 #   setup-on-tv.sh key <ok|back|left|right|up|down>...    press keys in the running setup
 #   setup-on-tv.sh state                                  print the service's state.json
-#   setup-on-tv.sh capture <file.png>                     a picture of the interface
+#   setup-on-tv.sh capture <file.png> [DISPLAY]           a picture of the interface; DISPLAY
+#                                                         takes the video plane too
 #   setup-on-tv.sh stop                                   close window and service
 #
 # Every build needs a new name, because surface-manager caches components by URL.
@@ -29,7 +30,7 @@ key)
 state)
     ssh lg-tv "cat $BRIDGE/state.json"; echo; exit 0 ;;
 capture)
-    request='{"path":"/tmp/novos-setup-capture.png","method":"GRAPHIC","format":"PNG","width":1920,"height":1080}'
+    request='{"path":"/tmp/novos-setup-capture.png","method":"'${3:-GRAPHIC}'","format":"PNG","width":1920,"height":1080}'
     ssh -tt lg-tv "rm -f /tmp/novos-setup-capture.png; luna-send -n 1 -w 5000 luna://com.webos.service.capture/executeOneShot '$request'" >/dev/null 2>&1
     scp -q lg-tv:/tmp/novos-setup-capture.png "$2"; echo "$2"; exit 0 ;;
 stop)

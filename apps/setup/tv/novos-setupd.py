@@ -493,10 +493,20 @@ def close_foreground(report):
     return app
 
 
+def screen(report, on):
+    """Switches the panel off and on again, as novOS' "screen off" does; sound and apps go on."""
+    with contextlib.suppress(OSError):
+        luna("luna://com.webos.service.tvpower/power/%s" % ("turnOnScreen" if on else "turnOffScreen"), {})
+        report.step("panel %s" % ("on" if on else "off"), key="start")
+
+
 def install(report, source, allow_downgrade=False, start=False, before_start=None, after_start=None,
             stay_dark=False):
-    """stay_dark (the setup's window): close the source before surface-manager restarts and
-    do not go back to it, so that nothing but the setup shows until it is done."""
+    """stay_dark (the setup's window): nothing but the setup shows until it is done. The
+    window covers everything up to the restart and shows its black restart page; then the
+    panel goes off, the source is closed (closing it brings up LG's Home), surface-manager
+    restarts without going back to the source, the window opens again, and only then the
+    panel comes back on."""
     with single_run():
         folder, manifest = fetch(report, source)
         version = manifest["version"]
@@ -519,12 +529,20 @@ def install(report, source, allow_downgrade=False, start=False, before_start=Non
                 before_start()
             env = {}
             if stay_dark:
+                time.sleep(1.5)             # the window draws its restart page first
+                screen(report, False)
                 with contextlib.suppress(OSError):
                     close_foreground(report)
                 env["NOVOS_RESTORE"] = "0"
-            run_script(report, "novos-start.sh", "manual", env=env)
-            if after_start:
-                after_start()
+            try:
+                run_script(report, "novos-start.sh", "manual", env=env)
+                if after_start:
+                    after_start()
+                if stay_dark:
+                    time.sleep(3)           # the window stands again before the panel comes on
+            finally:
+                if stay_dark:
+                    screen(report, True)
         report.result("installed novOS %s%s" % (version, ", started" if was_running or start else ""),
                       installed=version, started=was_running or start)
 
@@ -841,7 +859,9 @@ class Bridge:
         self.app = app
         self.state_path = os.path.join(folder, "state.json")
         self.command_path = os.path.join(folder, "command.ini")
-        self.state = {"serving": True, "pid": os.getpid(), "id": "", "command": "", "phase": "idle",
+        # phase is what the window shows ("done" may come before the command ends, so that
+        # the reopened window shows its last page at once); busy is whether a command runs.
+        self.state = {"serving": True, "pid": os.getpid(), "id": "", "command": "", "phase": "idle", "busy": False,
                       "stage": "", "percent": 0, "steps": [], "result": None, "error": None,
                       "choices": current_choices(), "tv": tv_facts(), "updated": time.time()}
         self.last_written = 0.0
@@ -900,7 +920,7 @@ class Bridge:
     def run(self, command):
         name = command.get("command", "")
         self.state.update(id=command_serial(command), command=name, phase="running", stage="", percent=0,
-                          steps=[], result=None, error=None)
+                          steps=[], result=None, error=None, busy=True)
         self.write()
         report = Reporter(False, self.listen)
         source = command.get("source") or read_setting("channel", "stable")
@@ -932,6 +952,7 @@ class Bridge:
             self.state["phase"] = "error"
             self.state["error"] = str(error)
         self.state["choices"] = current_choices()
+        self.state["busy"] = False
         self.write()
 
 

@@ -368,7 +368,7 @@ class SetupdTest(unittest.TestCase):
         with open(command, "w") as handle:
             handle.write("[General]\ncommand=install\nid=old\n")     # left over: not run
         self.publish("1.0.0", channel="stable")
-        thread = threading.Thread(target=self.setupd.serve, args=(folder, "", "app", 0))
+        thread = threading.Thread(target=self.setupd.serve, args=(folder, "", "app", 60), daemon=True)
         thread.start()
         def state():
             for _ in range(100):
@@ -382,7 +382,7 @@ class SetupdTest(unittest.TestCase):
                 handle.write("[General]\n" + text)
             for _ in range(200):
                 current = state()
-                if current and current["id"] != phase_from and current["phase"] in ("done", "error"):
+                if current and current["id"] != phase_from and not current.get("busy") and current["phase"] in ("done", "error"):
                     return current
                 time.sleep(0.05)
             self.fail("no answer to " + text)
