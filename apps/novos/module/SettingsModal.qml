@@ -740,11 +740,15 @@ Item {
             var actionParams = typeof catalogRow.paramsOf === "function" ? catalogRow.paramsOf(context) :
                                (catalogRow.params || {});
             if (catalogRow.confirm) {
+                // confirm.params: values for its texts, as the version and the date of a way back.
+                var asked = catalogRow.confirm;
+                var texts = typeof asked.params === "function" ? asked.params(context) : (asked.params || {});
                 hostAction("confirm", { action: catalogRow.action, params: actionParams,
-                                        title: context.t(catalogRow.confirm.title),
-                                        text: context.t(catalogRow.confirm.text),
-                                        confirm: context.t(catalogRow.confirm.confirm),
-                                        safe: catalogRow.confirm.safe === true });
+                                        title: context.t(asked.title, texts),
+                                        text: context.t(asked.text, texts),
+                                        confirm: context.t(asked.confirm, texts),
+                                        icon: asked.icon || "",
+                                        safe: asked.safe === true });
             } else {
                 runAction(catalogRow.action, actionParams);
             }

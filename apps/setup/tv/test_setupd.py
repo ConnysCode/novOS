@@ -15,6 +15,7 @@ import stat
 import sys
 import tarfile
 import tempfile
+import time
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -245,12 +246,92 @@ class SetupdTest(unittest.TestCase):
         self.assertFalse(self.setupd.running())
         self.assertFalse(os.path.exists(marker))
 
-    def test_rollback(self):
+    def write_state(self, name, text):
+        path = self.path("/var/lib/novos/state/" + name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as handle:
+            handle.write(text)
+
+    def read_state(self, name):
+        with open(self.path("/var/lib/novos/state/" + name)) as handle:
+            return handle.read()
+
+    def rollback_info(self):
+        with open(self.path("/var/lib/novos/rollback.json")) as handle:
+            return json.load(handle)
+
+    def test_update_backs_up_user_data(self):
         self.run_setupd("install", self.publish("1.0.0"))
+        self.write_state("debug.ini", "[General]\nkeyboardMode=t9\n")
+        self.write_state("media/a1/video.mp4", "own video")
+        self.write_state("start.log", "log")
+        self.write_state("boot-failures", "0\n")
+        before = time.time()
+        code, lines = self.run_setupd("install", self.publish("1.1.0"))
+        self.assertEqual(code, 0, lines)
+        backup = self.path("/var/lib/novos/releases/1.0.0/backup/state")
+        kept = set(os.listdir(backup))
+        self.assertTrue({"debug.ini", "media", "novos.conf"} <= kept, kept)
+        self.assertFalse(kept & {"start.log", "boot-failures"}, kept)
+        with open(os.path.join(backup, "media", "a1", "video.mp4")) as handle:
+            self.assertEqual(handle.read(), "own video")
+        info = self.rollback_info()
+        self.assertEqual((info["version"], info["from"]), ("1.0.0", "1.1.0"))
+        self.assertAlmostEqual(info["until"] - info["created"], 14 * 86400)
+        self.assertGreaterEqual(info["created"], int(before))
+        code, lines = self.run_setupd("status")
+        self.assertEqual(lines[-1]["status"]["previous"], "1.0.0")
+        self.assertEqual(lines[-1]["status"]["previous_until"], info["until"])
+
+    def test_rollback_puts_data_back(self):
+        self.run_setupd("install", self.publish("1.0.0"), "--start")
+        self.write_state("debug.ini", "[General]\nkeyboardMode=t9\n")
+        self.write_state("media/a1/video.mp4", "old video")
         self.run_setupd("install", self.publish("1.1.0"))
+        # After the update: changed settings, a new video, one deleted, a log, a planned night.
+        self.write_state("debug.ini", "[General]\nkeyboardMode=qwertz\nnewKey=1\n")
+        self.write_state("media/b2/video.mp4", "new video")
+        shutil.rmtree(self.path("/var/lib/novos/state/media/a1"))
+        self.write_state("start.log", "kept log")
+        self.write_state("update-tonight", "1.1.0\n")
         code, lines = self.run_setupd("rollback")
         self.assertEqual(code, 0, lines)
         self.assertEqual(self.current(), "1.0.0")
+        self.assertEqual(self.calls()[-2:], ["stop --no-restart", "start manual restore=1"])
+        self.assertEqual(self.read_state("debug.ini"), "[General]\nkeyboardMode=t9\n")
+        self.assertEqual(sorted(os.listdir(self.path("/var/lib/novos/state/media"))), ["a1"])
+        self.assertEqual(self.read_state("media/a1/video.mp4"), "old video")
+        self.assertEqual(self.read_state("start.log"), "kept log")
+        self.assertEqual(self.read_state("update-skip").strip(), "1.1.0")
+        self.assertFalse(os.path.exists(self.path("/var/lib/novos/state/update-tonight")))
+        # The way back is used up: no pointer, no copy, no second rollback.
+        self.assertFalse(os.path.exists(self.path("/var/lib/novos/rollback.json")))
+        self.assertFalse(os.path.exists(self.path("/var/lib/novos/releases/1.0.0/backup")))
+        code, lines = self.run_setupd("rollback")
+        self.assertEqual(code, 1)
+        self.assertIn("no way back", self.error_of(lines)[0])
+
+    def test_way_back_expires_after_14_days(self):
+        self.run_setupd("install", self.publish("1.0.0"))
+        self.run_setupd("install", self.publish("1.1.0"))
+        until = self.rollback_info()["until"]
+        self.assertFalse(self.setupd.expire_rollback(now=until - 1))
+        self.assertTrue(os.path.isdir(self.path("/var/lib/novos/releases/1.0.0/backup")))
+        self.assertTrue(self.setupd.expire_rollback(now=until))
+        self.assertEqual(os.listdir(self.path("/var/lib/novos/releases")), ["1.1.0"])
+        self.assertFalse(os.path.exists(self.path("/var/lib/novos/rollback.json")))
+        self.assertEqual(self.current(), "1.1.0")
+        code, lines = self.run_setupd("rollback")
+        self.assertEqual(code, 1)
+        self.assertIn("no way back", self.error_of(lines)[0])
+
+    def test_downgrade_keeps_no_way_back(self):
+        self.run_setupd("install", self.publish("1.0.0"))
+        self.run_setupd("install", self.publish("1.1.0"))
+        self.run_setupd("install", self.publish("0.9.0"), "--allow-downgrade")
+        self.assertFalse(os.path.exists(self.path("/var/lib/novos/rollback.json")))
+        code, lines = self.run_setupd("status")
+        self.assertIsNone(lines[-1]["status"]["previous"])
 
     def test_install_again_after_rollback(self):
         self.run_setupd("install", self.publish("1.0.0"))
@@ -528,7 +609,7 @@ class SetupdTest(unittest.TestCase):
         self.assertIn("installed", result["result"]["message"])
         result = send("command=rollback\nid=3\n", "2")
         self.assertEqual(result["phase"], "error")
-        self.assertIn("no release to go back to", result["error"])
+        self.assertIn("no way back", result["error"])
         with open(command, "w") as handle:
             handle.write("[General]\ncommand=close\nid=4\n")
         thread.join(10)
@@ -648,32 +729,20 @@ class SetupdTest(unittest.TestCase):
         self.assertFalse(os.path.exists(self.path("/var/lib/novos/downloads/1.1.0")))
         self.assertEqual(self.current(), "1.0.0")
 
-    def test_versions_restore_and_tonight(self):
+    def test_rollback_restore_and_tonight(self):
         folder = os.path.join(self.sandbox, "update")
         os.makedirs(folder)
-        urls = {}
-        for version in ("1.0.0", "1.1.0", "1.2.0"):
-            urls[version] = self.publish(version)
-            manifest = urls[version][len("file://"):]
-            index = os.path.join(self.server, "novos", "releases.json")
-            os.makedirs(os.path.dirname(index), exist_ok=True)
-            self.call_release(["index", manifest, "--manifest-url", urls[version],
-                               "--signature-url", urls[version] + ".sig", "--keep", index], index + ".new")
-            os.replace(index + ".new", index)
-        self.run_setupd("install", urls["1.1.0"], "--start")
-        self.run_setupd("install", urls["1.2.0"])
-        state = self.bridge_run(folder, "command=versions\nserial=v\n")
-        result = state["result"]
-        self.assertEqual([item["version"] for item in result["versions"]], ["1.2.0", "1.1.0", "1.0.0"])
-        self.assertEqual((result["installed"], result["kept"]), ("1.2.0", ["1.1.0"]))
-        # The kept release: back at once, without a download.
-        state = self.bridge_run(folder, "command=restore\nserial=r1\nversion=1.1.0\n")
+        self.run_setupd("install", self.publish("1.1.0"), "--start")
+        self.write_state("debug.ini", "[General]\nblur=40\n")
+        self.run_setupd("install", self.publish("1.2.0"))
+        self.write_state("debug.ini", "[General]\nblur=84\n")
+        # restore of an older settings page: only the way back counts.
+        state = self.bridge_run(folder, "command=restore\nserial=r0\nversion=1.0.0\n")
+        self.assertEqual(state["phase"], "error", state)
+        state = self.bridge_run(folder, "command=rollback\nserial=r1\n")
         self.assertEqual(state["phase"], "done", state)
         self.assertEqual(self.current(), "1.1.0")
-        # An older one from its signed release, as a downgrade.
-        state = self.bridge_run(folder, "command=restore\nserial=r2\nversion=1.0.0\nmanifest=%s\n" % urls["1.0.0"])
-        self.assertEqual(state["phase"], "done", state)
-        self.assertEqual(self.current(), "1.0.0")
+        self.assertEqual(self.read_state("debug.ini"), "[General]\nblur=40\n")
         self.assertEqual(self.calls()[-1], "start manual restore=1")
         state = self.bridge_run(folder, "command=tonight\nserial=t\nversion=1.2.0\n")
         with open(self.path("/var/lib/novos/state/update-tonight")) as handle:

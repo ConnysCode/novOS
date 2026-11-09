@@ -28,12 +28,16 @@ While it runs it
 - starts bin/novos-upload.py when the settings left a command in
   /tmp/novos-upload/command.ini: "open" for the page "Vom Handy oder Computer", "delete"
   and "edit" for an own power-off video. The service ends by itself.
+- removes the way back of the last update (rollback.json, the kept release and the copy
+  of its user data, see novos-setupd.py) once its 14 days are over, and leaves a version
+  just rolled back from (state/update-skip) to the night.
 - ends when the overlays are no longer mounted, for example after a test rollback.
 """
 
 import json
 import os
 import select
+import shutil
 import signal
 import subprocess
 import re
@@ -63,9 +67,13 @@ LAST_CHECK = STATE + "/last-check.json"
 # The updater's commands that end with another release running: each gets "ist installiert".
 # restore also installs a newer version from the list of versions (novOS 0.9.1-beta.3).
 INSTALLING = ("update", "restore", "rollback")
+UPDATE_SKIP = STATE + "/update-skip"                # the version a rollback left: not at night
+ROLLBACK = ROOT + "/rollback.json"
+RELEASES = ROOT + "/releases"
 SYSTEM_UI_LAUNCH = "luna://com.webos.service.systemUIManager/launch"
 
 STABLE_SECONDS = 120
+EXPIRY_EVERY = 3600
 CRASH_WINDOW = 300
 CRASH_LIMIT = 3
 RELAY_HEALTHY = 60
@@ -387,6 +395,12 @@ class Updater:
                 offered = found.get("available", "")
         except (OSError, ValueError):
             pass
+        try:
+            with open(UPDATE_SKIP) as file:
+                if offered == file.read().strip():
+                    offered = ""
+        except OSError:
+            pass
         current = os.path.basename(os.path.realpath(PANEL))
         if not (planned or offered) or (planned or offered) == current:
             return
@@ -450,6 +464,27 @@ class Uploader:
             self.process.terminate()
 
 
+def expire_rollback(now=None):
+    """After its 14 days the way back goes: the kept release, its data and rollback.json."""
+    try:
+        with open(ROLLBACK) as file:
+            info = json.load(file)
+        target = info["version"]
+        until = float(info["until"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+    if (now or time.time()) < until:
+        return False
+    if target and "/" not in target and not target.startswith(".") and \
+            target != os.path.basename(os.path.realpath(PANEL)):
+        shutil.rmtree(os.path.join(RELEASES, target), ignore_errors=True)
+    for name in os.listdir(RELEASES) if os.path.isdir(RELEASES) else []:
+        shutil.rmtree(os.path.join(RELEASES, name, "backup"), ignore_errors=True)
+    remove(ROLLBACK)
+    log("way back to novOS %s expired" % target)
+    return True
+
+
 def remove(path):
     try:
         os.remove(path)
@@ -494,6 +529,7 @@ def run():
     restarts = []
     counted = False
     last_note = time.time()
+    last_expiry = 0.0
     log("supervisor started, surface-manager pid %d" % pid)
     try:
         while True:
@@ -539,6 +575,12 @@ def run():
                 updater.at_night(settled and counted)
             except OSError as error:
                 log("updater: %s" % error)
+            if time.time() - last_expiry >= EXPIRY_EVERY:
+                last_expiry = time.time()
+                try:
+                    expire_rollback()
+                except OSError as error:
+                    log("way back: %s" % error)
             try:
                 uploader.check()
             except OSError as error:

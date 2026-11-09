@@ -3,14 +3,17 @@
 // Über novOS › novOS-Update (page "novOS-Update" of the design, K3-NovUpdate-1 … 8): a
 // StatusCard with the state (current, searching, available or ready, loading, installing,
 // no connection), the release notes of the version it is about, the settings (automatic
-// updates at night, test versions) and Frühere Versionen with every published version.
+// updates at night, test versions) and, for 14 days after an update, the way back to the
+// version before it with the user data it had (docs/setup-update-plan.md, "Zurück zur
+// vorigen Version").
 //
 // SettingsData talks to the updater (novos-setupd behind novOS' supervisor, see
 // docs/setup-update-plan.md) and puts what it answers into ctx.state, already in the TV's
 // language: novosVersion, updateCheck (the last answer of the channel), updateBusy and
 // updateCommand, updateStage, updatePercent, updateBytes, updateTotal, updateEta,
 // updateError(Kind), updateChecked, updateTonight, notesInstalled and notesAvailable
-// ({ date, items }), versionsState, versionsKept and the list novosVersions.
+// ({ date, items }), rollbackVersion and rollbackUntil, rollbackSince (dates in the TV's
+// language; empty: no way back).
 
 function check(ctx) {
     return ctx.state.updateCheck || null;
@@ -32,7 +35,7 @@ function running(ctx, command) {
 }
 
 function installing(ctx) {
-    return running(ctx, "update") || running(ctx, "restore");
+    return running(ctx, "update") || running(ctx, "rollback");
 }
 
 function megabytes(bytes) {
@@ -103,7 +106,7 @@ function card(ctx) {
 
 // The notes of the version the card is about: the offered one, else the installed one.
 function notesFor(ctx) {
-    if (offered(ctx) && !running(ctx, "restore") && ctx.state.notesAvailable) {
+    if (offered(ctx) && !running(ctx, "rollback") && ctx.state.notesAvailable) {
         return { version: check(ctx).available, notes: ctx.state.notesAvailable };
     }
     return { version: ctx.state.novosVersion || "", notes: ctx.state.notesInstalled || null };
@@ -136,19 +139,10 @@ function heroTitle(ctx) {
     return version;
 }
 
-// ---- Frühere Versionen --------------------------------------------------------------
+// ---- Zurück zur vorigen Version ----------------------------------------------------
 
-function versionEntry(ctx) {
-    var items = ctx.list("novosVersions");
-    for (var i = 0; i < items.length; i++) {
-        if (items[i].id === ctx.param) return items[i];
-    }
-    return null;
-}
-
-function keptVersion(ctx) {
-    var kept = ctx.state.versionsKept || [];
-    return kept.length > 0 ? kept[kept.length - 1] : "";
+function canGoBack(ctx) {
+    return !!ctx.state.rollbackVersion && !installing(ctx) && !running(ctx, "download");
 }
 
 var pages = {
@@ -182,94 +176,17 @@ var pages = {
                       title: "row.test_versions", subtitle: "detail.test_versions", search: "search.update_channel",
                       disabled: [{ when: function (ctx) { return installing(ctx) || running(ctx, "download"); },
                                    reason: "reason.update_running" }] },
-                    { id: "versions", type: "page", page: "versions", title: "row.versions", onOpen: "loadVersions",
-                      subtitle: "detail.versions", search: "search.versions" }
-                ]
-            }
-        ]
-    },
-    versions: {
-        id: "versions",
-        title: "row.versions",
-        sections: [
-            {
-                rows: [
-                    // While the list loads or when it cannot: the card says so.
-                    { id: "versionsState", type: "statusCard", title: "row.versions",
-                      requires: function (ctx) { return ctx.list("novosVersions").length === 0; },
-                      card: function (ctx) {
-                          if (ctx.state.versionsState === "error") {
-                              return { icon: "alert", title: ctx.t("card.offline"),
-                                       text: ctx.t("card.versions_offline"),
-                                       buttons: [{ label: ctx.t("button.retry"), action: "loadVersions", focus: true }] };
-                          }
-                          return { icon: "spinner", title: ctx.t("card.versions_loading"), text: "", buttons: [] };
-                      } },
-                    { id: "list", type: "list", source: "novosVersions", page: "version" }
-                ]
-            },
-            {
-                title: "section.restore",
-                rows: [
-                    { id: "restorePrevious", type: "action", action: "restoreVersion",
-                      title: function (ctx) { return ctx.t("row.restore_previous", { version: keptVersion(ctx) }); },
-                      requires: function (ctx) { return keptVersion(ctx) !== "" && !installing(ctx); },
-                      paramsOf: function (ctx) { return { version: keptVersion(ctx) }; },
-                      subtitle: "detail.restore_previous",
-                      confirm: { title: "confirm.restore_title", text: "confirm.restore_text",
-                                 confirm: "confirm.restore_button" } }
-                ]
-            }
-        ]
-    },
-    version: {
-        id: "version",
-        title: function (ctx) {
-            var entry = versionEntry(ctx);
-            return entry ? entry.title : "";
-        },
-        sections: [
-            {
-                rows: [
-                    { id: "versionCard", type: "statusCard", title: "row.versions",
-                      requires: function (ctx) { return versionEntry(ctx) !== null; },
-                      card: function (ctx) {
-                          var entry = versionEntry(ctx);
-                          var current = entry.id === ctx.state.novosVersion;
-                          var buttons = [];
-                          if (!current && !installing(ctx)) {
-                              buttons.push({ label: ctx.t(entry.newer ? "button.install_version" : "button.restore_version"),
-                                             action: "restoreVersion", focus: true,
-                                             params: { version: entry.id, manifest: entry.manifest },
-                                             confirm: { title: "confirm.restore_title", text: "confirm.restore_text",
-                                                        confirm: "confirm.restore_button" } });
-                          }
-                          if (installing(ctx) && ctx.state.updateTarget === entry.id) {
-                              return { icon: "download", title: ctx.t("card.installing", { version: entry.id }),
-                                       text: ctx.t("card.installing_text"),
-                                       progress: (ctx.state.updatePercent || 0) / 100, progressText: "",
-                                       progressValue: ctx.t("value.percent", { percent: ctx.state.updatePercent || 0 }),
-                                       buttons: [] };
-                          }
-                          return { icon: "history", title: entry.title,
-                                   text: ctx.t(current ? "card.version_installed" : "card.version_published",
-                                               { date: entry.date, size: entry.size }),
-                                   buttons: buttons };
-                      } }
-                ]
-            },
-            {
-                heading: function (ctx) {
-                    var entry = versionEntry(ctx);
-                    return { title: ctx.t("heading.notes"), aside: entry ? entry.date : "" };
-                },
-                rows: [
-                    { id: "versionNotes", type: "notes", title: "heading.notes",
-                      requires: function (ctx) { return versionEntry(ctx) !== null; },
-                      notes: function (ctx) {
-                          var items = versionEntry(ctx).items;
-                          return items.length > 0 ? items : [{ title: ctx.t("note.no_notes"), text: "" }];
-                      } }
+                    // In place of a list of every version: only the way back, while it lasts.
+                    { id: "rollback", type: "action", action: "rollbackVersion", requires: canGoBack,
+                      title: function (ctx) { return ctx.t("row.rollback", { version: ctx.state.rollbackVersion }); },
+                      subtitle: function (ctx) { return ctx.t("detail.rollback", { date: ctx.state.rollbackUntil }); },
+                      search: "search.rollback",
+                      paramsOf: function (ctx) { return { version: ctx.state.rollbackVersion }; },
+                      confirm: { title: "confirm.rollback_title", text: "confirm.rollback_text",
+                                 confirm: "confirm.rollback_button",
+                                 params: function (ctx) {
+                                     return { version: ctx.state.rollbackVersion, date: ctx.state.rollbackSince };
+                                 } } }
                 ]
             }
         ]

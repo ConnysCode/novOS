@@ -22,10 +22,15 @@ init-hook.sh and novos-uninstall.sh.
                           [--channel stable|beta] [--in-novos] [--pending]
 
 serve also runs what only windows ask for: download (fetch without installing; a later
-install takes the download), cancel (ends a running download), versions (releases.json,
-every published version with its notes), restore (back to a given version, the kept
-previous release without a download) and tonight (the version the supervisor installs
-between 2 and 5 at night, or none).
+install takes the download), cancel (ends a running download), rollback (as below) and
+tonight (the version the supervisor installs between 2 and 5 at night, or none). restore
+is rollback for the settings of novOS 0.9.1-beta.3 and older.
+
+An update to a newer version keeps the release before it and a copy of its user data
+(USER_DATA_SKIP says what is not) in releases/<previous>/backup, named in rollback.json
+next to current, for 14 days. rollback goes back to that release and puts its data back,
+without migrating anything: what changed since the update is lost. After 14 days this file
+and novOS' supervisor remove both, and the way back is gone.
 
 settings stores the setup's choices: the keyboard novOS starts with, whether novOS updates
 itself at night (used from step 6 of the plan on) and whether LG's system updates are
@@ -83,6 +88,16 @@ STATE = ROOT + "/state"
 RELEASES = ROOT + "/releases"
 DOWNLOADS = ROOT + "/downloads"
 CURRENT = ROOT + "/current"
+# The way back after an update: {"version", "from", "created", "until"}; the copy of the
+# user data lies in releases/<version>/backup/state.
+ROLLBACK = ROOT + "/rollback.json"
+ROLLBACK_DAYS = 14
+# What in state/ is no user data: what the install, the start and the updater keep about
+# this TV and this release. It stays as it is on a rollback. Everything else (debug.ini,
+# launcher.ini, novos.conf, media/, channel, auto-update, ...) is copied and put back.
+USER_DATA_SKIP = ("disabled", "boot-failures", "early-release", "early-env-created", "early-env-before",
+                  "block-updates-before", "last-check.json", "update-checked", "update-announced",
+                  "update-tonight", "update-skip")
 HOOK = system("/var/lib/webosbrew/init.d/50-novos")
 ENV_DIR = system("/var/systemd/system/env")
 ENV_FILES = ("surface-manager", "rec-info-adapter")
@@ -339,14 +354,15 @@ def remember_channel(source):
 
 def status(report):
     current = current_release()
-    previous = [name for name in installed_releases() if name != current]
+    back = rollback_target()
     info = read_version_file(CURRENT) if current else {}
     manifest = load_installed_manifest(current)
     targets = manifest.get("lg_targets") if manifest else None
     result = {
         "installed": current or None,
         "signed": manifest is not None,
-        "previous": previous[-1] if previous else None,
+        "previous": back,
+        "previous_until": (read_rollback() or {}).get("until") if back else None,
         "channel": read_setting("channel", "stable"),
         "running": running(),
         "autostart": os.path.exists(HOOK),
@@ -535,35 +551,11 @@ def downloaded(manifest):
     return True
 
 
-def versions(report):
-    """Every published version (releases.json, not signed: display only) and what lies here."""
-    folder = os.path.join(DOWNLOADS, ".versions")
-    shutil.rmtree(folder, ignore_errors=True)
-    os.makedirs(folder)
-    try:
-        path = os.path.join(folder, "releases.json")
-        release.download("%s/novos/releases.json" % release.PAGES, path)
-        with open(path) as handle:
-            listed = json.load(handle).get("releases", [])
-    finally:
-        shutil.rmtree(folder, ignore_errors=True)
-    current = current_release()
-    kept = [name for name in installed_releases() if name != current]
-    report.result("%d versions published" % len(listed), versions=listed, installed=current, kept=kept)
-
-
-def restore(report, version, source, **options):
-    """Back to an earlier version: the kept previous release at once, else its signed release."""
-    if not version_or_none(version):
-        raise SetupError("not a version: %r" % version)
-    if version == current_release():
-        raise SetupError("novOS %s is installed already" % version)
-    if version in installed_releases():
-        rollback(report, target=version)
-        return
-    if not source:
-        raise SetupError("novOS %s is not here and no manifest was named" % version)
-    install(report, source, allow_downgrade=True, start=True, **options)
+def restore(report, version, **_ignored):
+    """The settings of novOS 0.9.1-beta.3 and older go back this way: only to the kept release."""
+    if version and version != rollback_target():
+        raise SetupError("novOS %s is not the way back" % version)
+    rollback(report)
 
 
 def plan_tonight(report, version):
@@ -725,6 +717,7 @@ def start_previous(report, failed, before, env):
     with contextlib.suppress(OSError):
         shutil.copy(os.path.join(RELEASES, before, "bin", "novos-uninstall.sh"), HOME_UNINSTALL)
     shutil.rmtree(os.path.join(RELEASES, failed), ignore_errors=True)
+    forget_rollback()
     sync()
     run_script(report, "novos-start.sh", "manual", env=env)
 
@@ -781,6 +774,10 @@ def switch_to(report, version):
     if not os.path.exists(STATE + "/debug.ini"):
         write_file(STATE + "/debug.ini", "[General]\nblur=84\nhideInputBanner=true\n")
     previous = current_release()
+    if previous and previous != version and is_newer(version, previous):
+        back_up(report, previous, version)
+    elif previous != version:
+        forget_rollback()
     # The early start mounts only a release that ran stable before.
     if read_setting("early-release") == version:
         os.remove(STATE + "/early-release")
@@ -800,30 +797,128 @@ def switch_to(report, version):
     report.step("current -> releases/%s (before: %s)" % (version, previous or "nothing"), key="switch")
 
 
-def rollback(report, target=None):
+def user_data(folder):
+    """The names in a state folder that are user data."""
+    if not os.path.isdir(folder):
+        return []
+    return sorted(name for name in os.listdir(folder)
+                  if name not in USER_DATA_SKIP and not name.endswith((".log", ".new")))
+
+
+def copy_entry(source, target):
+    if os.path.isdir(source) and not os.path.islink(source):
+        shutil.copytree(source, target, symlinks=True)
+    else:
+        shutil.copy2(source, target, follow_symlinks=False)
+
+
+def remove_entry(path):
+    if os.path.isdir(path) and not os.path.islink(path):
+        shutil.rmtree(path)
+    elif os.path.lexists(path):
+        os.remove(path)
+
+
+def read_rollback():
+    try:
+        with open(ROLLBACK) as handle:
+            info = json.load(handle)
+        return info if isinstance(info, dict) and info.get("version") else None
+    except (OSError, ValueError):
+        return None
+
+
+def back_up(report, previous, version):
+    """The user data as previous left it, beside its kept release, for ROLLBACK_DAYS."""
+    folder = os.path.join(RELEASES, previous, "backup")
+    partial = folder + ".partial"
+    shutil.rmtree(partial, ignore_errors=True)
+    os.makedirs(partial + "/state")
+    names = user_data(STATE)
+    for name in names:
+        copy_entry(os.path.join(STATE, name), os.path.join(partial, "state", name))
+    shutil.rmtree(folder, ignore_errors=True)
+    os.rename(partial, folder)
+    now = int(time.time())
+    info = {"version": previous, "from": version, "created": now, "until": now + ROLLBACK_DAYS * 86400}
+    write_file(ROLLBACK, json.dumps(info) + "\n")
+    report.step("user data of novOS %s kept for %d days (%s)" % (previous, ROLLBACK_DAYS, ", ".join(names) or "none"),
+                key="switch")
+
+
+def forget_rollback():
+    """No way back with data any more: the pointer and every copy go."""
+    with contextlib.suppress(OSError):
+        os.remove(ROLLBACK)
+    for name in installed_releases():
+        shutil.rmtree(os.path.join(RELEASES, name, "backup"), ignore_errors=True)
+
+
+def expire_rollback(now=None):
+    """After ROLLBACK_DAYS the kept release and its data go; True when they went."""
+    info = read_rollback()
+    if not info or (now or time.time()) < info.get("until", 0):
+        return False
+    target = info["version"]
+    if target != current_release():
+        shutil.rmtree(os.path.join(RELEASES, target), ignore_errors=True)
+    forget_rollback()
+    sync()
+    log("way back to novOS %s expired" % target)
+    return True
+
+
+def rollback_target():
+    """The release the way back leads to, if it is there and not expired."""
+    expire_rollback()
+    info = read_rollback()
+    current = current_release()
+    if info and info["version"] != current and os.path.isdir(os.path.join(RELEASES, info["version"], "backup")):
+        return info["version"]
+    return None
+
+
+def put_back(report, target):
+    """The data of the backup in place of the user data now, which is lost (no migration)."""
+    backup = os.path.join(RELEASES, target, "backup", "state")
+    for name in user_data(STATE):
+        remove_entry(os.path.join(STATE, name))
+    for name in user_data(backup):
+        copy_entry(os.path.join(backup, name), os.path.join(STATE, name))
+    report.step("user data of novOS %s put back" % target, key="settings")
+
+
+def rollback(report):
+    """Back to the release before the last update, with the user data it had then."""
     with single_run():
         current = current_release()
-        others = [name for name in installed_releases() if name != current]
-        if not others:
-            raise SetupError("there is no release to go back to")
-        if target is None:
-            target = others[-1]
-        elif target not in others:
-            raise SetupError("novOS %s is not kept here" % target)
+        target = rollback_target()
+        if not target:
+            raise SetupError("there is no way back to an earlier version")
         was_running = running()
         if was_running:
             run_script(report, "novos-stop.sh", "--no-restart")
+            if running():
+                raise SetupError("novOS still runs after the stop, nothing was changed")
+        put_back(report, target)
         link = CURRENT + ".new"
         if os.path.lexists(link):
             os.remove(link)
         os.symlink("releases/" + target, link)
         os.rename(link, CURRENT)
+        with contextlib.suppress(OSError):
+            shutil.copy(os.path.join(RELEASES, target, "bin", "novos-uninstall.sh"), HOME_UNINSTALL)
         if read_setting("early-release") != target and os.path.exists(STATE + "/early-release"):
             os.remove(STATE + "/early-release")
+        # The night must not bring the version back that was just left.
+        write_file(STATE + "/update-skip", current + "\n")
+        with contextlib.suppress(OSError):
+            os.remove(STATE + "/update-tonight")
+        forget_rollback()
         sync()
         if was_running:
             run_script(report, "novos-start.sh", "manual")
-        report.result("back to novOS %s (was %s)" % (target, current), installed=target)
+        report.result("back to novOS %s with its data (was %s)" % (target, current), installed=target)
 
 
 def set_channel(report, channel):
@@ -1184,11 +1279,8 @@ class Bridge:
                 report.result("novOS %s is downloaded" % manifest["version"], downloaded=manifest["version"])
             elif name == "cancel":
                 report.result("nothing to cancel")
-            elif name == "versions":
-                versions(report)
             elif name == "restore":
-                restore(report, command.get("version", ""), command.get("manifest", ""),
-                        before_start=self.restarting, after_start=self.reopen, stay_dark=not self.in_novos)
+                restore(report, command.get("version", ""))
             elif name == "tonight":
                 plan_tonight(report, command.get("version", ""))
             elif name == "rollback":

@@ -8,8 +8,8 @@
 // LG's own firmware update stays under System.
 //
 // Software › novOS-Update is the design's page "novOS-Update" (SettingsUpdate.js): state,
-// release notes, automatic updates, test versions and earlier versions. Projektseite opens
-// novOS' repository in LG's browser.
+// release notes, automatic updates, test versions and the way back after an update.
+// Projektseite opens novOS' repository in LG's browser.
 
 function storage(ctx) {
     if (!(ctx.state.storageTotal > 0)) return "";
@@ -116,8 +116,6 @@ var area = {
     },
     pages: {
         update: Update.pages.update,
-        versions: Update.pages.versions,
-        version: Update.pages.version,
         details: {
             id: "details",
             title: "row.all_details",

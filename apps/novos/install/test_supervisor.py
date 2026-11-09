@@ -29,7 +29,8 @@ class UpdatesTest(unittest.TestCase):
         m = self.m = load_supervisor()
         m.UPDATE = self.folder + "/update"
         m.STATE = self.folder + "/state"
-        for name in ("UPDATE_SHOWN", "UPDATE_CHECKED", "UPDATE_ANNOUNCED", "UPDATE_TONIGHT", "AUTO_UPDATE", "LAST_CHECK"):
+        for name in ("UPDATE_SHOWN", "UPDATE_CHECKED", "UPDATE_ANNOUNCED", "UPDATE_TONIGHT", "AUTO_UPDATE", "LAST_CHECK",
+                     "UPDATE_SKIP"):
             setattr(m, name, getattr(m, name).replace("/tmp/novos-update", m.UPDATE)
                     .replace("/var/lib/novos/state", m.STATE))
         os.makedirs(m.STATE)
@@ -37,6 +38,8 @@ class UpdatesTest(unittest.TestCase):
         os.makedirs(self.folder + "/releases/1.1.0")
         os.symlink(self.folder + "/releases/1.0.0", self.folder + "/current")
         m.PANEL = self.folder + "/current"
+        m.RELEASES = self.folder + "/releases"
+        m.ROLLBACK = self.folder + "/rollback.json"
         self.calls = []
         self.power = "Active Standby"
 
@@ -120,6 +123,31 @@ class UpdatesTest(unittest.TestCase):
         with open(self.m.LAST_CHECK, "w") as handle:
             json.dump({"available": "1.1.0", "newer": True, "problems": []}, handle)
         self.assertIn("command=update", self.night(2))
+
+    def test_no_night_install_of_a_version_rolled_back_from(self):
+        with open(self.m.AUTO_UPDATE, "w") as handle:
+            handle.write("on\n")
+        with open(self.m.LAST_CHECK, "w") as handle:
+            json.dump({"available": "1.1.0", "newer": True, "problems": []}, handle)
+        with open(self.m.UPDATE_SKIP, "w") as handle:
+            handle.write("1.1.0\n")
+        self.assertEqual(self.night(2), "")
+        with open(self.m.LAST_CHECK, "w") as handle:
+            json.dump({"available": "1.2.0", "newer": True, "problems": []}, handle)
+        self.updater.night = ""
+        self.assertIn("command=update", self.night(3))           # a newer one comes again
+
+    def test_way_back_expires(self):
+        # current is 1.0.0 here; the way back leads to 1.1.0 for the sake of the test.
+        os.makedirs(self.folder + "/releases/1.1.0/backup/state")
+        with open(self.m.ROLLBACK, "w") as handle:
+            json.dump({"version": "1.1.0", "from": "1.0.0", "created": 0, "until": 1000}, handle)
+        self.assertFalse(self.m.expire_rollback(now=999))
+        self.assertTrue(os.path.isdir(self.folder + "/releases/1.1.0/backup"))
+        self.assertTrue(self.m.expire_rollback(now=1000))
+        self.assertEqual(os.listdir(self.folder + "/releases"), ["1.0.0"])
+        self.assertFalse(os.path.exists(self.m.ROLLBACK))
+        self.assertFalse(self.m.expire_rollback(now=2000))
 
     def after(self, previous, version, notes):
         os.makedirs(self.m.PANEL + "/module", exist_ok=True)

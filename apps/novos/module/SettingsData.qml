@@ -21,8 +21,8 @@ Item {
         resetHbbtvConnections: true, autoTime: true, sleepTimer: true, setSleepTimer: true,
         timerTime: true, onTimerEnable: true, screenOff: true, resetSound: true, resetGameGenre: true,
         deleteConnectionHistory: true, deepColorChanged: true, toggleInputLock: true,
-        checkUpdates: true, installUpdate: true, cancelUpdate: true, tonightUpdate: true, loadVersions: true,
-        restoreVersion: true, openNetwork: true, blockUpdates: true, lgAutoUpdate: true,
+        checkUpdates: true, installUpdate: true, cancelUpdate: true, tonightUpdate: true,
+        rollbackVersion: true, openNetwork: true, blockUpdates: true, lgAutoUpdate: true,
         lgUpdateCheck: true, lgUpdateInstall: true, lgUpdateCancel: true
     })
     property var bluetoothFeatures: []
@@ -242,7 +242,8 @@ Item {
     // in state/last-check.json, so the page knows it after a restart too.
 
     readonly property string updateFolder: "/tmp/novos-update"
-    readonly property string novosState: "/var/lib/novos/state"
+    readonly property string novosRoot: "/var/lib/novos"
+    readonly property string novosState: novosRoot + "/state"
     readonly property int updateTimeout: 60000      // no answer: no updater on this TV
     property string sentCommand: ""
     property bool checkAfterChannel: false
@@ -311,6 +312,17 @@ Item {
         if (channel === "stable" || channel === "beta") state.updateChannel = channel;
         state.autoUpdate = readFile(novosState + "/auto-update").trim() === "on";
         state.updateTonight = readFile(novosState + "/update-tonight").trim();
+        // The way back of the last update, written by the updater (novos-setupd.py, ROLLBACK).
+        try {
+            var back = JSON.parse(readFile(novosRoot + "/rollback.json") || "null");
+            var open = back && back.version && back.version !== state.novosVersion &&
+                       Number(back.until || 0) * 1000 > Date.now();
+            state.rollbackVersion = open ? String(back.version) : "";
+            state.rollbackUntil = open ? epochDate(back.until) : "";
+            state.rollbackSince = open ? epochDate(back.created) : "";
+        } catch (error) {
+            state.rollbackVersion = "";
+        }
         try {
             var found = JSON.parse(readFile(novosState + "/last-check.json") || "null");
             if (found && (!state.updateCheck || (found.checked || 0) >= (state.updateCheck.checked || 0))) {
@@ -350,6 +362,12 @@ Item {
         return date.toLocaleDateString(Qt.locale(I18n.qtLocale), settings.settingsStore.text("info", "format.date"));
     }
 
+    // Seconds since 1970 as a day in the same form.
+    function epochDate(seconds) {
+        var date = new Date(Number(seconds || 0) * 1000);
+        return date.toLocaleDateString(Qt.locale(I18n.qtLocale), settings.settingsStore.text("info", "format.date"));
+    }
+
     function localNotes(notes) {
         var items = [];
         for (var i = 0; i < (notes.items || []).length; i++) {
@@ -377,35 +395,6 @@ Item {
             if (!numeric && p[j] !== q[j]) return p[j] < q[j] ? -1 : 1;
         }
         return 0;
-    }
-
-    // Frühere Versionen: every published version, and a kept release that was never published.
-    function applyVersions(result) {
-        var state = settings.store.state;
-        var installed = result.installed || state.novosVersion || "";
-        var items = [];
-        var listed = {};
-        var published = result.versions || [];
-        for (var i = 0; i < published.length; i++) {
-            var entry = published[i];
-            listed[entry.version] = true;
-            var notes = localNotes({ date: entry.date || entry.published, items: entry.items || [] });
-            var topics = localText(entry.topics);
-            items.push({ id: entry.version, title: "novOS " + entry.version,
-                         subtitle: notes.date + (topics ? " · " + topics : ""),
-                         value: entry.version === installed ? settings.settingsStore.text("info", "value.installed") : "",
-                         date: notes.date, items: notes.items, manifest: entry.manifest || "",
-                         size: entry.size > 0 ? Math.max(1, Math.round(entry.size / 1000000)) : 0,
-                         newer: compareVersions(entry.version, installed) > 0 });
-        }
-        var kept = result.kept || [];
-        for (var k = 0; k < kept.length; k++) {
-            if (listed[kept[k]]) continue;
-            items.push({ id: kept[k], title: "novOS " + kept[k], subtitle: "", value: "", date: "", items: [],
-                         manifest: "", size: 0, newer: false });
-        }
-        state.versionsKept = kept;
-        setList("novosVersions", items);
     }
 
     function checkedText(found) {
@@ -436,21 +425,14 @@ Item {
         }
         if (result && result.tonight !== undefined) state.updateTonight = result.tonight || "";
         if (info.choices && typeof info.choices.autoUpdate === "boolean") state.autoUpdate = info.choices.autoUpdate;
-        if (mine && info.command === "versions") {
-            if (info.phase === "done" && result && result.versions) applyVersions(result);
-            state.versionsState = info.phase === "error" ? "error" : (info.phase === "done" ? "done" : "loading");
-        }
-        // A command that only reads (the versions) runs beside the card, not as its task.
-        var reading = sentCommand === "versions";
         var waiting = updates.sentId !== "" && !answered && !updateLost;
-        state.updateBusy = (waiting && !reading) || (info.busy === true && info.command !== "versions");
-        state.updateCommand = waiting && !reading ? sentCommand : (info.busy === true ? info.command : "");
+        state.updateBusy = waiting || info.busy === true;
+        state.updateCommand = waiting ? sentCommand : (info.busy === true ? info.command : "");
         state.updateStage = info.busy === true ? info.stage || "" : "";
         state.updatePercent = info.busy === true ? info.percent || 0 : 0;
         state.updateBytes = info.busy === true ? info.bytes || 0 : 0;
         state.updateTotal = info.busy === true ? info.total || 0 : 0;
         state.updateEta = info.busy === true ? info.eta : null;
-        if (updateLost && reading) state.versionsState = "error";
         // Errors of the own last command; a failed check at night says nothing here.
         var error = updateLost ? "no updater" : (mine && info.phase === "error" ? info.error || "?" : "");
         var ownCommand = mine ? info.command : sentCommand;
@@ -462,7 +444,7 @@ Item {
                 state.blockUpdates = info.choices.blockUpdates;
                 state.blockedNow = info.choices.blockedNow === true;
             }
-        } else if (ownCommand !== "versions" && ownCommand !== "cancel") {
+        } else if (ownCommand !== "cancel") {
             // A search that found no server says so too, also the daily one (K3-NovUpdate-6).
             var searchFailed = !mine && !waiting && info.command === "check" && info.phase === "error";
             state.updateError = searchFailed ? info.error || "?" : error;
@@ -612,15 +594,10 @@ Item {
             sendUpdate("cancel");
         } else if (name === "tonightUpdate") {
             sendUpdate("tonight", { version: params.version || "" });
-        } else if (name === "loadVersions") {
-            if (updateState.updateBusy) return;
-            updateState.versionsState = "loading";
-            setList("novosVersions", []);
-            sendUpdate("versions");
-        } else if (name === "restoreVersion") {
-            if (updateState.updateBusy) return;
-            updateState.updateTarget = params.version || "";
-            sendUpdate("restore", { version: params.version || "", manifest: params.manifest || "" });
+        } else if (name === "rollbackVersion") {
+            if (updateState.updateBusy || !updateState.rollbackVersion) return;
+            updateState.updateTarget = updateState.rollbackVersion;
+            sendUpdate("rollback");
         } else if (name === "openNetwork") {
             settings.open("network", "");
         } else if (name === "blockUpdates") {

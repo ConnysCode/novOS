@@ -1562,7 +1562,8 @@ StarfishSystemUIWindow {
                 settingsConfirm = params.action;
                 settingsConfirmParams = params.params || {};
                 withFlow(function (flow) {
-                    flow.openDialog({ action: "settings", icon: params.danger === true ? "alert-44" : "",
+                    // Without an icon of its own a confirmation warns: "" left an empty circle.
+                    flow.openDialog({ action: "settings", icon: params.icon || "alert-44",
                                       title: params.title, text: params.text, confirm: params.confirm,
                                       safe: params.safe === true });
                 });
