@@ -13,9 +13,12 @@ QtObject {
         return key === Qt.Key_Return || key === Qt.Key_Enter || key === Qt.Key_Select;
     }
 
-    // The play key of the remote; LG's remotes send play and play/pause.
-    function isPlay(key) {
-        return key === Qt.Key_MediaPlay || key === Qt.Key_MediaTogglePlayPause;
+    // The red colour key. LG's remotes have no play key; red is free on 10.3.2, only its
+    // long press becomes "record". Previews start with it.
+    readonly property int redKey: WebOS.Key_webOS_Red
+
+    function isRed(key) {
+        return key === redKey;
     }
 
     function isArrow(key) {

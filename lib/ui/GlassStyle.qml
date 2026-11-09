@@ -32,6 +32,7 @@ QtObject {
     readonly property color trackFocused: "#240b0c10"      // slider track on the focus surface
     readonly property color separator: "#1fffffff"        // white 12 %
     readonly property color danger: "#ff9a90"
+    readonly property color keyRed: "#e5484d"              // the red key of the remote in key hints
     readonly property color dangerFocused: "#c42b20"
     // Motion.
     readonly property var curve: [0.2, 0.8, 0.2, 1, 1, 1]

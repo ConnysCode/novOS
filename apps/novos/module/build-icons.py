@@ -223,8 +223,7 @@ ICONS = [
     ("volume-soundbar-30", 30, 1.7, SOUNDBAR, LIGHT_ONLY),
     ("volume-headphones-30", 30, 1.7, HEADPHONES, LIGHT_ONLY),
     ("row-allSettings", 30, 1.6, dict(SETTINGS_AREAS)["system"], BOTH),
-    # The play key: in the key hint under the shutdown videos and in their preview pill.
-    ("play-14", 14, 1.8, PLAY, LIGHT_ONLY),
+    # The preview pill of the shutdown videos.
     ("play-18", 18, 1.8, PLAY, LIGHT_ONLY),
 ] + [(f"settings-{name}", 28, 1.7, body, BOTH) for name, body in SETTINGS_AREAS] + [
     (f"device-{name}", 36, 1.5, body, BOTH) for name, body in DEVICES] + [

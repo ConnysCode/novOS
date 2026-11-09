@@ -188,17 +188,21 @@ Item {
                     border.width: 1.5 * cell.unit
                     border.color: "#8cffffff"
 
-                    Image {
+                    // The red key: a red bar as on the remote.
+                    Rectangle {
                         anchors.centerIn: parent
-                        visible: modelData.cap === "play"
-                        source: visible ? Qt.resolvedUrl("icons/play-14.png") : ""
+                        visible: modelData.cap === "red"
+                        width: 14 * cell.unit
+                        height: 8 * cell.unit
+                        radius: 3 * cell.unit
+                        color: GlassStyle.keyRed
                     }
 
                     Text {
                         id: capText
                         anchors.centerIn: parent
-                        visible: modelData.cap !== "play"
-                        text: modelData.cap === "play" ? "" : modelData.cap
+                        visible: modelData.cap !== "red"
+                        text: modelData.cap === "red" ? "" : modelData.cap
                         color: GlassStyle.textPrimary
                         font.family: cell.titleFont
                         font.pixelSize: 16 * cell.unit

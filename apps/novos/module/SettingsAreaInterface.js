@@ -135,14 +135,14 @@ var area = {
     },
     pages: {
         // K3-Ausschalt-2-Auswahl: tiles in three columns, the check marks the active one.
-        // OK chooses, the play key plays the preview over the whole screen.
+        // OK chooses, the red key plays the preview over the whole screen (no play key on LG's remotes).
         shutdownVideo: {
             id: "shutdownVideo",
             title: "page.shutdown_video",
             sections: [
                 {
                     columns: 3,
-                    keys: [{ cap: "play", text: "hint.play_preview" }, { cap: "OK", text: "hint.ok_choose" }],
+                    keys: [{ cap: "red", text: "hint.play_preview" }, { cap: "OK", text: "hint.ok_choose" }],
                     rows: shutdownTiles()
                 }
             ]

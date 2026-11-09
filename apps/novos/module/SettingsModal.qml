@@ -563,7 +563,7 @@ Item {
         var row = focusedRow;
         if (focusOnTile && Remote.isArrow(key)) {
             moveInGrid(key);
-        } else if (row && row.preview && Remote.isPlay(key)) {
+        } else if (row && row.preview && Remote.isRed(key)) {
             if (!autoRepeat) runAction(row.preview.action, row.preview.params || {});
         } else if (key === Qt.Key_Up) {
             moveFocus(-1);
@@ -721,7 +721,7 @@ Item {
     }
 
     // Preview only: keys the modal presses by itself, one every 450 ms ("down", "ok", "back",
-    // "left", "right", "up", "play" or a digit). The TV takes no injected keys.
+    // "left", "right", "up", "red" or a digit). The TV takes no injected keys.
     property var testKeys: []
 
     Timer {
@@ -734,7 +734,7 @@ Item {
             var name = keys.shift();
             settings.testKeys = keys;
             var map = { up: Qt.Key_Up, down: Qt.Key_Down, left: Qt.Key_Left, right: Qt.Key_Right, ok: Qt.Key_Return,
-                        play: Qt.Key_MediaPlay };
+                        red: Remote.redKey };
             if (name === "back") settings.back();
             else if (map[name] !== undefined) settings.handleKey(map[name], false);
             else if (/^[0-9]$/.test(name)) settings.handleKey(Qt.Key_0 + Number(name), false);
