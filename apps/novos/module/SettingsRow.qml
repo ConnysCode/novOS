@@ -100,6 +100,77 @@ Item {
         }
     }
 
+    // A large heading with a text at the right, as "Neu in 1.0" and its date (K3-NovUpdate).
+    Item {
+        anchors.fill: parent
+        visible: cell.entry.kind === "heading"
+
+        Text {
+            x: 20 * cell.unit
+            text: cell.entry.kind === "heading" ? cell.entry.heading.title : ""
+            color: GlassStyle.textPrimary
+            font.family: cell.owner ? cell.owner.titleFont : ""
+            font.pixelSize: 24 * cell.unit
+            font.hintingPreference: Font.PreferNoHinting
+        }
+
+        Text {
+            anchors.right: parent.right
+            anchors.rightMargin: 20 * cell.unit
+            anchors.baseline: parent.top
+            anchors.baselineOffset: 23 * cell.unit
+            text: cell.entry.kind === "heading" ? cell.entry.heading.aside || "" : ""
+            color: GlassStyle.textSecondary
+            font.family: cell.valueFont
+            font.pixelSize: 18 * cell.unit
+            font.hintingPreference: Font.PreferNoHinting
+        }
+    }
+
+    // The state of a task with its buttons (StatusCard) and release notes (NoteList); only
+    // rows of that type build them.
+    Loader {
+        anchors.fill: parent
+        active: cell.isRow && cell.row.type === "statusCard"
+        sourceComponent: Component {
+            StatusCard {
+                readonly property var card: cell.row.card || ({})
+                unit: cell.unit
+                titleFont: cell.owner ? cell.owner.titleFont : ""
+                rowFont: cell.titleFont
+                valueFont: cell.valueFont
+                icon: card.icon || "check"
+                title: card.title || ""
+                text: card.text || ""
+                progress: card.progress === undefined ? -1 : card.progress
+                progressText: card.progressText || ""
+                progressValue: card.progressValue || ""
+                buttons: card.buttons || []
+                focusIndex: cell.focused ? cell.owner.cardFocus : -1
+                onButtonClicked: {
+                    cell.owner.zone = "content";
+                    cell.owner.focusIndex = cell.entry.index;
+                    cell.owner.cardFocus = index;
+                    cell.owner.pressCard(index);
+                }
+            }
+        }
+    }
+
+    Loader {
+        anchors.fill: parent
+        active: cell.isRow && cell.row.type === "notes"
+        sourceComponent: Component {
+            NoteList {
+                unit: cell.unit
+                titleFont: cell.titleFont
+                valueFont: cell.valueFont
+                items: cell.row.notes || []
+                focused: cell.focused
+            }
+        }
+    }
+
     // Section title: 16 px, capitals, 60 % white.
     SectionTitle {
         x: 20 * cell.unit
@@ -223,7 +294,7 @@ Item {
     // The row itself: the shared GlassRow, as in the quick panel.
     GlassRow {
         anchors.fill: parent
-        visible: cell.isRow
+        visible: cell.isRow && cell.row.type !== "statusCard" && cell.row.type !== "notes"
         unit: cell.unit
         titleFont: cell.titleFont
         valueFont: cell.valueFont

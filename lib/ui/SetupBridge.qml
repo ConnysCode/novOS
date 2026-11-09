@@ -36,6 +36,8 @@ Item {
         outbox.autoUpdate = values && values.autoUpdate || "";
         outbox.blockUpdates = values && values.blockUpdates || "";
         outbox.keepState = values && values.keepState ? "true" : "";
+        outbox.version = values && values.version || "";
+        outbox.manifest = values && values.manifest || "";
         outbox.command = command;
         outbox.serial = id;      // last: serve acts on a new serial
         sentId = id;
@@ -63,6 +65,8 @@ Item {
         property string autoUpdate: ""
         property string blockUpdates: ""
         property string keepState: ""
+        property string version: ""         // restore, tonight
+        property string manifest: ""        // restore: the signed release of that version
     }
 
     Timer {

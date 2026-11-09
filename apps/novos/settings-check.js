@@ -124,6 +124,20 @@ function main() {
                 const mark = row.type === "toggle" ? (row.on ? "[x]" : "[ ]") : row.value;
                 console.log("    " + (row.disabled ? "~ " : "- ") + row.title + (mark ? " = " + mark : "") +
                             (row.subtitle ? "  (" + row.subtitle + ")" : "") + "  <" + row.type + ">");
+                // A StatusCard and a block of notes: what they hold, with the texts checked too.
+                if (row.type === "statusCard") {
+                    const c = row.card;
+                    for (const text of [c.title, c.text, c.progressText, c.progressValue]
+                        .concat((c.buttons || []).map((b) => b.label))) {
+                        if (/settings(_\w+)?\//.test(String(text))) missingTexts.add(area.id + "/" + row.id + ": " + text);
+                    }
+                    console.log("        [" + c.icon + "] " + c.title + " | " + (c.text || "") +
+                                (c.progress >= 0 ? " | " + c.progressText + " " + c.progressValue : "") +
+                                " | " + (c.buttons || []).map((b) => (b.disabled ? "~" : "") + b.label).join(" / "));
+                }
+                if (row.type === "notes") {
+                    console.log("        " + row.notes.map((n) => "• " + n.title).join("  "));
+                }
                 if (row.type === "choice") {
                     try {
                         const choice = engine.resolveChoice(store, i18n, area.id, row.row);

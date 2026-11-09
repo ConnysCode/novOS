@@ -177,6 +177,21 @@ Item {
     function rowHeight(row) {
         var twoLines = row.subtitle !== "";
         if (row.type === "slider") return 104;   // as the panel's slider rows
+        // StatusCard: 26 above and below a 64 px circle, a bar with its texts, a 60 px button row.
+        if (row.type === "statusCard") {
+            return 26 * 2 + 64 + (row.card.progress >= 0 ? 18 + 10 + 10 + 24 : 0) +
+                   ((row.card.buttons || []).length > 0 ? 22 + 60 : 0);
+        }
+        // NoteList: 20 above and below, per entry a 28 px title and its text, 26 px a line of
+        // about 100 characters at 18 px, 16 between entries.
+        if (row.type === "notes") {
+            var height = 2 * 20;
+            for (var i = 0; i < row.notes.length; i++) {
+                var lines = Math.max(1, Math.ceil(String(row.notes[i].text || "").length / 100));
+                height += 28 + 2 + 26 * lines + (i > 0 ? 16 : 0);
+            }
+            return height;
+        }
         return twoLines ? 80 : 68;
     }
 
@@ -202,6 +217,10 @@ Item {
             if (section.title !== "") {
                 items.push({ kind: "section", y: y, text: section.title });
                 y += sectionTitle;
+            }
+            if (section.heading) {
+                items.push({ kind: "heading", y: y, h: 30, heading: section.heading });
+                y += 30 + 12;
             }
             if (section.columns > 0) {
                 // Tiles (K3-Ausschalt-2): columns of tileWidth spread over the pane.
@@ -277,6 +296,7 @@ Item {
 
     onLayoutChanged: {
         growRows();
+        settleCardFocus();
         if (focusIndex >= layout.rowY.length) focusIndex = Math.max(0, layout.rowY.length - 1);
         // A page opened straight from a launch starts at 0, maybe before its focusable rows
         // have their data: the focus never rests on a row that takes none.
@@ -297,7 +317,59 @@ Item {
 
     Component.onCompleted: growRows()
 
-    onFocusIndexChanged: keepVisible()
+    onFocusIndexChanged: {
+        keepVisible();
+        cardFocus = defaultCardButton();
+    }
+
+    // The focused button of a StatusCard row: Left and Right move it, the card draws it.
+    property int cardFocus: 0
+    readonly property bool focusOnCard: zone === "content" && !!focusedRow && focusedRow.type === "statusCard"
+
+    function cardButtons() {
+        return focusOnCard ? (focusedRow.card.buttons || []) : [];
+    }
+
+    function defaultCardButton() {
+        var buttons = cardButtons();
+        for (var i = 0; i < buttons.length; i++) {
+            if (buttons[i].focus && buttons[i].disabled !== true) return i;
+        }
+        for (var j = 0; j < buttons.length; j++) {
+            if (buttons[j].disabled !== true) return j;
+        }
+        return 0;
+    }
+
+    function moveOnCard(step) {
+        var buttons = cardButtons();
+        var index = cardFocus + step;
+        while (index >= 0 && index < buttons.length && buttons[index].disabled === true) index += step;
+        if (index < 0 || index >= buttons.length) return false;
+        cardFocus = index;
+        return true;
+    }
+
+    // The card's buttons change with the task (a search, a download): the focus stays usable.
+    function settleCardFocus() {
+        var buttons = cardButtons();
+        if (buttons.length > 0 && (cardFocus >= buttons.length || buttons[cardFocus].disabled === true)) {
+            cardFocus = defaultCardButton();
+        }
+    }
+
+    function pressCard(index) {
+        var button = cardButtons()[index];
+        if (!button || button.disabled === true) return;
+        if (button.confirm) {
+            var context = ctx();
+            hostAction("confirm", { action: button.action, params: button.params || {},
+                                    title: context.t(button.confirm.title), text: context.t(button.confirm.text),
+                                    confirm: context.t(button.confirm.confirm), danger: button.confirm.danger === true });
+        } else {
+            runAction(button.action, button.params || {});
+        }
+    }
 
     // The single focus surface, in card coordinates.
     readonly property rect focusRect: {
@@ -561,7 +633,11 @@ Item {
 
     function contentKey(key, autoRepeat) {
         var row = focusedRow;
-        if (focusOnTile && Remote.isArrow(key)) {
+        if (focusOnCard && (key === Qt.Key_Left || key === Qt.Key_Right)) {
+            if (!moveOnCard(key === Qt.Key_Right ? 1 : -1) && key === Qt.Key_Left) toSidebar();
+        } else if (focusOnCard && isOk(key)) {
+            if (!autoRepeat) pressCard(cardFocus);
+        } else if (focusOnTile && Remote.isArrow(key)) {
             moveInGrid(key);
         } else if (row && row.preview && Remote.isRed(key)) {
             if (!autoRepeat) runAction(row.preview.action, row.preview.params || {});
@@ -602,6 +678,8 @@ Item {
         var context = ctx();
         if (row.type === "page") {
             push({ kind: "page", page: row.row.page, rowId: row.id, focus: focusIndex });
+            // onOpen: what a page fetches when it opens, as the list of versions.
+            if (row.row.onOpen) runAction(row.row.onOpen, {});
         } else if (row.type === "choice") {
             push({ kind: "choice", row: row.row, rowId: row.id, focus: focusIndex });
         } else if (row.type === "option" && row.action) {
@@ -627,14 +705,17 @@ Item {
             launchApp(row.row.app);
         } else if (row.type === "action") {
             var catalogRow = row.row;
+            // paramsOf: parameters that depend on the page, as the version to go back to.
+            var actionParams = typeof catalogRow.paramsOf === "function" ? catalogRow.paramsOf(context) :
+                               (catalogRow.params || {});
             if (catalogRow.confirm) {
-                hostAction("confirm", { action: catalogRow.action, params: catalogRow.params || {},
+                hostAction("confirm", { action: catalogRow.action, params: actionParams,
                                         title: context.t(catalogRow.confirm.title),
                                         text: context.t(catalogRow.confirm.text),
                                         confirm: context.t(catalogRow.confirm.confirm),
                                         safe: catalogRow.confirm.safe === true });
             } else {
-                runAction(catalogRow.action, catalogRow.params || {});
+                runAction(catalogRow.action, actionParams);
             }
         } else if (row.type === "listItem" && row.row.page) {
             push({ kind: "page", page: row.row.page, param: row.item.id, rowId: row.id, focus: focusIndex });
@@ -875,7 +956,8 @@ Item {
                 y: settings.focusRect.y * settings.unit
                 width: settings.focusRect.width * settings.unit
                 height: settings.focusRect.height * settings.unit
-                visible: settings.zone !== "content" || settings.page.rows.length > 0
+                // A StatusCard's focused button draws its own plate.
+                visible: settings.zone !== "content" || (settings.page.rows.length > 0 && !settings.focusOnCard)
                 unit: settings.unit
                 pressScale: settings.zone === "search" ? searchPage.focusScale : 1
                 radius: settings.zone === "search" ? searchPage.focusRadius : (settings.zone === "sidebar" ? (settings.sideIndex === 0 ? 26 : 22) : (settings.focusOnTile ? 28 : 26))

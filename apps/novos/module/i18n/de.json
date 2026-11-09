@@ -306,13 +306,17 @@
     "update.available_size": "{channel} · {size} MB",
     "update.channel_beta": "Beta",
     "update.channel_stable": "Stabil",
+    "update.install_now": "Jetzt installieren",
     "update.installed": "novOS {version} ist installiert",
     "update.installed_detail": "Alles hat geklappt, deine Einstellungen sind unverändert.",
     "update.installing": "novOS {version} wird installiert",
     "update.later": "Später",
     "update.loading": "novOS {version} wird geladen",
     "update.percent": "{percent} %",
-    "update.show": "Ansehen"
+    "update.ready": "novOS {version} ist bereit",
+    "update.ready_detail": "Installation etwa 1 Minute · novOS startet dabei neu",
+    "update.show": "Ansehen",
+    "update.tonight": "Heute Nacht"
   },
   "source": {
     "badge.running": "Läuft",

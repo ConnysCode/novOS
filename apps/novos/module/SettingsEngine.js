@@ -423,7 +423,7 @@ function resolveRow(row, ctx) {
     var resolved = {
         id: row.id,
         type: row.type,
-        title: ctx.t(row.title),
+        title: typeof row.title === "function" ? row.title(ctx) : ctx.t(row.title),
         subtitle: subtitle,
         value: "",
         disabled: reason !== "",
@@ -434,6 +434,14 @@ function resolveRow(row, ctx) {
         preview: row.preview || null,
         row: row
     };
+    // A card with the state of a task and its buttons, and a block of release notes.
+    if (row.type === "statusCard") {
+        resolved.card = row.card(ctx);
+        var buttons = resolved.card.buttons || [];
+        resolved.focusable = buttons.some(function (button) { return button.disabled !== true; });
+    } else if (row.type === "notes") {
+        resolved.notes = row.notes(ctx) || [];
+    }
     if (row.type === "toggle") resolved.on = toggleOn(row, ctx);
     else if (row.type === "option") {
         resolved.option = row.option;
@@ -499,9 +507,12 @@ function resolvePage(store, i18n, areaId, pageId, param) {
         for (var k = 0; k < (section.keys || []).length; k++) {
             keys.push({ cap: section.keys[k].cap, text: ctx.t(section.keys[k].text) });
         }
+        // heading: a large title of its own with a text at the right, as "Neu in 1.0" and its date.
+        var heading = typeof section.heading === "function" ? section.heading(ctx) :
+                      (section.heading ? { title: ctx.t(section.heading), aside: "" } : null);
         sections.push({ title: section.title ? ctx.t(section.title) : "", rows: rows,
                         note: section.note ? ctx.t(call(section.note, ctx)) : "",
-                        columns: section.columns || 0, keys: keys });
+                        columns: section.columns || 0, keys: keys, heading: heading });
         all = all.concat(rows);
     }
     var title = typeof page.title === "function" ? page.title(ctx) : ctx.t(page.title);
@@ -628,8 +639,10 @@ function searchIndex(store, i18n) {
                 var rows = page.sections[s].rows;
                 for (var r = 0; r < rows.length; r++) {
                     var row = rows[r];
-                    if (row.type === "list" || row.type === "info" || !rowVisible(row, ctx, 0)) continue;
-                    var title = ctx.t(row.title);
+                    // A card and a block of notes are no setting of their own.
+                    if (row.type === "list" || row.type === "info" || row.type === "statusCard" ||
+                        row.type === "notes" || !rowVisible(row, ctx, 0)) continue;
+                    var title = typeof row.title === "function" ? row.title(ctx) : ctx.t(row.title);
                     var terms = row.search ? ctx.t(row.search) : "";
                     var shown = row.type === "toggle" ? ctx.t(toggleOn(row, ctx) ? "value.on" : "value.off") :
                                 (row.type === "page" ? "" : rowValue(row, ctx));

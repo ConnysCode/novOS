@@ -31,11 +31,6 @@ Item {
     readonly property real padY: 26
     readonly property real indent: 88   // the circle and its gap: bar and buttons start below the title
 
-    // The height for a layout that cannot measure: the same sums as below.
-    function heightFor(hasProgress, hasButtons) {
-        return padY * 2 + 64 + (hasProgress ? 18 + 10 + 10 + 24 : 0) + (hasButtons ? 22 + 60 : 0);
-    }
-
     GlassControl {
         anchors.fill: parent
         unit: card.unit

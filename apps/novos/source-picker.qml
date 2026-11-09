@@ -326,7 +326,9 @@ StarfishSystemUIWindow {
         function activateNotice(index) {
             var button = notice.buttons[index];
             if (!button) return;
-            if (button.toastAction) {
+            if (button.novosCommand) {
+                updates.send(button.novosCommand, button.novosValues || {});
+            } else if (button.toastAction) {
                 service.call(button.toastAction.serviceURI, button.toastAction.serviceMethod,
                              JSON.stringify(button.toastAction.launchParams || {}));
             } else if (button.action) {
@@ -424,6 +426,17 @@ StarfishSystemUIWindow {
                                    { label: I18n.t("picker", "update.later") }],
                          dialog: false, modal: false, sourceId: "", closeAction: null, timestamp: "",
                          timeout: 15000 };
+            }
+            if (params.novos === "ready") {
+                // Loaded in the background; novOS asks before it installs (K3-NovUpdate-5).
+                return { title: I18n.t("picker", "update.ready", { version: version }),
+                         detail: I18n.t("picker", "update.ready_detail"), icon: "notice-update",
+                         buttons: [{ label: I18n.t("picker", "update.install_now"), focus: true,
+                                     novosCommand: "update" },
+                                   { label: I18n.t("picker", "update.tonight"),
+                                     novosCommand: "tonight", novosValues: { version: version } }],
+                         dialog: false, modal: false, sourceId: "", closeAction: null, timestamp: "",
+                         timeout: 20000 };
             }
             return { title: I18n.t("picker", "update.installed", { version: version }),
                      detail: I18n.t("picker", "update.installed_detail"), icon: "notice-update",

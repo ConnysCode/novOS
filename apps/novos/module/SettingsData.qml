@@ -20,7 +20,8 @@ Item {
         resetHbbtvConnections: true, autoTime: true, sleepTimer: true, setSleepTimer: true,
         timerTime: true, onTimerEnable: true, screenOff: true, resetSound: true, resetGameGenre: true,
         deleteConnectionHistory: true, deepColorChanged: true, toggleInputLock: true,
-        checkUpdates: true, installUpdate: true, blockUpdates: true, lgAutoUpdate: true,
+        checkUpdates: true, installUpdate: true, cancelUpdate: true, tonightUpdate: true, loadVersions: true,
+        restoreVersion: true, openNetwork: true, blockUpdates: true, lgAutoUpdate: true,
         lgUpdateCheck: true, lgUpdateInstall: true, lgUpdateCancel: true
     })
     property var bluetoothFeatures: []
@@ -137,6 +138,8 @@ Item {
         settings.store.values.novos.keyboardMode = GlassStyle.keyboardMode;
         settings.store.values.novos.shutdownScreen = NovosSettings.shutdownScreen;
         settings.store.values.novos.updateChannel = settings.store.state.updateChannel || "stable";
+        settings.store.values.novos.betaChannel = settings.store.state.updateChannel === "beta";
+        settings.store.values.novos.autoUpdate = settings.store.state.autoUpdate === true;
         settings.store.values.novos.blockUpdates = settings.store.state.blockUpdates === true ? "on" : "off";
     }
 
@@ -144,11 +147,16 @@ Item {
         if (name === "hideInputBanner") NovosSettings.hideInputBanner = value === true || value === "on";
         else if (name === "keyboardMode") GlassStyle.keyboardMode = String(value);
         else if (name === "shutdownScreen") NovosSettings.shutdownScreen = String(value);
-        else if (name === "updateChannel") {
+        else if (name === "updateChannel" || name === "betaChannel") {
             // The updater stores it; a check of the new channel follows its answer.
-            settings.store.state.updateChannel = String(value);
-            sendUpdate("channel", { source: String(value) });
+            var channel = name === "betaChannel" ? (value === true || value === "on" ? "beta" : "stable") : String(value);
+            settings.store.state.updateChannel = channel;
+            sendUpdate("channel", { source: channel });
             checkAfterChannel = true;
+        } else if (name === "autoUpdate") {
+            // Kept by the updater in state/auto-update; the supervisor installs at night.
+            settings.store.state.autoUpdate = value === true || value === "on";
+            sendUpdate("settings", { autoUpdate: settings.store.state.autoUpdate ? "on" : "off" });
         }
         readNovos();
         settings.changed();
@@ -222,6 +230,8 @@ Item {
         var state = settings.store.state;
         var channel = readFile(novosState + "/channel").trim();
         if (channel === "stable" || channel === "beta") state.updateChannel = channel;
+        state.autoUpdate = readFile(novosState + "/auto-update").trim() === "on";
+        state.updateTonight = readFile(novosState + "/update-tonight").trim();
         try {
             var found = JSON.parse(readFile(novosState + "/last-check.json") || "null");
             if (found && (!state.updateCheck || (found.checked || 0) >= (state.updateCheck.checked || 0))) {
@@ -229,7 +239,94 @@ Item {
             }
         } catch (error) {
         }
+        // The installed release's own notes, signed in its manifest beside the module folder.
+        try {
+            var request = new XMLHttpRequest();
+            request.open("GET", Qt.resolvedUrl("../manifest.json"), false);
+            request.send();
+            var manifest = JSON.parse(String(request.responseText || "null"));
+            state.notesInstalled = manifest && manifest.notes ? localNotes(manifest.notes) : null;
+        } catch (error) {
+            state.notesInstalled = null;
+        }
         applyUpdates();
+    }
+
+    // ---- Release notes and versions in the TV's language ----------------------------------
+
+    // A text of the notes in the menu's language, else English, else what there is.
+    function localText(texts) {
+        if (!texts || typeof texts !== "object") return String(texts || "");
+        if (texts[I18n.language]) return texts[I18n.language];
+        if (texts.en) return texts.en;
+        for (var key in texts) return texts[key];
+        return "";
+    }
+
+    // "2026-11-09" as the design writes it: "9. November 2026".
+    function localDate(text) {
+        var parts = String(text || "").split("T")[0].split("-");
+        if (parts.length !== 3) return "";
+        var date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        return date.toLocaleDateString(Qt.locale(I18n.qtLocale), settings.settingsStore.text("info", "format.date"));
+    }
+
+    function localNotes(notes) {
+        var items = [];
+        for (var i = 0; i < (notes.items || []).length; i++) {
+            items.push({ title: localText(notes.items[i].title), text: localText(notes.items[i].text) });
+        }
+        return { date: localDate(notes.date), items: items };
+    }
+
+    // 1.0.0-beta.2 < 1.0.0-beta.10 < 1.0.0-rc.1 < 1.0.0 < 1.0.1, as release.py orders them.
+    function compareVersions(a, b) {
+        var pattern = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.]+))?$/;
+        var x = pattern.exec(a || "");
+        var y = pattern.exec(b || "");
+        if (!x || !y) return x ? 1 : (y ? -1 : 0);
+        for (var i = 1; i <= 3; i++) {
+            if (Number(x[i]) !== Number(y[i])) return Number(x[i]) < Number(y[i]) ? -1 : 1;
+        }
+        if (!x[4] || !y[4]) return x[4] ? -1 : (y[4] ? 1 : 0);
+        var p = x[4].split(".");
+        var q = y[4].split(".");
+        for (var j = 0; j < Math.max(p.length, q.length); j++) {
+            if (p[j] === undefined || q[j] === undefined) return p[j] === undefined ? -1 : 1;
+            var numeric = /^\d+$/.test(p[j]) && /^\d+$/.test(q[j]);
+            if (numeric && Number(p[j]) !== Number(q[j])) return Number(p[j]) < Number(q[j]) ? -1 : 1;
+            if (!numeric && p[j] !== q[j]) return p[j] < q[j] ? -1 : 1;
+        }
+        return 0;
+    }
+
+    // Frühere Versionen: every published version, and a kept release that was never published.
+    function applyVersions(result) {
+        var state = settings.store.state;
+        var installed = result.installed || state.novosVersion || "";
+        var items = [];
+        var listed = {};
+        var published = result.versions || [];
+        for (var i = 0; i < published.length; i++) {
+            var entry = published[i];
+            listed[entry.version] = true;
+            var notes = localNotes({ date: entry.date || entry.published, items: entry.items || [] });
+            var topics = localText(entry.topics);
+            items.push({ id: entry.version, title: "novOS " + entry.version,
+                         subtitle: notes.date + (topics ? " · " + topics : ""),
+                         value: entry.version === installed ? settings.settingsStore.text("info", "value.installed") : "",
+                         date: notes.date, items: notes.items, manifest: entry.manifest || "",
+                         size: entry.size > 0 ? Math.max(1, Math.round(entry.size / 1000000)) : 0,
+                         newer: compareVersions(entry.version, installed) > 0 });
+        }
+        var kept = result.kept || [];
+        for (var k = 0; k < kept.length; k++) {
+            if (listed[kept[k]]) continue;
+            items.push({ id: kept[k], title: "novOS " + kept[k], subtitle: "", value: "", date: "", items: [],
+                         manifest: "", size: 0, newer: false });
+        }
+        state.versionsKept = kept;
+        setList("novosVersions", items);
     }
 
     function checkedText(found) {
@@ -250,11 +347,31 @@ Item {
         if (result && result.check && (!state.updateCheck || (result.check.checked || 0) >= (state.updateCheck.checked || 0))) {
             state.updateCheck = result.check;
         }
+        if (result && result.check) {
+            state.notesAvailable = result.check.notes ? localNotes(result.check.notes) : null;
+        }
+        if (result && result.downloaded && state.updateCheck && state.updateCheck.available === result.downloaded) {
+            var ready = JSON.parse(JSON.stringify(state.updateCheck));
+            ready.downloaded = true;
+            state.updateCheck = ready;
+        }
+        if (result && result.tonight !== undefined) state.updateTonight = result.tonight || "";
+        if (info.choices && typeof info.choices.autoUpdate === "boolean") state.autoUpdate = info.choices.autoUpdate;
+        if (mine && info.command === "versions") {
+            if (info.phase === "done" && result && result.versions) applyVersions(result);
+            state.versionsState = info.phase === "error" ? "error" : (info.phase === "done" ? "done" : "loading");
+        }
+        // A command that only reads (the versions) runs beside the card, not as its task.
+        var reading = sentCommand === "versions";
         var waiting = updates.sentId !== "" && !answered && !updateLost;
-        state.updateBusy = waiting || info.busy === true;
-        state.updateCommand = waiting ? sentCommand : (info.busy === true ? info.command : "");
+        state.updateBusy = (waiting && !reading) || (info.busy === true && info.command !== "versions");
+        state.updateCommand = waiting && !reading ? sentCommand : (info.busy === true ? info.command : "");
         state.updateStage = info.busy === true ? info.stage || "" : "";
         state.updatePercent = info.busy === true ? info.percent || 0 : 0;
+        state.updateBytes = info.busy === true ? info.bytes || 0 : 0;
+        state.updateTotal = info.busy === true ? info.total || 0 : 0;
+        state.updateEta = info.busy === true ? info.eta : null;
+        if (updateLost && reading) state.versionsState = "error";
         // Errors of the own last command; a failed check at night says nothing here.
         var error = updateLost ? "no updater" : (mine && info.phase === "error" ? info.error || "?" : "");
         var ownCommand = mine ? info.command : sentCommand;
@@ -266,7 +383,7 @@ Item {
                 state.blockUpdates = info.choices.blockUpdates;
                 state.blockedNow = info.choices.blockedNow === true;
             }
-        } else {
+        } else if (ownCommand !== "versions" && ownCommand !== "cancel") {
             state.updateError = error;
             state.updateErrorKind = updateLost ? "failed" : (mine ? info.errorKind || "" : "");
         }
@@ -401,10 +518,30 @@ Item {
     }
 
     function run(name, params, ctx) {
+        var updateState = settings.store.state;
         if (name === "checkUpdates") {
             sendUpdate("check");
         } else if (name === "installUpdate") {
-            if (!settings.store.state.updateBusy) sendUpdate("update");
+            // Loads first, the settings may close meanwhile; once loaded the same button installs.
+            if (updateState.updateBusy) return;
+            var offer = updateState.updateCheck || {};
+            updateState.updateTarget = offer.available || "";
+            sendUpdate(offer.downloaded ? "update" : "download");
+        } else if (name === "cancelUpdate") {
+            sendUpdate("cancel");
+        } else if (name === "tonightUpdate") {
+            sendUpdate("tonight", { version: params.version || "" });
+        } else if (name === "loadVersions") {
+            if (updateState.updateBusy) return;
+            updateState.versionsState = "loading";
+            setList("novosVersions", []);
+            sendUpdate("versions");
+        } else if (name === "restoreVersion") {
+            if (updateState.updateBusy) return;
+            updateState.updateTarget = params.version || "";
+            sendUpdate("restore", { version: params.version || "", manifest: params.manifest || "" });
+        } else if (name === "openNetwork") {
+            settings.open("network", "");
         } else if (name === "blockUpdates") {
             setBlock(params, ctx);
         } else if (name === "lgAutoUpdate") {
