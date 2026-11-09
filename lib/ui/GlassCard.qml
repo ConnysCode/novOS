@@ -14,6 +14,7 @@ Item {
     property rect backdropArea: Qt.rect(0, 0, 0, 0)    // on the screen, without margin
     property real hasBackdrop: 0
     property int glideDuration: 240
+    property bool glides: true          // false: width and height follow without motion
     property var glideCurve: GlassStyle.curve
     property string shadow: "shadow-modal"
     property real cornerRadius: 48 * unit
@@ -21,6 +22,7 @@ Item {
     default property alias content: contentLayer.data
 
     Behavior on width {
+        enabled: card.glides
         NumberAnimation {
             duration: card.glideDuration
             easing.type: Easing.Bezier
@@ -28,6 +30,7 @@ Item {
         }
     }
     Behavior on height {
+        enabled: card.glides
         NumberAnimation {
             duration: card.glideDuration
             easing.type: Easing.Bezier

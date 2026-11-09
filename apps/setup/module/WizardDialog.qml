@@ -1,4 +1,5 @@
 import QtQuick 2.12
+import "WizardMemory.js" as Memory
 
 // The glass dialog of the setup (K3-Install-*, K3-Update-*, K3-Entfernen-*): 1280 px wide,
 // centred, as tall as its content. Header with the wordmark, the section and the steps;
@@ -34,6 +35,20 @@ Item {
     readonly property real footerY: contentY + (contentHeight + 48) * unit
     readonly property real cardHeight: (hasFooter ? footerY + 64 * unit : contentY + contentHeight * unit) + 44 * unit
 
+    // Every page is a new dialog. It starts at the size of the page before, waits until its
+    // own layout is measured (text and content arrive over the first frames) and then
+    // glides there once, while its body fades in; without a page before it fades in whole.
+    property real startHeight: 0
+    property bool settled: false
+
+    Timer {
+        id: settleTimer
+        interval: 60
+        onTriggered: dialog.settled = true
+    }
+
+    onSettledChanged: Memory.remember(cardHeight)
+
     property Item focusItem: null
     property bool plateShown: false
     property string plateAt: ""
@@ -53,10 +68,10 @@ Item {
     // Measured from the target's parent, so that a target grown to 103 % still gives its
     // own size; the surface grows by itself.
     function placePlate() {
-        var target = findFocused(card);
+        var target = findFocused(body);
         focusItem = target;
         if (!target) return;
-        var point = target.parent.mapToItem(card, target.x, target.y);
+        var point = target.parent.mapToItem(plate.parent, target.x, target.y);
         // Measured again while gliding, the same place must not restart the glide.
         var place = [point.x, point.y, target.width, target.height].join(",");
         if (plateShown && place === plateAt) return;
@@ -86,8 +101,15 @@ Item {
     onFocusKeyChanged: Qt.callLater(dialog.placePlate)
     onLeftButtonsChanged: placeTimer.restart()
     onRightButtonsChanged: placeTimer.restart()
-    onCardHeightChanged: placeTimer.restart()
-    Component.onCompleted: placeTimer.restart()
+    onCardHeightChanged: {
+        placeTimer.restart();
+        if (settled) Memory.remember(cardHeight);
+    }
+    Component.onCompleted: {
+        startHeight = Memory.last();
+        settleTimer.start();
+        placeTimer.restart();
+    }
 
     ImageGlass {
         id: glass
@@ -102,7 +124,10 @@ Item {
         x: 320 * dialog.unit
         y: Math.round((dialog.height - height) / 2)
         width: 1280 * dialog.unit
-        height: dialog.cardHeight
+        height: dialog.settled || dialog.startHeight <= 0 ? dialog.cardHeight : dialog.startHeight
+        glides: dialog.startHeight > 0 || dialog.settled
+        opacity: dialog.settled || dialog.startHeight > 0 ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: GlassStyle.pageDuration } }
         unit: dialog.unit
         backdrop: glass.texture
         glassShader: GlassStyle.glassShader
@@ -110,130 +135,149 @@ Item {
         backdropArea: glass.area
         hasBackdrop: 1
 
-        // Below everything else of the card, so that text and drawings lie on it.
-        FocusSurface {
-            id: plate
-            visible: dialog.focusItem !== null
-            unit: dialog.unit
-            animated: false
-        }
+        // Clipped to the card, so that a body taller than the card in the middle of the glide
+        // does not stand out over the picture.
+        Item {
+            width: card.width
+            height: card.height
+            clip: true
 
-        Wordmark {
-            id: wordmark
-            x: 56 * dialog.unit
-            y: dialog.headerY + 1 * dialog.unit
-            unit: dialog.unit
-            size: 28
-        }
-
-        Text {
-            x: wordmark.x + wordmark.width + 14 * dialog.unit
-            anchors.baseline: wordmark.baseline
-            text: dialog.label
-            color: GlassStyle.textSecondary
-            font.family: GlassStyle.rowFont
-            font.pixelSize: 18 * dialog.unit
-            font.hintingPreference: Font.PreferNoHinting
-        }
-
-        Row {
-            visible: dialog.step > 0
-            x: parent.width - width - 56 * dialog.unit
-            y: dialog.headerY
-            height: 30 * dialog.unit
-            spacing: 14 * dialog.unit
+            Wordmark {
+                id: wordmark
+                x: 56 * dialog.unit
+                y: dialog.headerY + 1 * dialog.unit
+                unit: dialog.unit
+                size: 28
+            }
 
             Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: I18n.t("setup", "header.step", { step: dialog.step, count: dialog.stepCount })
+                x: wordmark.x + wordmark.width + 14 * dialog.unit
+                anchors.baseline: wordmark.baseline
+                text: dialog.label
                 color: GlassStyle.textSecondary
                 font.family: GlassStyle.rowFont
                 font.pixelSize: 18 * dialog.unit
                 font.hintingPreference: Font.PreferNoHinting
             }
 
-            StepBar {
-                anchors.verticalCenter: parent.verticalCenter
-                unit: dialog.unit
-                count: dialog.stepCount
-                reached: dialog.step
-            }
-        }
+            Row {
+                visible: dialog.step > 0
+                x: parent.width - width - 56 * dialog.unit
+                y: dialog.headerY
+                height: 30 * dialog.unit
+                spacing: 14 * dialog.unit
 
-        Text {
-            x: 56 * dialog.unit
-            y: dialog.titleY
-            width: 1168 * dialog.unit
-            text: dialog.title
-            color: GlassStyle.textPrimary
-            lineHeightMode: Text.FixedHeight
-            lineHeight: 54 * dialog.unit
-            font.family: GlassStyle.titleFont
-            font.pixelSize: 46 * dialog.unit
-            font.letterSpacing: -1.15 * dialog.unit
-            font.hintingPreference: Font.PreferNoHinting
-        }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: I18n.t("setup", "header.step", { step: dialog.step, count: dialog.stepCount })
+                    color: GlassStyle.textSecondary
+                    font.family: GlassStyle.rowFont
+                    font.pixelSize: 18 * dialog.unit
+                    font.hintingPreference: Font.PreferNoHinting
+                }
 
-        Text {
-            id: leadText
-            visible: dialog.lead !== ""
-            x: 56 * dialog.unit
-            y: dialog.leadY
-            width: 980 * dialog.unit
-            text: dialog.lead
-            wrapMode: Text.WordWrap
-            color: "#ccffffff"
-            lineHeightMode: Text.FixedHeight
-            lineHeight: 32 * dialog.unit
-            font.family: GlassStyle.valueFont
-            font.pixelSize: 22 * dialog.unit
-            font.hintingPreference: Font.PreferNoHinting
-        }
-
-        Item {
-            id: contentArea
-            x: 56 * dialog.unit
-            y: dialog.contentY
-            width: 1168 * dialog.unit
-            height: dialog.contentHeight * dialog.unit
-        }
-
-        Row {
-            x: 56 * dialog.unit
-            y: dialog.footerY
-            spacing: 12 * dialog.unit
-            Repeater {
-                // By count, so that a focus move does not build the buttons anew.
-                model: dialog.leftButtons.length
-                FooterButton {
-                    readonly property var spec: dialog.leftButtons[index] || ({})
+                StepBar {
+                    anchors.verticalCenter: parent.verticalCenter
                     unit: dialog.unit
-                    fontFamily: GlassStyle.rowFont
-                    label: spec.label || ""
-                    icon: spec.icon || ""
-                    focused: spec.focused === true
-                    disabled: spec.disabled === true
-                    danger: spec.danger === true
+                    count: dialog.stepCount
+                    reached: dialog.step
                 }
             }
-        }
 
-        Row {
-            x: parent.width - width - 56 * dialog.unit
-            y: dialog.footerY
-            spacing: 12 * dialog.unit
-            Repeater {
-                // By count, so that a focus move does not build the buttons anew.
-                model: dialog.rightButtons.length
-                FooterButton {
-                    readonly property var spec: dialog.rightButtons[index] || ({})
+            Item {
+                id: body
+                width: card.width
+                height: dialog.cardHeight
+                opacity: dialog.settled ? 1 : 0
+                y: dialog.settled ? 0 : 16 * dialog.unit
+
+                Behavior on opacity { NumberAnimation { duration: GlassStyle.pageDuration; easing.type: Easing.Bezier; easing.bezierCurve: GlassStyle.curve } }
+                Behavior on y { NumberAnimation { duration: GlassStyle.pageDuration; easing.type: Easing.Bezier; easing.bezierCurve: GlassStyle.curve } }
+
+                // Below everything else of the card, so that text and drawings lie on it.
+                FocusSurface {
+                    id: plate
+                    visible: dialog.focusItem !== null
                     unit: dialog.unit
-                    fontFamily: GlassStyle.rowFont
-                    label: spec.label || ""
-                    icon: spec.icon || ""
-                    focused: spec.focused === true
-                    disabled: spec.disabled === true
-                    danger: spec.danger === true
+                    animated: false
+                }
+
+                Text {
+                    x: 56 * dialog.unit
+                    y: dialog.titleY
+                    width: 1168 * dialog.unit
+                    text: dialog.title
+                    color: GlassStyle.textPrimary
+                    lineHeightMode: Text.FixedHeight
+                    lineHeight: 54 * dialog.unit
+                    font.family: GlassStyle.titleFont
+                    font.pixelSize: 46 * dialog.unit
+                    font.letterSpacing: -1.15 * dialog.unit
+                    font.hintingPreference: Font.PreferNoHinting
+                }
+
+                Text {
+                    id: leadText
+                    visible: dialog.lead !== ""
+                    x: 56 * dialog.unit
+                    y: dialog.leadY
+                    width: 980 * dialog.unit
+                    text: dialog.lead
+                    wrapMode: Text.WordWrap
+                    color: "#ccffffff"
+                    lineHeightMode: Text.FixedHeight
+                    lineHeight: 32 * dialog.unit
+                    font.family: GlassStyle.valueFont
+                    font.pixelSize: 22 * dialog.unit
+                    font.hintingPreference: Font.PreferNoHinting
+                }
+
+                Item {
+                    id: contentArea
+                    x: 56 * dialog.unit
+                    y: dialog.contentY
+                    width: 1168 * dialog.unit
+                    height: dialog.contentHeight * dialog.unit
+                }
+
+                Row {
+                    x: 56 * dialog.unit
+                    y: dialog.footerY
+                    spacing: 12 * dialog.unit
+                    Repeater {
+                        // By count, so that a focus move does not build the buttons anew.
+                        model: dialog.leftButtons.length
+                        FooterButton {
+                            readonly property var spec: dialog.leftButtons[index] || ({})
+                            unit: dialog.unit
+                            fontFamily: GlassStyle.rowFont
+                            label: spec.label || ""
+                            icon: spec.icon || ""
+                            focused: spec.focused === true
+                            disabled: spec.disabled === true
+                            danger: spec.danger === true
+                        }
+                    }
+                }
+
+                Row {
+                    x: parent.width - width - 56 * dialog.unit
+                    y: dialog.footerY
+                    spacing: 12 * dialog.unit
+                    Repeater {
+                        // By count, so that a focus move does not build the buttons anew.
+                        model: dialog.rightButtons.length
+                        FooterButton {
+                            readonly property var spec: dialog.rightButtons[index] || ({})
+                            unit: dialog.unit
+                            fontFamily: GlassStyle.rowFont
+                            label: spec.label || ""
+                            icon: spec.icon || ""
+                            focused: spec.focused === true
+                            disabled: spec.disabled === true
+                            danger: spec.danger === true
+                        }
+                    }
                 }
             }
         }
