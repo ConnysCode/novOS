@@ -449,6 +449,8 @@ Item {
         toggle: cell.row.type === "toggle" ? cell.row.on === true : undefined
         sliderShare: cell.slider && cell.row.max > cell.row.min ?
                      (cell.row.number - cell.row.min) / (cell.row.max - cell.row.min) : -1
+        sliderOrigin: cell.slider && cell.row.origin !== undefined ? cell.row.origin : -1
+        sliderEnds: cell.slider ? cell.row.ends || null : null
         danger: cell.row.danger === true
         disabled: cell.row.disabled === true
         // Entries of a host list may bring a profile's avatar or a row icon.

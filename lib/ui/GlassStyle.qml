@@ -32,6 +32,8 @@ QtObject {
     readonly property color trackFocused: "#240b0c10"      // slider track on the focus surface
     readonly property color zeroLine: "#8cffffff"          // the 0 of a slider filled from its middle: white 55 %
     readonly property color zeroLineFocused: "#660b0c10"   // on the focus surface: 40 %
+    readonly property color endCapFill: "#14ffffff"        // the circle at an end of a slider ("L"): white 8 %
+    readonly property color endCapFocused: "#140b0c10"     // on the focus surface: 8 %
     readonly property color separator: "#1fffffff"        // white 12 %
     readonly property color danger: "#ff9a90"
     readonly property color keyRed: "#e5484d"              // the red key of the remote in key hints
@@ -69,6 +71,7 @@ QtObject {
     readonly property int popoverDuration: 160             // popovers, dimming, fades
     readonly property int listFadeDuration: 180            // a list end fades in or out
     readonly property int noticeDuration: 2500             // a short message stands, then goes
+    readonly property int answerLimit: 5000                // a service that has not answered by then is not there
     readonly property int pressDuration: 40
     readonly property real dimmedOpacity: 0.4              // what steps back behind a popover
     // Dark layers over the picture. Glass lies on top of them and samples them too, as
@@ -76,6 +79,7 @@ QtObject {
     readonly property color scrimColor: "#040608"
     readonly property real contentScrim: 0.18              // behind the panel; the grade holds it
     readonly property real modalScrim: 0.55                // behind a modal
+    readonly property real dialogScrim: 0.45               // over the settings card behind a device dialog
     // The boot look on black (BootGlow): its light breathes, and switching off dims it.
     readonly property int bootPulseDuration: 6000          // one breath of the light
     readonly property real bootPulseLow: 0.85              // its opacity at the low point
@@ -98,6 +102,9 @@ QtObject {
     readonly property int blockTextSize: 20                // text of a head block over a list
     readonly property int counterSize: 24                  // the number of a counter chip
     readonly property int counterLabelSize: 15            // its label below
+    readonly property int dialogTitleSize: 34              // the name in the head of a device dialog
+    readonly property int dialogTextSize: 20               // its state below
+    readonly property int endCapSize: 17                   // "L" and "R" at the ends of a balance
     readonly property int badgeSize: 16                    // an outlined badge beside a title ("Dolby Atmos")
     readonly property real sectionTracking: 0.96          // 0.06 em, as in the hand-off
     readonly property int statSize: 34                     // a live value, for example of the game bar

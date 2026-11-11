@@ -8,7 +8,9 @@
 //   registeredSection(spec) "Angemeldete Geräte (n)", the paired devices, each opens its page
 //   availableSection(spec)  "Anschließbare Geräte (n)", found devices, the empty hint, "Suchen"
 //   pairedRow / foundRow    what a row of a device shows, for a list row of one's own
-//   deviceRows(spec)        Verbinden or Trennen and "Gerät entfernen" of a device's page
+//   searchRow(spec)         "Suchen", "Sucht …" while it searches, "Erneut versuchen" without service
+//   deviceRows(spec)        Verbinden or Trennen and "Gerät entfernen" of a device's page; with
+//                           footer: true the buttons "Trennen" and "Entfernen" of a device dialog
 //   deviceSubtitle(...)     "Verbunden · Kopfhörer" under the page title
 //
 // The host (BluetoothDevices.qml for Bluetooth) keeps the lists in the store: entries
@@ -18,12 +20,16 @@
 //     connect: "btAudioConnect", disconnect: "btAudioDisconnect", remove: "btAudioRemove",
 //     search: "btAudioSearch", searching: "btAudioSearching", ready: "btAudioReady" }
 // Texts are in the shared namespace settings (module/i18n/settings/common), "device.*".
+// More in spec, for TON-D/TON-E: when (the sections show only while it holds, as WOWCAST
+// without Wi-Fi), searchingHint (a spinner block while it searches and found nothing),
+// emptyHint ({ icon, title, text } instead of the Bluetooth one), noneMore (a line instead of
+// the empty block while a device is registered), locked (more greyed-out rules for Verbinden).
 
 var busyStates = ["connecting", "pairing", "disconnecting"];
 
 // Row symbols (icons/row-<name>.png); the gamepad is the one of the inputs.
 var icons = { headphones: "headphones", speaker: "speaker", soundbar: "soundbar",
-              gamepad: "source-gamepad", keyboard: "keyboard", mouse: "mouse" };
+              gamepad: "source-gamepad", keyboard: "keyboard", mouse: "mouse", wowcast: "soundbar" };
 
 function kindIcon(kind) {
     return icons[kind] || "bluetooth";
@@ -116,36 +122,72 @@ function registeredSection(spec) {
     };
 }
 
+function unavailable(ctx, spec) {
+    return ctx.state[spec.ready] === false;
+}
+
+function shows(ctx, spec) {
+    return typeof spec.when !== "function" || spec.when(ctx);
+}
+
+// "Suchen" at the end of a list; spec.searchLocked: more reasons to take no OK.
+function searchRow(spec) {
+    return { id: "search", type: "action", action: spec.search,
+             requires: function (ctx) { return shows(ctx, spec); },
+             title: function (ctx) {
+                 if (searching(ctx, spec)) return ctx.t("device.searching");
+                 return ctx.t(unavailable(ctx, spec) ? "device.retry" : "row.search");
+             },
+             icon: function (ctx) { return searching(ctx, spec) ? "" : "search"; },
+             iconBusy: function (ctx) { return searching(ctx, spec); },
+             inert: function (ctx) {
+                 return searching(ctx, spec) || anyBusy(ctx, spec) ||
+                        (typeof spec.searchLocked === "function" && spec.searchLocked(ctx));
+             } };
+}
+
+// The empty block: no service, nothing found, or (searchingHint) a search that runs.
+function emptyHint(ctx, spec) {
+    if (unavailable(ctx, spec)) {
+        var gone = spec.unavailableHint || { icon: "bluetooth-off-32", title: "device.unavailable",
+                                             text: "device.unavailable_hint" };
+        return { icon: gone.icon, title: ctx.t(gone.title), text: ctx.t(gone.text) };
+    }
+    if (searching(ctx, spec)) {
+        return { spinner: true, title: ctx.t("device.searching_title"), text: ctx.t("device.searching_hint") };
+    }
+    var own = spec.emptyHint;
+    if (own) return { icon: own.icon, title: ctx.t(own.title), text: ctx.t(own.text) };
+    return { icon: "bluetooth-32", title: ctx.t("device.none_found"), text: ctx.t("device.none_found_hint") };
+}
+
 // Found devices, then the empty hint, then "Suchen". While it searches the last row turns into
 // "Sucht …" with a spinner and keeps the focus where it is.
 function availableSection(spec) {
-    function unavailable(ctx) {
-        return ctx.state[spec.ready] === false;
+    function empty(ctx) {
+        return ctx.list(spec.found).length === 0;
+    }
+    // noneMore: a device is registered, an empty list says so in a line.
+    function oneLine(ctx) {
+        return !!spec.noneMore && ctx.list(spec.source).length > 0 && !unavailable(ctx, spec);
     }
     return {
         title: function (ctx) { return ctx.t("device.available", { count: ctx.list(spec.found).length }); },
         rows: [
             { id: "found", type: "list", source: spec.found,
+              requires: function (ctx) { return shows(ctx, spec); },
               decorate: function (ctx, entry) { return foundRow(ctx, entry, spec); } },
             { id: "foundHint", type: "hint",
               requires: function (ctx) {
-                  return unavailable(ctx) || (ctx.list(spec.found).length === 0 && !searching(ctx, spec));
+                  if (!shows(ctx, spec) || oneLine(ctx)) return false;
+                  return unavailable(ctx, spec) ||
+                         (empty(ctx) && (!searching(ctx, spec) || spec.searchingHint === true));
               },
-              hint: function (ctx) {
-                  if (unavailable(ctx)) {
-                      return { icon: "bluetooth-off-32", title: ctx.t("device.unavailable"),
-                               text: ctx.t("device.unavailable_hint") };
-                  }
-                  return { icon: "bluetooth-32", title: ctx.t("device.none_found"), text: ctx.t("device.none_found_hint") };
-              } },
-            { id: "search", type: "action", action: spec.search,
-              title: function (ctx) {
-                  if (searching(ctx, spec)) return ctx.t("device.searching");
-                  return ctx.t(unavailable(ctx) ? "device.retry" : "row.search");
-              },
-              icon: function (ctx) { return searching(ctx, spec) ? "" : "search"; },
-              iconBusy: function (ctx) { return searching(ctx, spec); },
-              inert: function (ctx) { return searching(ctx, spec) || anyBusy(ctx, spec); } }
+              hint: function (ctx) { return emptyHint(ctx, spec); } },
+            { id: "noneMore", type: "info", focusable: false,
+              title: function (ctx) { return ctx.t(spec.noneMore || ""); },
+              requires: function (ctx) { return shows(ctx, spec) && oneLine(ctx) && empty(ctx) && !searching(ctx, spec); } },
+            searchRow(spec)
         ]
     };
 }
@@ -170,20 +212,22 @@ function deviceRows(spec) {
         return { name: found ? found.title : "" };
     }
     var locked = [{ when: function (ctx) { return isBusy(entry(ctx)); }, reason: "reason.not_available_now" }];
+    var footer = spec.footer === true;
     return [
-        { id: "connect", type: "action", action: spec.connect, title: "row.connect",
+        { id: "connect", type: "action", action: spec.connect, title: "row.connect", footer: footer,
           paramsOf: function (ctx) { return { id: ctx.param }; },
           requires: function (ctx) { var found = entry(ctx); return !!found && found.state !== "connected" &&
                                                                     found.state !== "disconnecting"; },
-          disabled: locked },
-        { id: "disconnect", type: "action", action: spec.disconnect, title: "row.disconnect",
+          disabled: locked.concat(spec.locked || []) },
+        { id: "disconnect", type: "action", action: spec.disconnect, title: "row.disconnect", footer: footer,
           paramsOf: function (ctx) { return { id: ctx.param }; },
           requires: function (ctx) { var found = entry(ctx); return !!found && (found.state === "connected" ||
                                                                                found.state === "disconnecting"); },
           disabled: locked,
           confirm: { title: "confirm.disconnect_title", text: spec.disconnectText || "confirm.disconnect_text",
                      confirm: "confirm.disconnect_button", danger: false, params: names } },
-        { id: "remove", type: "action", action: spec.remove, title: "row.remove_device", danger: true,
+        { id: "remove", type: "action", action: spec.remove, title: footer ? "row.remove" : "row.remove_device",
+          danger: true, footer: footer,
           paramsOf: function (ctx) { return { id: ctx.param }; },
           requires: function (ctx) { return !!entry(ctx); },
           disabled: locked,

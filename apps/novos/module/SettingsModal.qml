@@ -93,7 +93,7 @@ Item {
     // Pages with session: "<name>" keep a session running as long as they lie in the stack, as
     // the Bluetooth lists (BluetoothDevices.qml): it subscribes when the page opens and ends
     // the subscription when the page is left. A page opened for an entry adds ":<entry id>".
-    readonly property var sessions: sessionsOf(active, areaIndex, stack)
+    readonly property var sessions: sessionsOf(active, areaIndex, stack, dialogLevel)
     readonly property var page: resolveCurrent(revision, areaIndex, stack)
     readonly property var layout: layoutOf(page)
     readonly property var focusedRow: zone === "content" && page.rows.length > 0 ?
@@ -113,6 +113,17 @@ Item {
     onBandsChanged: if (bands) bandsShown = bands
     readonly property var bandEditor: bandLoader.item
 
+    // A catalog page with dialog: true (a speaker, a WOWCAST device) opens as DeviceModal over
+    // the page it came from: { page, param, rowId }. The page below stays as it is.
+    property var dialogLevel: null
+    readonly property bool dialogOpen: dialogLevel !== null
+    readonly property var dialogPage: dialogOpen ? resolveDialog(revision, dialogLevel) : null
+    readonly property var deviceModal: dialogLoader.item
+    // A row to put the focus on once it shows, from a launch with "arrive" (Rückkehr aus einer
+    // LG-App): the page may still wait for its data when it opens.
+    property string wantedRow: ""
+    property var arrivalNotice: null
+
     function resolveCurrent() {
         var started = PerfProbe.now();
         var resolved = resolveLevel();
@@ -122,6 +133,10 @@ Item {
 
     function resolveBands() {
         return Engine.resolveBands(store, I18n, area.id, bandsRow, paramOf(stack.length));
+    }
+
+    function resolveDialog() {
+        return Engine.resolvePage(store, I18n, area.id, dialogLevel.page, dialogLevel.param);
     }
 
     function resolveLevel() {
@@ -143,6 +158,7 @@ Item {
         for (var i = 0; i < stack.length; i++) {
             if (stack[i].kind === "page") add(Engine.pageOf(area, stack[i].page), stack[i].param);
         }
+        if (dialogLevel) add(Engine.pageOf(area, dialogLevel.page), dialogLevel.param);
         return names;
     }
 
@@ -156,8 +172,10 @@ Item {
 
     // ---- Opening -------------------------------------------------------------
 
-    // areaId and rowId are optional: the panel opens on the page that matches its own.
-    function open(areaId, pageId) {
+    // areaId and pageId are optional: the panel opens on the page that matches its own.
+    // arrive: the page was opened from outside, as on the way back from an LG app; its
+    // catalog says where the focus goes and what a short notice says (page.arrive).
+    function open(areaId, pageId, arrive) {
         requestData();
         var index = 0;
         for (var i = 0; i < Engine.areas.length; i++) {
@@ -166,14 +184,25 @@ Item {
         areaIndex = index;
         sideIndex = index + 1;
         stack = [];
+        dialogLevel = null;
         zone = "sidebar";
         focusIndex = 0;
         scroll = 0;
+        wantedRow = "";
         if (pageId && pageId !== Engine.areas[index].page.id) {
             stack = [{ kind: "page", page: pageId, rowId: "", focus: 0 }];
             zone = "content";
         }
         active = true;
+        var landing = arrive ? Engine.pageOf(area, pageId || area.page.id) : null;
+        if (landing && landing.arrive) {
+            zone = "content";
+            wantedRow = landing.arrive.focus || "";
+            if (wantedRow !== "" && focusRow(wantedRow)) wantedRow = "";
+            // The notice waits until the card is on screen.
+            if (landing.arrive.notice) arrivalNotice = { title: Engine.text(I18n, area.id, landing.arrive.notice),
+                                                         icon: landing.arrive.icon || "notice-info" };
+        }
     }
 
     function close() {
@@ -186,6 +215,7 @@ Item {
         stack = [];
         zone = "sidebar";
         bandsRow = null;
+        dialogLevel = null;
     }
 
     function requestData() {
@@ -215,7 +245,8 @@ Item {
 
     function rowHeight(row) {
         var twoLines = row.subtitle !== "";
-        if (row.type === "slider") return 104;   // as the panel's slider rows
+        // As the panel's slider rows; with a second line and end circles ("L", "R") 124.
+        if (row.type === "slider") return twoLines && row.ends ? 124 : 104;
         // The hint of an empty device list (64 px circle, title, hint) and the block above it:
         // a plate of counters (QG-1) or a hint beside a 44 px circle (K3-Einst-Geraeteliste).
         if (row.type === "hint") return 190;
@@ -364,7 +395,8 @@ Item {
         // the exception: while its task runs (a search) its only button is greyed out, and
         // the focus stays on the card instead of jumping to the rows below it.
         var row = page.rows[focusIndex];
-        if (zone === "content" && row && !row.focusable && row.type !== "statusCard") focusIndex = firstFocusable();
+        if (zone === "content" && row && !row.focusable && row.type !== "statusCard") focusIndex = firstChoice();
+        if (wantedRow !== "" && focusRow(wantedRow)) wantedRow = "";
         keepVisible();
     }
 
@@ -462,7 +494,7 @@ Item {
     function ctx() {
         var context = Engine.context(store, area.id, I18n);
         context.area = area;
-        context.param = paramOf(stack.length);
+        context.param = dialogLevel ? dialogLevel.param : paramOf(stack.length);
         return context;
     }
 
@@ -541,6 +573,12 @@ Item {
             if (page.custom === "shutdownEdit") back();
         } else if (name === "openPage") {
             push({ kind: "page", page: params.page, rowId: params.rowId || "", focus: focusIndex });
+        } else if (name === "launchLgApp") {
+            // An LG app behind a question (Einrichten mit Messung): the modal closes with the panel.
+            flushWrite();
+            launchApp(params.app);
+        } else if (name === "closeDialog") {
+            closeDialog();
         } else if (name === "applySoundToAll") {
             settingsStore.call("luna://com.webos.settingsservice", "/setSystemSettings",
                          JSON.stringify({ category: "sound", settings: { applyToAllInputSSM: "sound" } }));
@@ -621,6 +659,11 @@ Item {
     }
 
     function handleKey(key, autoRepeat) {
+        wantedRow = "";
+        if (dialogOpen) {
+            if (deviceModal) deviceModal.handleKey(key, autoRepeat);
+            return;
+        }
         if (shutdownPreview.shown) {
             // Any key ends the preview; Back is taken by back() on its release.
             if (!Remote.isBack(key)) endPreview();
@@ -687,7 +730,7 @@ Item {
                 openSearch();
             } else if (page.rows.length > 0) {
                 zone = "content";
-                focusIndex = Math.min(lastFocus[area.id] || firstFocusable(), page.rows.length - 1);
+                focusIndex = Math.min(lastFocus[area.id] || firstChoice(), page.rows.length - 1);
                 keepVisible();
             }
         }
@@ -732,6 +775,15 @@ Item {
             focusIndex = 0;
             pageChange.restart();
         }
+    }
+
+    // The first row that takes OK; a greyed-out row only when there is none (K3-Einst-BT-und-
+    // TV-03: with nothing set up the focus starts on "Einrichten mit Messung").
+    function firstChoice() {
+        for (var i = 0; i < page.rows.length; i++) {
+            if (page.rows[i].focusable && !page.rows[i].disabled) return i;
+        }
+        return firstFocusable();
     }
 
     function firstFocusable() {
@@ -799,19 +851,68 @@ Item {
         } else if (key === Qt.Key_Down) {
             moveFocus(1);
         } else if ((key === Qt.Key_Left || key === Qt.Key_Right) && row && row.type === "slider") {
-            if (!row.disabled) {
-                var context = ctx();
-                var next = Engine.sliderStep(row.row, context, key === Qt.Key_Right ? 1 : -1);
-                // A slider over no settings key (read) writes through its host action.
-                if (row.row.action) runAction(row.row.action, { value: next });
-                else write(row.row, next);
-            }
+            stepSlider(row, key === Qt.Key_Right ? 1 : -1);
         } else if (key === Qt.Key_Left) {
             toSidebar();
         } else if ((key === Qt.Key_Right && row && (row.type === "page" || row.type === "choice" || row.type === "bands")) ||
                    isOk(key)) {
             if (!autoRepeat && row) activate(row);
         }
+    }
+
+    function stepSlider(row, direction) {
+        if (row.disabled) return;
+        var next = Engine.sliderStep(row.row, ctx(), direction);
+        // A slider over no settings key (read) writes through its host action.
+        if (row.row.action) runAction(row.row.action, { value: next });
+        else write(row.row, next);
+    }
+
+    // ---- Device dialog ---------------------------------------------------------------
+
+    function openDialog(pageId, param, rowId) {
+        dialogLevel = { page: pageId, param: param, rowId: rowId || "" };
+        if (deviceModal) deviceModal.start();
+    }
+
+    function closeDialog() {
+        if (!dialogOpen) return;
+        if (deviceModal) deviceModal.closeChoice();
+        flushWrite();
+        var rowId = dialogLevel.rowId;
+        dialogLevel = null;
+        if (rowId !== "") focusRow(rowId);
+    }
+
+    // OK in the dialog. A choice of two values takes the other one (K3-Einst-BT-und-TV-05: Links
+    // or Rechts), a longer one opens its values beside the row (-WiSA-WOWCAST-08).
+    function activateInDialog(row) {
+        if (row.disabled || row.inert) return;
+        if (row.type !== "choice") {
+            activate(row);
+            return;
+        }
+        var options = Engine.resolveChoice(store, I18n, area.id, row.row, dialogLevel.param).rows;
+        if (row.row.cycle) {
+            var current = 0;
+            for (var i = 0; i < options.length; i++) {
+                if (options[i].selected) current = i;
+            }
+            for (var step = 1; step < options.length; step++) {
+                var next = options[(current + step) % options.length];
+                if (!next.disabled) {
+                    chooseInDialog(next);
+                    return;
+                }
+            }
+            return;
+        }
+        if (deviceModal) deviceModal.openChoice(row, options);
+    }
+
+    function chooseInDialog(option) {
+        if (option.disabled || option.selected) return;
+        perform(option);
     }
 
     function toSidebar() {
@@ -866,6 +967,12 @@ Item {
                 flushWrite();
                 runAction(row.row.onChange, { value: next });
             }
+        } else if (row.type === "lgApp" && row.row.confirm && (!row.row.confirm.when || row.row.confirm.when(context))) {
+            // A question first, as before LG's speaker setup (K3-Einst-BT-und-TV-10).
+            var question = row.row.confirm;
+            hostAction("confirm", { action: "launchLgApp", params: { app: row.row.app },
+                                    title: context.t(question.title), text: context.t(question.text),
+                                    confirm: context.t(question.confirm), safe: false, danger: false });
         } else if (row.type === "lgApp") {
             flushWrite();
             launchApp(row.row.app);
@@ -893,6 +1000,8 @@ Item {
         } else if (row.type === "listItem" && row.action) {
             // An entry with an action of its own, as a found device that OK connects.
             runAction(row.action, row.params || {});
+        } else if (row.type === "listItem" && row.row.page && row.row.dialog) {
+            openDialog(row.row.page, row.item.id, row.id);
         } else if (row.type === "listItem" && row.row.page) {
             push({ kind: "page", page: row.row.page, param: row.item.id, rowId: row.id, focus: focusIndex });
         } else if (row.type === "listItem") {
@@ -920,7 +1029,7 @@ Item {
                 if (page.rows[i].selected) focusIndex = i;
             }
         } else {
-            focusIndex = firstFocusable();
+            focusIndex = firstChoice();
         }
         keepVisible();
         pageChange.restart();
@@ -929,6 +1038,11 @@ Item {
     // Back: one level up with the focus on the row we came from; on the top level into
     // the side bar; from the side bar the modal closes.
     function back() {
+        if (dialogOpen) {
+            if (deviceModal && deviceModal.popoverOpen) deviceModal.closeChoice();
+            else closeDialog();
+            return;
+        }
         if (shutdownPreview.shown) {
             endPreview();
             return;
@@ -989,6 +1103,10 @@ Item {
     property string testBands: ""
 
     onShownChanged: {
+        if (shown && arrivalNotice) {
+            showNotice(arrivalNotice.title, "", arrivalNotice.icon);
+            arrivalNotice = null;
+        }
         if (!shown || testBands === "") return;
         var parts = testBands.split("/");
         var found = Engine.pageOf(Engine.areaById(parts[0]), parts[1]);
@@ -1030,6 +1148,12 @@ Item {
                      text: onBand ? bands.labels[bandEditor.focusIndex] + ", " + valueText
                                   : I18n.t("settings", "editor.flat"),
                      change: valueText };
+        }
+        if (dialogOpen && deviceModal && deviceModal.focusedRow) {
+            var item = deviceModal.focusedRow;
+            return { context: "settings", layer: "dialog/" + dialogPage.id, subject: item.id,
+                     layerIntro: [dialogPage.title, dialogPage.subtitle].join(", "),
+                     text: [item.title, item.value, item.subtitle].join(", "), change: item.value };
         }
         if (zone === "sidebar") {
             var label = sideIndex === 0 ? I18n.t("settings", "row.search") : I18n.t("settings_" + area.id, area.title);
@@ -1420,6 +1544,32 @@ Item {
                     onBandChanged: settings.writeBand(index, value)
                     onFlatten: settings.flattenBands()
                     onFinished: settings.closeBands()
+                }
+            }
+        }
+
+        // A device over the page it was opened from (DeviceModal.qml), built only while open.
+        Loader {
+            id: dialogLoader
+            anchors.fill: parent
+            active: settings.dialogOpen
+            opacity: card.opacity
+            visible: active
+            sourceComponent: Component {
+                DeviceModal {
+                    owner: settings
+                    unit: settings.unit
+                    titleFont: settings.titleFont
+                    rowFont: settings.rowFont
+                    valueFont: settings.valueFont
+                    backdrop: settings.backdrop
+                    glassShader: settings.glassShader
+                    shadowShader: settings.shadowShader
+                    backdropMargin: settings.backdropMargin
+                    backdropArea: settings.backdropArea
+                    hasBackdrop: settings.hasBackdrop
+                    page: settings.dialogPage || ({ title: "", subtitle: "", icon: "", rows: [] })
+                    Component.onCompleted: start()
                 }
             }
         }

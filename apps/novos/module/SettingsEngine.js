@@ -299,9 +299,10 @@ function choiceOptions(row, ctx) {
         var own = row.options(ctx) || [];
         var result = [];
         for (var n = 0; n < own.length; n++) {
+            // detail: a second line of its own, as "Belegt" for a position another speaker holds.
             result.push({ value: own[n].id, label: own[n].label, active: own[n].active !== false,
                           selected: own[n].selected === true, write: own[n].write,
-                          action: own[n].action, params: own[n].params });
+                          action: own[n].action, params: own[n].params, detail: own[n].detail || "" });
         }
         return result;
     }
@@ -348,6 +349,13 @@ function formatNumber(row, value, ctx) {
     var number = numberOf(value);
     var size = String(Math.abs(number));
     if (row.format === "signed" && number > 0) return "+" + number;
+    // A balance around its centre: "L2", "Mitte", "R3" (K3-Einst-BT-und-TV-02).
+    if (row.format === "balance") {
+        var centre = row.center || 0;
+        if (number === centre) return ctx.t("value.balance_center");
+        return ctx.t(number < centre ? "value.balance_left" : "value.balance_right",
+                     { value: Math.abs(number - centre) });
+    }
     // LG's own words: warm below zero, cold above; red below, green above.
     if (row.format === "temperature" && number !== 0) {
         return ctx.t(number > 0 ? "value.cold" : "value.warm", { value: size });
@@ -452,6 +460,8 @@ function resolveRow(row, ctx) {
         // selected: a row that is the current choice without being an option, as "Als
         // Audioausgabe verwenden" while the device plays.
         selected: call(row.selected, ctx) === true,
+        // A button in the footer of a device dialog (DeviceModal.qml) instead of a row.
+        footer: row.footer === true,
         row: row
     };
     if (typeof row.focusable === "function") resolved.focusable = row.focusable(ctx) !== false;
@@ -489,6 +499,12 @@ function resolveRow(row, ctx) {
         resolved.value = formatNumber(row, resolved.number, ctx);
         // A value of its own, as "–" for a volume the device keeps.
         if (typeof row.value === "function") resolved.value = row.value(ctx) || resolved.value;
+        // center: the track fills from that value with a mark and a knob (a balance, a volume
+        // from -5 to 10); ends: a short text at each end ("L", "R").
+        resolved.origin = row.center !== undefined && resolved.max > resolved.min ?
+                          (row.center - resolved.min) / (resolved.max - resolved.min) : -1;
+        var ends = call(row.ends, ctx);
+        resolved.ends = ends ? [ctx.t(ends[0]), ctx.t(ends[1])] : null;
     } else {
         resolved.value = rowValue(row, ctx);
     }
@@ -576,9 +592,13 @@ function resolvePage(store, i18n, areaId, pageId, param) {
         subtitle = ctx.t(subtitle);
     }
     var hero = typeof page.hero === "function" ? page.hero(ctx) : null;
+    // dialog: the page shows as a device dialog over the page below (DeviceModal.qml), with
+    // a symbol in its head; arrive: where the focus goes and what a notice says when the page
+    // opens from outside, as on the way back from an LG app.
     return { id: page.id, title: title, subtitle: subtitle || "", sections: sections, rows: all, hero: hero,
              note: page.note ? ctx.t(call(page.note, ctx)) : "", custom: page.custom || "",
-             target: page.target || "", badge: call(page.badge, ctx) || "", busy: call(page.busy, ctx) === true };
+             target: page.target || "", badge: call(page.badge, ctx) || "", busy: call(page.busy, ctx) === true,
+             dialog: page.dialog === true, icon: call(page.icon, ctx) || "", arrive: page.arrive || null };
 }
 
 // The page of a choice: one row per visible value, the current one checked.
@@ -595,8 +615,9 @@ function resolveChoice(store, i18n, areaId, row, param) {
     for (var i = 0; i < options.length; i++) {
         var selected = options[i].selected !== undefined ? options[i].selected
                                                          : String(options[i].value) === String(current);
-        // details: a second line per value, { value: "detail.<name>" }.
-        var detail = row.details && row.details[options[i].value] ? ctx.t(row.details[options[i].value]) : "";
+        // details: a second line per value, { value: "detail.<name>" }; own options bring theirs.
+        var detail = row.details && row.details[options[i].value] ? ctx.t(row.details[options[i].value]) :
+                     (options[i].detail || "");
         rows.push({ id: "option:" + options[i].value, type: "option", title: options[i].label,
                     subtitle: reason !== "" ? reason : (options[i].active ? detail : ctx.t("reason.not_available_now")),
                     value: "", disabled: reason !== "" || !options[i].active, focusable: true,
