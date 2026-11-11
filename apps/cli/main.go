@@ -231,6 +231,10 @@ func remoteCommand(opts options, command string, positional []string) int {
 		}
 	}
 	args := append([]string{command}, positional...)
+	if command == "install" {
+		// Started right away, which also turns on its start at boot.
+		args = append(args, "--start")
+	}
 	if command == "uninstall" && opts.KeepState {
 		args = append(args, "--keep-state")
 	}
@@ -292,7 +296,7 @@ func guided(opts options) int {
 		fmt.Println("Nothing changed.")
 		return 0
 	}
-	code, err := remote.Setupd([]string{"install"}, false, renderer.Handle)
+	code, err := remote.Setupd([]string{"install", "--start"}, false, renderer.Handle)
 	return failed(err, code)
 }
 

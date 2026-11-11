@@ -26,6 +26,9 @@ install takes the download), cancel (ends a running download), rollback (as belo
 tonight (the version the supervisor installs between 2 and 5 at night, or none). restore
 is rollback for the settings of novOS 0.9.1-beta.3 and older.
 
+An install or update that leaves novOS running also turns on its start at boot: the
+Homebrew hook (autostart on) and the early start, unless `autostart off` was asked for.
+
 An update to a newer version keeps the release before it and a copy of its user data
 (USER_DATA_SKIP says what is not) in releases/<previous>/backup, named in rollback.json
 next to current, for 14 days. rollback goes back to that release and puts its data back,
@@ -97,8 +100,10 @@ ROLLBACK_DAYS = 14
 # launcher.ini, novos.conf, media/, channel, auto-update, ...) is copied and put back.
 USER_DATA_SKIP = ("disabled", "boot-failures", "early-release", "early-env-created", "early-env-before",
                   "block-updates-before", "last-check.json", "update-checked", "update-announced",
-                  "update-tonight", "update-skip")
+                  "update-tonight", "update-skip", "autostart-off")
 HOOK = system("/var/lib/webosbrew/init.d/50-novos")
+# Written by `autostart off`: installs and updates leave the start at boot off.
+AUTOSTART_OFF = STATE + "/autostart-off"
 ENV_DIR = system("/var/systemd/system/env")
 ENV_FILES = ("surface-manager", "rec-info-adapter")
 ENV_MARK = "# novOS early start"
@@ -696,6 +701,8 @@ def install(report, source, allow_downgrade=False, start=False, before_start=Non
                 if stay_dark:
                     screen(report, True)
         settle_check(version)
+        if was_running or start:
+            start_at_boot(report)
         report.result("installed novOS %s%s" % (version, ", started" if was_running or start else ""),
                       installed=version, started=was_running or start)
 
@@ -932,13 +939,29 @@ def set_channel(report, channel):
     report.result("channel %s" % read_setting("channel", "stable"), channel=read_setting("channel", "stable"))
 
 
-def autostart(report, mode):
-    if mode == "off":
-        if os.path.exists(HOOK):
-            os.remove(HOOK)
-        sync()
-        report.result("autostart off", autostart=False)
+def start_at_boot(report):
+    """An install that leaves novOS running brings it back after a restart too: the
+    Homebrew hook, and LG's environment files for the early start. The early start mounts
+    a release only after the supervisor saw it run stable (state/early-release); until
+    then the hook starts it. novos-uninstall.sh removes both; `autostart off` keeps them
+    off for later installs. Neither stops the install: novOS runs, only the start at boot
+    is missing then."""
+    if os.path.exists(AUTOSTART_OFF):
+        report.step("start at boot stays off (autostart off)", key="start")
         return
+    try:
+        if not os.path.exists(HOOK):
+            write_hook("on")
+            report.step("start at boot on", key="start")
+        if not early_on():
+            write_early(report)
+            report.step("early start on, from the first stable run", key="start")
+    except (SetupError, OSError) as error:
+        report.step("start at boot incomplete: %s" % error, key="start")
+    sync()
+
+
+def write_hook(mode):
     source = os.path.join(CURRENT, "bin", "init-hook.sh")
     if not os.path.isfile(source):
         raise SetupError("nothing installed")
@@ -947,8 +970,27 @@ def autostart(report, mode):
     if "\nONCE=0\n" not in text:
         raise SetupError("init-hook.sh has no ONCE=0 line")
     write_file(HOOK, text.replace("\nONCE=0\n", "\nONCE=%d\n" % (1 if mode == "once" else 0)), 0o755)
+
+
+def autostart(report, mode):
+    if mode == "off":
+        if os.path.exists(HOOK):
+            os.remove(HOOK)
+        if os.path.isdir(STATE):
+            write_file(AUTOSTART_OFF, "%s\n" % time.strftime("%Y-%m-%d %H:%M:%S"))
+        sync()
+        report.result("autostart off", autostart=False)
+        return
+    write_hook(mode)
+    with contextlib.suppress(OSError):
+        os.remove(AUTOSTART_OFF)
     sync()
     report.result("autostart %s" % mode, autostart=True, once=mode == "once")
+
+
+def early_on():
+    return all(os.path.isfile(os.path.join(ENV_DIR, n + ".env"))
+               and read_first_line(os.path.join(ENV_DIR, n + ".env")).startswith(ENV_MARK) for n in ENV_FILES)
 
 
 def early(report, mode):
@@ -968,6 +1010,13 @@ def early(report, mode):
         sync()
         report.result("early start off", early=False)
         return
+    write_early(report)
+    sync()
+    report.result("early start on", early=True)
+
+
+def write_early(report):
+    created_file = STATE + "/early-env-created"
     for script in ("early/PmLogCtl", "kick/luna-send"):
         if not os.access(os.path.join(CURRENT, "bin", script), os.X_OK):
             raise SetupError("the release has no early start, install first")
@@ -991,8 +1040,6 @@ def early(report, mode):
         write_file(os.path.join(ENV_DIR, name + ".env"),
                    "%s, see /var/lib/novos/current/bin/%s. Removed by novos-uninstall.sh.\nPATH=%s:%s\n"
                    % (ENV_MARK, folder, "/var/lib/novos/current/bin/" + folder, BASE_PATH))
-    sync()
-    report.result("early start on", early=True)
 
 
 def read_first_line(path):

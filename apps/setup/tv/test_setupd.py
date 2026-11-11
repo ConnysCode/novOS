@@ -509,6 +509,56 @@ class SetupdTest(unittest.TestCase):
         self.run_setupd("autostart", "off")
         self.assertFalse(os.path.exists(hook))
 
+    def test_install_with_start_turns_on_start_at_boot(self):
+        hook = self.path("/var/lib/webosbrew/init.d/50-novos")
+        env = self.path("/var/systemd/system/env/surface-manager.env")
+        code, lines = self.run_setupd("install", self.publish("1.0.0"))
+        self.assertEqual(code, 0, lines)
+        self.assertFalse(os.path.exists(hook), "an install that does not start leaves the boot alone")
+        self.assertFalse(os.path.exists(env))
+        code, lines = self.run_setupd("install", self.publish("1.1.0"), "--start")
+        self.assertEqual(code, 0, lines)
+        with open(hook) as handle:
+            self.assertIn("\nONCE=0\n", handle.read())
+        self.assertTrue(os.path.exists(env))
+        self.assertFalse(os.path.exists(self.path("/var/lib/novos/state/early-release")))
+        status = self.run_setupd("status")[1][-1]["status"]
+        self.assertEqual((status["autostart"], status["early"]), (True, True))
+
+    def test_update_of_running_novos_turns_on_start_at_boot(self):
+        self.run_setupd("install", self.publish("1.0.0"), "--start")
+        self.run_setupd("autostart", "on")
+        self.run_setupd("early", "off")
+        os.remove(self.path("/var/lib/webosbrew/init.d/50-novos"))
+        code, lines = self.run_setupd("install", self.publish("1.1.0"))
+        self.assertEqual(code, 0, lines)
+        status = self.run_setupd("status")[1][-1]["status"]
+        self.assertEqual((status["running"], status["autostart"], status["early"]), (True, True, True))
+
+    def test_autostart_off_is_kept_by_later_installs(self):
+        self.run_setupd("install", self.publish("1.0.0"), "--start")
+        self.run_setupd("autostart", "off")
+        self.run_setupd("early", "off")
+        code, lines = self.run_setupd("install", self.publish("1.1.0"), "--start")
+        self.assertEqual(code, 0, lines)
+        self.assertIn("start at boot stays off (autostart off)", [line["message"] for line in lines])
+        status = self.run_setupd("status")[1][-1]["status"]
+        self.assertEqual((status["autostart"], status["early"]), (False, False))
+        self.run_setupd("autostart", "on")
+        self.assertFalse(os.path.exists(self.path("/var/lib/novos/state/autostart-off")))
+
+    def test_foreign_env_file_does_not_stop_the_install(self):
+        env = self.path("/var/systemd/system/env/rec-info-adapter.env")
+        os.makedirs(os.path.dirname(env))
+        with open(env, "w") as handle:
+            handle.write("FOO=1\n")
+        code, lines = self.run_setupd("install", self.publish("1.0.0"), "--start")
+        self.assertEqual(code, 0, lines)
+        with open(env) as handle:
+            self.assertEqual(handle.read(), "FOO=1\n")
+        self.assertTrue(os.path.exists(self.path("/var/lib/webosbrew/init.d/50-novos")))
+        self.assertTrue(any(line["message"].startswith("start at boot incomplete") for line in lines))
+
     def test_early_start(self):
         self.run_setupd("install", self.publish("1.0.0"))
         code, lines = self.run_setupd("early", "on")
