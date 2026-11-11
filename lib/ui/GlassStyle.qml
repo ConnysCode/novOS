@@ -37,6 +37,7 @@ QtObject {
     readonly property color separator: "#1fffffff"        // white 12 %
     readonly property color danger: "#ff9a90"
     readonly property color keyRed: "#e5484d"              // the red key of the remote in key hints
+    readonly property color keyYellow: "#f2c94c"           // the yellow key, beside channelGreen and channelBlue
     readonly property color dangerFocused: "#c42b20"
     readonly property color warning: "#ffc08a"             // a second line that went wrong ("Verbindung fehlgeschlagen")
     readonly property color warningFocused: "#9a4300"
@@ -118,6 +119,21 @@ QtObject {
     readonly property int levelSize: 19                    // an entry of a level list in a bar, "90 %"
     readonly property int levelChosenSize: 22              // the chosen level, bold
     readonly property real levelRadius: 14                 // its plate, in logical px
+    // "Fernbedienung erlernen" (K3-Einst-Fernbedienung): the key, its name, short and long.
+    readonly property int guideKeySize: 168                // the key's plate
+    readonly property int guideKeyIcon: 80
+    readonly property int guideKeyLabel: 64                // "OK", "5" on the key
+    readonly property int guideDot: 84                     // a colour key
+    readonly property int guideNameSize: 48
+    readonly property int guideStartTitle: 44
+    readonly property int guideEffectSize: 28              // "Schnellmenü", and "Eine Taste drücken."
+    readonly property int guideChipSize: 19                // "Kurz", "Lang"
+    readonly property int guideMarkSize: 14                // "Platzhalter"
+    readonly property int eyebrowSize: 18                  // the small title above a name, upper case
+    readonly property color guideKeyFill: "#1affffff"      // white 10 %
+    readonly property color guideChipFill: "#2effffff"     // white 18 %
+    readonly property color guideMarkLine: "#8cffffff"     // white 55 %
+    readonly property color guideMarkText: "#dbffffff"     // white 86 %
     readonly property color levelChosenFill: "#2effffff"   // its plate on glass: white 18 %
     readonly property color levelChosenFocused: "#1a0b0c10" // on the focus surface: 10 %
     readonly property color textDisabled: "#66ffffff"      // a greyed value: white 40 %

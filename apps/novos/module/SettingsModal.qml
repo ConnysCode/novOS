@@ -113,6 +113,13 @@ Item {
     onBandsChanged: if (bands) bandsShown = bands
     readonly property var bandEditor: bandLoader.item
 
+    // "Fernbedienung erlernen" (RemoteGuide.qml): the card steps aside as for the band editor,
+    // but the picture stays dimmed as behind the modal; the guide's card stands over it.
+    property bool guideOpen: false
+    property real guideShare: guideOpen ? 1 : 0
+    Behavior on guideShare { NumberAnimation { duration: 2 * GlassStyle.popoverDuration } }
+    readonly property var remoteGuide: guideLoader.item
+
     // A catalog page with dialog: true (a speaker, a WOWCAST device) opens as DeviceModal over
     // the page it came from: { page, param, rowId }. The page below stays as it is.
     property var dialogLevel: null
@@ -207,6 +214,7 @@ Item {
 
     function close() {
         flushWrite();
+        if (guideOpen) closeGuide();
         active = false;
     }
 
@@ -216,6 +224,7 @@ Item {
         zone = "sidebar";
         bandsRow = null;
         dialogLevel = null;
+        guideOpen = false;
     }
 
     function requestData() {
@@ -518,6 +527,18 @@ Item {
         settingsStore.flushWrite();
     }
 
+    // ---- Fernbedienung erlernen ---------------------------------------------------
+
+    function openGuide() {
+        guideOpen = true;
+        if (remoteGuide) remoteGuide.start();
+    }
+
+    function closeGuide() {
+        if (remoteGuide) remoteGuide.stop();
+        guideOpen = false;
+    }
+
     // ---- Bands over the picture ------------------------------------------------
 
     function openBands(row) {
@@ -575,6 +596,8 @@ Item {
                          JSON.stringify({ category: "picture", settings: { applyToAllInput: "picture" } }));
         } else if (name === "resetPicture") {
             resetPicture(context);
+        } else if (name === "remoteGuide") {
+            openGuide();
         } else if (name === "previewShutdown") {
             shutdownPreview.own = ShutdownScreens.ownEntries();
             shutdownPreview.changes = params && params.changes ? params.changes : null;
@@ -692,6 +715,11 @@ Item {
         }
         if (bandsOpen) {
             if (bandEditor) bandEditor.handleKey(key, autoRepeat);
+            return;
+        }
+        if (guideOpen) {
+            // Every key is explained instead of doing its work; Back comes on its release.
+            if (remoteGuide && !Remote.isBack(key) && !autoRepeat) remoteGuide.press(key);
             return;
         }
         if (zone === "sidebar") sidebarKey(key, autoRepeat);
@@ -1082,6 +1110,10 @@ Item {
             closeBands();
             return;
         }
+        if (guideOpen) {
+            if (remoteGuide) remoteGuide.back();
+            return;
+        }
         if (zone === "sidebar") {
             close();
             return;
@@ -1171,6 +1203,10 @@ Item {
 
     readonly property var speech: {
         if (!active) return null;
+        if (guideOpen && remoteGuide) {
+            return { context: "settings", layer: "remoteGuide", subject: remoteGuide.speech.subject,
+                     layerIntro: "", text: remoteGuide.speech.text, change: "" };
+        }
         if (bandsOpen && bandEditor) {
             var column = bands.columns[bandEditor.focusIndex];
             var valueText = column ? column.text : "";
@@ -1256,7 +1292,7 @@ Item {
             backdropArea: settings.backdropArea
             hasBackdrop: settings.hasBackdrop
             glideCurve: settings.focusCurve
-            opacity: Math.max(0, 1 - 2 * settings.pictureShare)
+            opacity: Math.max(0, 1 - 2 * Math.max(settings.pictureShare, settings.guideShare))
             visible: opacity > 0
 
             MouseArea {
@@ -1573,6 +1609,30 @@ Item {
                     onColumnChanged: settings.writeBand(index, value)
                     onButtonPressed: settings.pressBandButton()
                     onFinished: settings.closeBands()
+                }
+            }
+        }
+
+        // "Fernbedienung erlernen" over the dimmed picture, built only while open or fading out.
+        Loader {
+            id: guideLoader
+            anchors.fill: parent
+            active: settings.guideOpen || settings.guideShare > 0
+            opacity: Math.max(0, 2 * settings.guideShare - 1)
+            visible: opacity > 0
+            sourceComponent: Component {
+                RemoteGuide {
+                    unit: settings.unit
+                    titleFont: settings.titleFont
+                    rowFont: settings.rowFont
+                    valueFont: settings.valueFont
+                    backdrop: settings.backdrop
+                    glassShader: settings.glassShader
+                    backdropMargin: settings.backdropMargin
+                    backdropArea: settings.backdropArea
+                    hasBackdrop: settings.hasBackdrop
+                    Component.onCompleted: if (settings.guideOpen) start()
+                    onFinished: settings.closeGuide()
                 }
             }
         }

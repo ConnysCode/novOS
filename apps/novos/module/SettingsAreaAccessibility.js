@@ -155,9 +155,9 @@ var area = {
                       subtitle: "detail.power_sound", search: "search.power_sound" },
                     { id: "remoteSlowInput", type: "page", page: "remoteSlowInput", title: "row.slow_input",
                       summary: ["option.remoteSlowInput"], search: "search.slow_input" },
-                    { id: "remoteGuide", type: "lgApp", title: "row.remote_guide", subtitle: "detail.remote_guide",
-                      search: "search.remote_guide",
-                      app: { id: "com.webos.app.remotecontrolguide", params: {} } }
+                    // Explains what each key does under novOS (RemoteGuide.qml, BF-2).
+                    { id: "remoteGuide", type: "action", action: "remoteGuide", title: "row.remote_guide",
+                      subtitle: "detail.remote_guide", search: "search.remote_guide" }
                 ]
             },
             {

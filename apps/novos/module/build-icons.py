@@ -273,6 +273,27 @@ ICONS = [
                                      "M10.5 9.5a2 2 0 0 1 4 0c0 1.2-1 1.7-1.6 2.3"]), LIGHT_ONLY),
     ("transmitter-44", 44, 1.5, '<rect x="3" y="4.5" width="13" height="10" rx="2"/>' +
      strokes(["M7 18.5h5", "M18.5 8v8M21 10.5v3"]), LIGHT_ONLY),
+    # "Fernbedienung erlernen" (K3-Einst-Fernbedienung): the keys at 80 px, the start icon,
+    # the Back key in the legend and the hint.
+    ("remote-gear-80", 80, 1.6, '<circle cx="12" cy="12" r="3"/>' +
+     strokes(["M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"]),
+     LIGHT_ONLY),
+    ("remote-home-80", 80, 1.6, strokes(["M4 11l8-6.5 8 6.5", "M6.5 9.5V19h11V9.5"]), LIGHT_ONLY),
+    ("remote-input-80", 80, 1.6, '<rect x="3" y="5" width="18" height="14" rx="2.5"/>' +
+     strokes(["M8 12h8M13 9l3 3-3 3"]), LIGHT_ONLY),
+    ("remote-back-80", 80, 1.6, strokes(["M9 7L4.5 11.5 9 16", "M4.5 11.5H15a4.5 4.5 0 0 1 0 9h-3"]), LIGHT_ONLY),
+    ("remote-mute-80", 80, 1.6, strokes(["M4 9.5h3.5L12 5.5v13l-4.5-4H4z", "M16 9.5l5 5M21 9.5l-5 5"]), LIGHT_ONLY),
+    ("remote-up-80", 80, 1.6, strokes(["M6 15l6-6 6 6"]), LIGHT_ONLY),
+    ("remote-down-80", 80, 1.6, strokes(["M6 9l6 6 6-6"]), LIGHT_ONLY),
+    ("remote-left-80", 80, 1.6, strokes(["M15 6l-6 6 6 6"]), LIGHT_ONLY),
+    ("remote-right-80", 80, 1.6, strokes(["M9 6l6 6-6 6"]), LIGHT_ONLY),
+    ("remote-80", 80, 1.6, '<rect x="7.5" y="2.5" width="9" height="19" rx="3"/>' +
+     strokes(["M12 6.5v0.1", "M10 10.5h4M10 13.5h4"]), LIGHT_ONLY),
+    ("remote-guide-48", 48, 1.6, strokes(["M4 7h9M17 7h3M4 17h3M11 17h9"]) +
+     '<circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>', LIGHT_ONLY),
+    ("return-22", 22, 2, strokes(["M9 7L4.5 11.5 9 16", "M4.5 11.5H15a4.5 4.5 0 0 1 0 9h-3"]),
+     [("", "rgba(255,255,255,0.82)")]),
+    ("return-24", 24, 2, strokes(["M9 7L4.5 11.5 9 16", "M4.5 11.5H15a4.5 4.5 0 0 1 0 9h-3"]), [("-dark", "#0b0c10")]),
     # The preview pill of the shutdown videos.
     ("play-18", 18, 1.8, PLAY, LIGHT_ONLY),
     # Novelties in "Neu in novOS" (K3-Neu-*), 28 px in a 56 px circle; -dark on the focus.

@@ -100,7 +100,7 @@ ICONS = [
 
 GLASS_EDGE = "inset 0 1px 0 rgba(170,178,196,0.40), inset 0 0 0 1px rgba(170,178,196,0.10)"
 FIELD_EDGE = "inset 0 1px 2px rgba(0,0,0,0.25), inset 0 0 0 1px rgba(255,255,255,0.16)"
-EDGES = [(f"edge-{radius}", radius, GLASS_EDGE) for radius in (16, 17, 20, 22, 26, 28, 30, 32, 34, 36, 44)]
+EDGES = [(f"edge-{radius}", radius, GLASS_EDGE) for radius in (16, 17, 18, 20, 22, 26, 28, 30, 32, 34, 36, 44, 48)]
 EDGES.append(("edge-field-26", 26, FIELD_EDGE))
 
 
