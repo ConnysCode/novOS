@@ -1,4 +1,5 @@
 .pragma library
+.import "DeviceList.js" as DeviceList
 
 // Area 03 "Quellen & Geräte". Everything about one input sits on its page (K3-Struktur-HDMI);
 // LG spreads it over Game Optimizer, External Devices › HDMI Settings, Sound › HDMI Input
@@ -64,6 +65,38 @@ function inputLocked(ctx) {
     return item && item.lockBit !== undefined ? (mask & (1 << item.lockBit)) !== 0 : false;
 }
 
+// Gamepads, keyboards and mice over Bluetooth (QG-1) in the shared device list (TON-A). The
+// host is BluetoothDevices.qml (bthidmanager).
+var inputDevices = {
+    source: "bluetoothInput", found: "bluetoothInputFound", page: "bluetoothInputDevice",
+    connect: "btInputConnect", disconnect: "btInputDisconnect", remove: "btInputRemove", search: "btInputSearch",
+    searching: "btInputSearching", ready: "btInputReady",
+    removeText: function (ctx) {
+        var item = DeviceList.item(ctx, "bluetoothInput", ctx.param);
+        var kind = item && ["gamepad", "keyboard", "mouse"].indexOf(item.kind) >= 0 ? item.kind : "device";
+        return "confirm.remove_input_" + kind;
+    }
+};
+
+function inputDevice(ctx) {
+    return DeviceList.item(ctx, "bluetoothInput", ctx.param);
+}
+
+function hasInputDevices(ctx) {
+    return bluetoothFeature(ctx, "gamepad") || bluetoothFeature(ctx, "wirelesskeyboard");
+}
+
+// Above the list: connected devices per kind and LG's limit (K3-Einst-BT-Eingabegeraete-02).
+function inputCounters(ctx) {
+    var counts = ctx.state.btInputCounts || { gamepad: 0, keyboard: 0, mouse: 0 };
+    var kinds = ["gamepad", "keyboard", "mouse"];
+    var counters = [];
+    for (var i = 0; i < kinds.length; i++) {
+        counters.push({ icon: "counter-" + kinds[i], count: counts[kinds[i]] || 0, label: ctx.t("counter." + kinds[i]) });
+    }
+    return { counters: counters, text: ctx.t("block.input_limit") };
+}
+
 var ports = [1, 2, 3, 4];
 
 function portKeys(prefix) {
@@ -121,12 +154,13 @@ var area = {
                                reason: "reason.simplink_off" }] }
             ] },
             { title: "section.devices", rows: [
-                { id: "bluetoothControllers", type: "lgApp", title: "row.bluetooth_controllers",
-                  subtitle: "detail.bluetooth_controllers",
-                  app: { id: "com.palm.app.settings", params: { target: "ConnectBluetooth" } },
-                  requires: function (ctx) {
-                      return bluetoothFeature(ctx, "gamepad") || bluetoothFeature(ctx, "wirelesskeyboard");
-                  } },
+                { id: "bluetoothControllers", type: "page", page: "bluetoothInput", title: "row.bluetooth_controllers",
+                  subtitle: "detail.bluetooth_controllers", search: "search.bluetooth_controllers",
+                  value: function (ctx) {
+                      var count = ctx.state.btInputConnected || 0;
+                      return count > 0 ? ctx.t("value.connected_count", { count: count }) : "";
+                  },
+                  requires: hasInputDevices },
                 { id: "universalControl", type: "lgApp", title: "row.universal_control",
                   app: { id: "com.webos.app.connectionwizard", params: {} },
                   requires: function (ctx) {
@@ -191,6 +225,30 @@ var area = {
                       disabled: [{ when: function (ctx) { return ctx.val("lock.parentalControl") !== true; },
                                    reason: "reason.parental_off" }] }
                 ] }
+            ]
+        },
+
+        // Quellen › Bluetooth-Geräte: counters, the paired devices, found ones and "Suchen".
+        bluetoothInput: {
+            id: "bluetoothInput",
+            title: "page.bluetooth_input",
+            session: "btInput",
+            sections: [
+                DeviceList.headSection(inputCounters),
+                DeviceList.registeredSection(inputDevices),
+                DeviceList.availableSection(inputDevices)
+            ]
+        },
+
+        // One paired input device: "Gamepad · Verbunden", Trennen or Verbinden, Gerät entfernen.
+        bluetoothInputDevice: {
+            id: "bluetoothInputDevice",
+            session: "btInputDevice",
+            title: function (ctx) { var item = inputDevice(ctx); return item ? item.title : ""; },
+            subtitle: function (ctx) { return DeviceList.deviceSubtitle(ctx, inputDevice(ctx), true); },
+            busy: function (ctx) { return DeviceList.isBusy(inputDevice(ctx)); },
+            sections: [
+                { rows: DeviceList.deviceRows(inputDevices) }
             ]
         },
 

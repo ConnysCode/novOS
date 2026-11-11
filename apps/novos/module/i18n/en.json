@@ -420,6 +420,7 @@
     "hint.secured": "The network has a password",
     "hint.unavailable": "The TV's Wi-Fi module isn't responding. Restart the TV or connect a network cable.",
     "label.connected": "Connected",
+    "label.keyboard_connected": "Keyboard connected",
     "label.name": "Name",
     "label.network_name": "Network name",
     "label.open": "Open",

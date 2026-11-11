@@ -49,6 +49,7 @@ Item {
     property int closeCountdown: 3
     property int forgetProfile: 0
     property string forgetName: ""
+    property bool keyboardConnected: false   // a Bluetooth keyboard: the chip "Tastatur verbunden"
 
     signal networkChanged()              // the panel should read the state again
     signal textSaved(string value)       // the name entry was confirmed
@@ -381,6 +382,8 @@ Item {
 
     // Every entry opens in the mode used last, on the first letter key.
     function startKeyboard(name) {
+        // Whether a Bluetooth keyboard is connected (bthidmanager, read only).
+        wifiService.call("luna://com.webos.service.bthidmanager", "/getPairedDeviceLists", "{}");
         keyboard.reset(GlassStyle.keyboardMode);
         lastKey = "k-2-0";
         lastT9Key = "t-2";
@@ -541,6 +544,15 @@ Item {
             handleStatus(response);
         } else if (method === "/getStatus") {
             internetKnown = !!(response.wifi && response.wifi.onInternet === "yes");
+        } else if (method === "/getPairedDeviceLists") {
+            var places = response.deviceLists || [];
+            var connected = false;
+            for (var place in places) {
+                var device = places[place];
+                if (device && device.isPaired === true && device.isConnected === true && device.deviceType === "keyboard")
+                    connected = true;
+            }
+            keyboardConnected = connected;
         } else if (method === "/deleteprofile") {
             if (response.returnValue === false) {
                 setScreen("error", "done");
@@ -776,6 +788,16 @@ Item {
                 focusId = leftOfKeys(4);
             }
         }
+    }
+
+    // A Bluetooth keyboard (K3-Einst-BT-Eingabegeraete-08): a typed character lands in the field,
+    // the on-screen keyboard stays. Arrows, Enter and Escape already act as the remote's keys.
+    // Returns whether it took the character.
+    function typeText(text) {
+        if (!isEntry || !text || text.length !== 1 || text < " " || text === "\u007f") return false;
+        keyboard.commitPending();
+        typeCharacter(text);
+        return true;
     }
 
     function typeCharacter(value) {
@@ -1035,6 +1057,40 @@ Item {
                     font.family: setup.valueFont
                     font.pixelSize: 20 * setup.unit
                     font.hintingPreference: Font.PreferNoHinting
+                }
+
+                // A Bluetooth keyboard types straight into the field.
+                GlassControl {
+                    id: keyboardChip
+                    x: modeSwitch.x - width - 16 * setup.unit
+                    anchors.verticalCenter: modeSwitch.verticalCenter
+                    width: chipRow.width + 36 * setup.unit
+                    height: 48 * setup.unit
+                    visible: setup.isEntry && setup.keyboardConnected
+                    unit: setup.unit
+                    radius: 24
+                    fill: GlassStyle.hintCircle
+
+                    Row {
+                        id: chipRow
+                        x: 16 * setup.unit
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 10 * setup.unit
+
+                        Image {
+                            anchors.verticalCenter: parent.verticalCenter
+                            source: Qt.resolvedUrl("icons/counter-keyboard.png")
+                        }
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: I18n.t("wifi", "label.keyboard_connected")
+                            color: GlassStyle.textPrimary
+                            font.family: setup.rowFont
+                            font.pixelSize: GlassStyle.valueSize * setup.unit
+                            font.hintingPreference: Font.PreferNoHinting
+                        }
+                    }
                 }
 
                 // QWERTZ | T9 of every text entry.
@@ -1634,7 +1690,8 @@ Item {
     }
 
     // Room the header text leaves for the keyboard switch.
-    readonly property real switchRoom: isEntry ? modeSwitch.width + 20 * unit : 0
+    readonly property real switchRoom: isEntry ? modeSwitch.width + 20 * unit +
+                                                 (keyboardChip.visible ? keyboardChip.width + 16 * unit : 0) : 0
     readonly property string headerTitle: {
         if (screen === "tvName") return I18n.t("wifi", "title.tv_name");
         if (screen === "deviceName") return I18n.t("wifi", "title.device_name");

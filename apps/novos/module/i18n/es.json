@@ -420,6 +420,7 @@
     "hint.secured": "La red tiene contraseña",
     "hint.unavailable": "El módulo Wi-Fi del televisor no responde. Reinicia el televisor o conecta un cable de red.",
     "label.connected": "Conectado",
+    "label.keyboard_connected": "Teclado conectado",
     "label.name": "Nombre",
     "label.network_name": "Nombre de red",
     "label.open": "Abierta",

@@ -2085,6 +2085,12 @@ StarfishSystemUIWindow {
         }
 
         Keys.onPressed: {
+            // A Bluetooth keyboard types into an open entry; the remote's digits keep T9.
+            if (modalActive && Remote.digitOf(event.key) < 0 && !Remote.isBack(event.key) && !Remote.isOk(event.key) &&
+                    modalLoader.item.typeText(event.text)) {
+                event.accepted = true;
+                return;
+            }
             if (pressKey(event.key, event.isAutoRepeat)) event.accepted = true;
         }
 

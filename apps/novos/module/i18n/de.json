@@ -420,6 +420,7 @@
     "hint.secured": "Das Netzwerk hat ein Passwort",
     "hint.unavailable": "Das WLAN-Modul des Fernsehers antwortet nicht. Starte den Fernseher neu oder verbinde ein Netzwerkkabel.",
     "label.connected": "Verbunden",
+    "label.keyboard_connected": "Tastatur verbunden",
     "label.name": "Name",
     "label.network_name": "Netzwerkname",
     "label.open": "Offen",
