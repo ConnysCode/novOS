@@ -227,8 +227,17 @@ StarfishSystemUIWindow {
         property string soundOutput: ""
         property string soundMode: ""
         property var soundModes: []
+        // The title of the sound modes, 32 px below the last output (338 with two outputs).
+        readonly property real soundModeLabelY: {
+            var bottom = 306;
+            for (var i = 0; i < soundRows.length; i++) {
+                if (soundRows[i].key === "soundOutput") bottom = soundRows[i].y + soundRows[i].h;
+            }
+            return bottom + 32;
+        }
         property bool hasArcDevice: false
-        readonly property var soundRows: buildSoundRows(soundModes, soundMode, soundOutput, hasArcDevice)
+        readonly property var soundRows: buildSoundRows(soundModes, soundMode, soundOutput, hasArcDevice,
+                                                        bluetoothAudio.connected)
         property int connectedInputs: -1
         property string networkState: ""        // wifi, wired or none
         property bool hasInternet: false
@@ -374,21 +383,30 @@ StarfishSystemUIWindow {
         }
 
         // The TV lists every output it could drive, not what is plugged in. Only
-        // outputs that certainly exist are offered, plus the current one.
-        function buildSoundRows(modes, current, output, hasArc) {
+        // outputs that certainly exist are offered, plus the current one. A connected
+        // Bluetooth device stands with its name (K3-Einst-Bluetooth-Audio-16); one that is only
+        // paired is left to the settings, the page has no room for more rows.
+        function buildSoundRows(modes, current, output, hasArc, bluetooth) {
             var outputs = ["tv_speaker"];
             if (hasArc) outputs.push("external_arc");
+            if (bluetooth) outputs.push("bt_soundbar");
             if (output !== "" && outputs.indexOf(output) < 0) outputs.push(output);
             var result = [];
             var i;
+            var y = 166;
             for (i = 0; i < outputs.length; i++) {
-                result.push({
-                    key: "soundOutput", value: outputs[i], h: 68, y: 166 + i * 72,
-                    title: settingsStore.label("sound.soundOutput", outputs[i]),
+                var device = outputs[i] === "bt_soundbar" && bluetooth;
+                var row = {
+                    key: "soundOutput", value: outputs[i], h: device ? 80 : 68, y: y,
+                    title: device ? bluetooth.name : settingsStore.label("sound.soundOutput", outputs[i]),
                     active: outputs[i] === output
-                });
+                };
+                if (device) row.sublabel = I18n.t("panel", "detail.bluetooth");
+                result.push(row);
+                y += row.h + 4;
             }
-            var top = 372;
+            // The title of the sound modes keeps its distance below the outputs.
+            var top = y + 28 + 34;
             for (i = 0; i < modes.length; i++) {
                 var mode = modes[i];
                 if (!mode.visible || !mode.active) continue;
@@ -988,6 +1006,7 @@ StarfishSystemUIWindow {
                 return eyeComfort === "" ? "" : I18n.t("global", eyeComfort === "on" ? "on" : "off");
             }
             if (key === "picture") return pictureMode === "" ? "" : settingsStore.label("picture.pictureMode", pictureMode);
+            if (key === "sound" && soundOutput === "bt_soundbar" && bluetoothAudio.connected) return bluetoothAudio.connected.name;
             if (key === "sound") return soundOutput === "" ? "" : settingsStore.label("sound.soundOutput", soundOutput);
             if (key === "sources") return connectedInputs < 0 ? "" : countText("value.connected_count", connectedInputs);
             if (key === "network") {
@@ -1131,7 +1150,7 @@ StarfishSystemUIWindow {
             { key: "picture", title: I18n.t("panel", "title.picture_mode") },
             { key: "sound", title: settingsStore.areaTitle("sound"),
               labels: [{ text: I18n.t("panel", "section.sound_output"), y: 132 },
-                       { text: I18n.t("panel", "section.sound_mode"), y: 338 }] },
+                       { text: I18n.t("panel", "section.sound_mode"), y: soundModeLabelY }] },
             { key: "network", title: settingsStore.areaTitle("network"),
               labels: [{ text: I18n.t("panel", "section.connection"), y: 278 },
                        { text: I18n.t("panel", "section.wifi"), y: 516 }] },
@@ -1884,6 +1903,12 @@ StarfishSystemUIWindow {
         }
 
         readonly property var sharedSettings: settingsStore
+
+        // The connected Bluetooth headphones or speaker, offered on the sound page by name.
+        BluetoothOutput {
+            id: bluetoothAudio
+            active: true
+        }
 
         // LG's settings for the panel and the settings modal: one subscription, one way
         // of writing, the catalog names (module/SettingsStore.qml).

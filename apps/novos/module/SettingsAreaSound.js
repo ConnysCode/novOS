@@ -1,4 +1,5 @@
 .pragma library
+.import "DeviceList.js" as DeviceList
 
 // Area 02 "Ton" of the settings modal. Keys, values and conditions follow LG's own settings
 // app (com.palm.app.settings, webOS 10.3.2), see docs/lg-settings/alle-einstellungen.md,
@@ -51,6 +52,27 @@ function hasOptical(ctx) {
 
 function hasWowCast(ctx) {
     return truthy(ctx.cfg("com.webos.service.wowplay.supportWowCast"));
+}
+
+function hasBluetoothSound(ctx) {
+    return bluetoothFeature(ctx, "btsound");
+}
+
+// Headphones and speakers over Bluetooth (TON-B) in the shared device list (TON-A). The host
+// is BluetoothDevices.qml; "Aktuelle Ausgabe" replaces the state of the device that plays.
+var audioDevices = {
+    source: "bluetooth", found: "bluetoothFound", page: "bluetoothDevice",
+    connect: "btAudioConnect", disconnect: "btAudioDisconnect", remove: "btAudioRemove", search: "btAudioSearch",
+    searching: "btAudioSearching", ready: "btAudioReady", disconnectText: "confirm.disconnect_audio_text",
+    note: function (ctx, entry) { return entry.output ? ctx.t("detail.current_output") : ""; }
+};
+
+function bluetoothItem(ctx) {
+    return DeviceList.item(ctx, "bluetooth", ctx.param);
+}
+
+function deviceParams(ctx) {
+    return { id: ctx.param };
 }
 
 // The sound mode only shapes the TV speaker. LG greys it out for other outputs.
@@ -145,6 +167,8 @@ var area = {
         output: {
             id: "output",
             title: "page.output",
+            // The paired devices stay current while the page is open (BluetoothDevices.qml).
+            session: "btAudio",
             sections: [
                 { title: "section.output", rows: [
                     { id: "tvSpeaker", type: "option", key: "sound.soundOutput", option: "tv_speaker",
@@ -172,11 +196,23 @@ var area = {
                 ] },
                 { title: "section.bluetooth",
                   rows: [
-                    { id: "bluetoothDevices", type: "list", source: "bluetooth", page: "bluetoothDevice",
-                      requires: function (ctx) { return bluetoothFeature(ctx, "btsound"); } },
-                    { id: "pair", type: "lgApp", title: "row.pair_bluetooth",
-                      app: { id: "com.palm.app.settings", params: { target: "Bluetooth" } },
-                      requires: function (ctx) { return bluetoothFeature(ctx, "btsound"); } },
+                    { id: "paired", type: "list", source: "bluetooth", page: "bluetoothDevice",
+                      requires: hasBluetoothSound,
+                      decorate: function (ctx, entry) { return DeviceList.pairedRow(ctx, entry, audioDevices.note); } },
+                    // LG warns before pairing while Bluetooth plays with the TV speaker: the
+                    // connection ends.
+                    { id: "pair", type: "page", page: "bluetoothPair", title: "row.pair_bluetooth",
+                      search: "search.bluetooth", requires: hasBluetoothSound,
+                      ask: { when: function (ctx) { return output(ctx) === "tv_speaker_bluetooth"; },
+                             title: "confirm.bt_tv_title", text: "confirm.bt_tv_text", confirm: "confirm.bt_tv_button" } },
+                    // LG: "Einstellungen der Lautsprecherverbindung", locked while a device pairs,
+                    // connects or disconnects.
+                    { id: "deviceCount", type: "choice", key: "sound.deviceCntOfBtGeneral", title: "row.bt_device_count",
+                      search: "search.bt_device_count", requires: hasBluetoothSound,
+                      values: ["singleConnection", "dualConnection"],
+                      details: { dualConnection: "detail.dual_connection" },
+                      disabled: [{ when: function (ctx) { return DeviceList.anyBusy(ctx, audioDevices); },
+                                   reason: "reason.device_busy" }] },
                     { id: "bluetoothAndTv", type: "lgApp", title: "row.bluetooth_and_tv",
                       app: { id: "com.palm.app.settings", params: { target: "BluetoothSurround" } },
                       requires: function (ctx) { return bluetoothFeature(ctx, "bluetoothPlusTvSpeaker"); } }
@@ -199,23 +235,46 @@ var area = {
             ]
         },
 
-        // One paired Bluetooth device, opened from the host list "bluetooth" (ctx.param is its id).
+        // "Neues Gerät koppeln": the search starts as the page opens, found devices connect in
+        // their row. The paired ones stand on the page above.
+        bluetoothPair: {
+            id: "bluetoothPair",
+            title: "page.bluetooth_pair",
+            session: "btAudioPair",
+            sections: [
+                DeviceList.headSection(function (ctx) { return { icon: "bluetooth-26", text: ctx.t("block.pair_hint") }; }),
+                DeviceList.availableSection(audioDevices)
+            ]
+        },
+
+        // One paired device, opened from the list on Audioausgabe (ctx.param is its address).
         bluetoothDevice: {
             id: "bluetoothDevice",
+            session: "btAudioDevice",
             title: function (ctx) { var item = bluetoothItem(ctx); return item ? item.title : ""; },
+            subtitle: function (ctx) { return DeviceList.deviceSubtitle(ctx, bluetoothItem(ctx), false); },
+            badge: function (ctx) { var item = bluetoothItem(ctx); return item && item.atmos ? ctx.t("badge.dolby_atmos") : ""; },
+            busy: function (ctx) { return DeviceList.isBusy(bluetoothItem(ctx)); },
             sections: [
                 { rows: [
-                    { id: "use", type: "action", action: "bluetoothUseAsOutput", title: "row.bluetooth_use",
-                      params: {},
-                      value: function (ctx) {
-                          var item = bluetoothItem(ctx);
-                          return item && item.connected ? ctx.t("detail.bluetooth_connected") : "";
-                      } },
+                    // As LG's output "Bluetooth-Gerät": sound.soundOutput = bt_soundbar; a device
+                    // that is not connected connects first.
+                    { id: "use", type: "action", action: "btAudioUse", title: "row.bluetooth_use", paramsOf: deviceParams,
+                      selected: function (ctx) { var item = bluetoothItem(ctx); return !!item && item.output; } },
+                    // btaudiosrc get/setDeviceVolume, only for devices with AVRCP.
+                    { id: "volume", type: "slider", title: "row.bluetooth_volume", min: 0, max: 100,
+                      action: "btAudioVolume",
+                      read: function (ctx) {
+                          var volumes = ctx.state.btAudioVolume || {};
+                          return volumes[ctx.param];
+                      },
+                      value: function (ctx) { var item = bluetoothItem(ctx); return item && !item.avrcpConnected ? "–" : ""; },
+                      requires: function (ctx) { var item = bluetoothItem(ctx); return !!item && item.avrcpSupported; },
+                      disabled: [{ when: function (ctx) { var item = bluetoothItem(ctx); return !item || !item.avrcpConnected; },
+                                   reason: "reason.volume_on_device" }] },
                     { id: "delay", type: "slider", key: "sound.avSyncBtSurround", title: "row.bluetooth_delay",
-                      requires: function (ctx) { return output(ctx) === "tv_speaker_bluetooth"; } },
-                    { id: "settings", type: "lgApp", title: "row.bluetooth_more",
-                      app: { id: "com.palm.app.settings", params: { target: "Bluetooth" } } }
-                ] }
+                      requires: function (ctx) { return output(ctx) === "tv_speaker_bluetooth"; } }
+                ].concat(DeviceList.deviceRows(audioDevices)) }
             ]
         },
 
@@ -345,14 +404,6 @@ var area = {
         }
     }
 };
-
-function bluetoothItem(ctx) {
-    var items = ctx.list("bluetooth");
-    for (var i = 0; i < items.length; i++) {
-        if (items[i].id === ctx.param) return items[i];
-    }
-    return null;
-}
 
 // The delay key LG uses for the current output.
 function delayKey(ctx) {

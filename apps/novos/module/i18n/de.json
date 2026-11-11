@@ -322,7 +322,8 @@
     "value.sleep_remaining": "Noch {minutes} Min.",
     "value.switzerland": "Schweiz",
     "value.timezone_berlin": "Mitteleuropäische Zeit (Berlin)",
-    "value.wifi": "WLAN"
+    "value.wifi": "WLAN",
+    "detail.bluetooth": "Bluetooth"
   },
   "picker": {
     "detail.no_signal": "Kein Signal – ist das Gerät an?",
@@ -522,7 +523,9 @@
     "notice.quieter": "Leiser",
     "notice.not_controllable": "Lautstärke hier nicht regelbar",
     "speech.volume": "Lautstärke",
-    "speech.muted": "Stumm"
+    "speech.muted": "Stumm",
+    "notice.on_device": "Lautstärke am Gerät",
+    "speech.on_device": "Lautstärke am Gerät einstellen"
   },
   "profile": {
     "button.cancel": "Abbrechen",

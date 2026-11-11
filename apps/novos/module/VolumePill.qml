@@ -24,6 +24,12 @@ Item {
     property bool disabled: false
     property bool exterior: false          // the device keeps the value, we only know the key
     property string direction: ""          // "up" or "down" for an exterior device
+    // The connected Bluetooth device while the sound plays over Bluetooth: { name, kind, avrcp }.
+    // With AVRCP it takes the TV's volume (K3-Einst-Bluetooth-Audio-17), without it keeps its
+    // own and the pill says so (-18).
+    property var bluetooth: null
+    readonly property bool onDevice: look === "notice" && !!bluetooth && bluetooth.avrcp === false &&
+                                     /^(bt_soundbar|tv_speaker_bluetooth)$/.test(output)
 
     // "hidden", "level", "muted" (volume key while muted), "notice" (short pill) or "chip".
     property string look: "hidden"
@@ -58,6 +64,11 @@ Item {
 
     // Outputs with a symbol and a name of their own. TV speakers have none.
     function deviceOf(name) {
+        if (/^(bt_soundbar|tv_speaker_bluetooth)$/.test(name) && bluetooth) {
+            return { icon: bluetooth.kind === "headphones" ? "volume-headphones-30" :
+                           (bluetooth.kind === "soundbar" ? "volume-soundbar-30" : "volume-speaker-30"),
+                     label: bluetooth.name };
+        }
         if (/^(headphone|bt_soundbar|tv_speaker_bluetooth|tv_speaker_bt_surround)$/.test(name))
             return { icon: "volume-headphones-30",
                      label: I18n.t("volume", name === "headphone" ? "label.headphones" : "label.bluetooth") };
@@ -79,7 +90,7 @@ Item {
         return name === "" ? "" : Qt.resolvedUrl("icons/" + name + ".png");
     }
 
-    // state: { volume, maximum, muted, output, disabled, exterior, cause }
+    // state: { volume, maximum, muted, output, disabled, exterior, cause, bluetooth }
     function update(state) {
         var wasMuted = muted;
         var mutedNow = state.muted === true;
@@ -88,6 +99,7 @@ Item {
         output = state.output || "";
         disabled = state.disabled === true;
         exterior = state.exterior === true;
+        bluetooth = state.bluetooth || null;
         direction = state.cause === "volumeUp" ? "up" : state.cause === "volumeDown" ? "down" : "";
         muted = mutedNow;
 
@@ -97,6 +109,9 @@ Item {
             notice("volume-muted-30", "", I18n.t("volume", "notice.muted"));
         } else if (muted) {
             present("muted");
+        } else if (device && bluetooth && bluetooth.avrcp === false && /^(bt_soundbar|tv_speaker_bluetooth)$/.test(output)) {
+            // The device keeps its own volume: its name and where to set it.
+            notice(device.icon, device.label, I18n.t("volume", "notice.on_device"));
         } else if (exterior) {
             // The device keeps its value: name it and the direction of the key.
             // Without a key, as after a change from outside, only the device.

@@ -322,7 +322,8 @@
     "value.sleep_remaining": "Encore {minutes} min",
     "value.switzerland": "Suisse",
     "value.timezone_berlin": "Heure d'Europe centrale (Berlin)",
-    "value.wifi": "Wi-Fi"
+    "value.wifi": "Wi-Fi",
+    "detail.bluetooth": "Bluetooth"
   },
   "picker": {
     "detail.no_signal": "Aucun signal – l'appareil est-il allumé ?",
@@ -522,7 +523,9 @@
     "notice.quieter": "Moins fort",
     "notice.not_controllable": "Volume non réglable ici",
     "speech.volume": "Volume",
-    "speech.muted": "Muet"
+    "speech.muted": "Muet",
+    "notice.on_device": "Volume sur l'appareil",
+    "speech.on_device": "Réglez le volume sur l'appareil"
   },
   "profile": {
     "button.cancel": "Annuler",

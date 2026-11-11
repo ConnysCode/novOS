@@ -44,11 +44,13 @@ BaseView {
         return external && audio.volumeSyncable !== true;
     }
 
-    function update() {
+    // quiet: drawn again for the Bluetooth device, without speaking the value twice.
+    function update(quiet) {
         var audio = LS.audioService;
         // LG's view stays empty in the internal mode as well.
         if (audio.mode === "internal") return;
         var wasOpen = pill.shown;
+        bluetooth.active = /^(bt_soundbar|tv_speaker_bluetooth)$/.test(audio.soundOutput || "");
         pill.update({
             volume: audio.volume,
             maximum: audio.volumeMax,
@@ -56,9 +58,16 @@ BaseView {
             output: audio.soundOutput,
             disabled: audio.disabled,
             exterior: exterior(audio),
-            cause: audio.cause
+            cause: audio.cause,
+            bluetooth: bluetoothDevice()
         });
-        speak(audio, wasOpen);
+        if (quiet !== true) speak(audio, wasOpen);
+    }
+
+    // The connected Bluetooth device while the sound plays over Bluetooth.
+    function bluetoothDevice() {
+        var device = bluetooth.connected;
+        return device ? { name: device.name, kind: device.kind, avrcp: device.avrcp } : null;
     }
 
     // Like LG's view: the word "volume" on the first press, then the value or the direction.
@@ -68,12 +77,24 @@ BaseView {
             return;
         }
         if (audio.muted) return;
+        if (pill.onDevice) {
+            requestTts(I18n.t("volume", "speech.on_device"), false);
+            return;
+        }
         if (!wasOpen) requestTts(I18n.t("volume", "speech.volume"), false);
         if (pill.showsLevel) requestTts(String(audio.volume), !wasOpen);
         else if (pill.direction !== "")
             requestTts(I18n.t("volume", pill.direction === "down" ? "notice.quieter" : "notice.louder"), !wasOpen);
     }
 
+
+    // Name and AVRCP of the Bluetooth device, read only while the sound plays over Bluetooth.
+    // update() switches it on; its first answer comes after the first key, so the pill is
+    // drawn again once it knows the device.
+    BluetoothOutput {
+        id: bluetooth
+        onConnectedChanged: if (pill.shown && root.available) root.update(true)
+    }
 
     VolumePill {
         id: pill

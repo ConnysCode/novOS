@@ -30,7 +30,13 @@ Item {
     property var bluetoothFeatures: []
 
     function runs(name) {
-        return actions[name] === true;
+        return actions[name] === true || bluetooth.runs(name);
+    }
+
+    // Bluetooth headphones, speakers and input devices (TON-B, QG-1), see BluetoothDevices.qml.
+    BluetoothDevices {
+        id: bluetooth
+        settings: tvData.settings
     }
 
     function luna(uri, method, params) {
@@ -54,6 +60,7 @@ Item {
         readSleepTimer();
         readUpdates();
         readLgUpdates();
+        bluetooth.request();
     }
 
     // The input of a page opened for one input, for example "hdmi2".
@@ -588,7 +595,9 @@ Item {
             return;
         }
         var updateState = settings.store.state;
-        if (name === "checkUpdates") {
+        if (bluetooth.runs(name)) {
+            bluetooth.run(name, params, ctx);
+        } else if (name === "checkUpdates") {
             sendUpdate("check");
         } else if (name === "installUpdate") {
             // Loads first, the settings may close meanwhile; once loaded the same button installs.

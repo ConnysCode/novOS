@@ -17,6 +17,12 @@ StarfishSystemUIWindow {
         return { volume: volume, maximum: 100, muted: false, output: "tv_speaker" };
     }
 
+    function bluetooth(volume, avrcp) {
+        return { volume: volume, maximum: 100, muted: false, output: "bt_soundbar", cause: "volumeUp",
+                 bluetooth: avrcp ? { name: "Sony WH-1000XM5", kind: "headphones", avrcp: true }
+                                  : { name: "LG Soundbar S90TY", kind: "soundbar", avrcp: false } };
+    }
+
     function muted(volume) {
         return { volume: volume, maximum: 100, muted: true, output: "tv_speaker" };
     }
@@ -33,7 +39,10 @@ StarfishSystemUIWindow {
         soundbar: [[0, { volume: 27, maximum: 100, output: "external_arc" }, true]],
         headphones: [[0, { volume: 60, maximum: 100, output: "headphone" }, true]],
         exterior: [[0, { volume: 0, maximum: 100, output: "external_optical", exterior: true,
-                        cause: "volumeUp" }, true]]
+                        cause: "volumeUp" }, true]],
+        // K3-Einst-Bluetooth-Audio-17 and -18: a Bluetooth device with and without AVRCP.
+        bluetooth: [[0, bluetooth(34, true)], [300, bluetooth(35, true), true]],
+        bluetoothDevice: [[0, bluetooth(20, false), true]]
     })
     property int step: 0
 
