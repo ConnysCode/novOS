@@ -264,6 +264,9 @@ ICONS = [
     ("row-microphone", 30, 1.7, '<rect x="9" y="3.5" width="6" height="11" rx="3"/>' +
      path("M5.5 11a6.5 6.5 0 0 0 13 0") + path("M12 17.5v3"), BOTH),
     ("row-test-tone", 30, 1.7, SPEAKER + WAVE_NEAR + WAVE_FAR, BOTH),
+    # The arrows above the level list of the white balance (K3-Einst-Weissabgleich).
+    ("chevron-up-20", 20, 2.4, strokes(["M6 15l6-6 6 6"]), [("", LIGHT), ("-dark", "#5b5e66")]),
+    ("chevron-down-20", 20, 2.4, strokes(["M6 9l6 6 6-6"]), [("", LIGHT), ("-dark", "#5b5e66")]),
     # The preview pill of the shutdown videos.
     ("play-18", 18, 1.8, PLAY, LIGHT_ONLY),
     # Novelties in "Neu in novOS" (K3-Neu-*), 28 px in a 56 px circle; -dark on the focus.

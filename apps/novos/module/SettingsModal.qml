@@ -530,17 +530,38 @@ Item {
         bandsRow = null;
     }
 
-    // One band: the array with this entry changed, and what the row writes along.
+    // One column: a band (the array with this entry changed, and what the row writes along),
+    // a level of the white balance, or a value at that level.
     function writeBand(index, value) {
         var context = ctx();
-        commit(Engine.writeRequest(store, Engine.bandRow(bandsRow, index), value, context), bandsRow, context);
+        var write = Engine.bandWrite(store, I18n, area.id, bandsRow, paramOf(stack.length), index, value);
+        if (write) commit(write.request, write.row, context);
+    }
+
+    // The button at the right of the bar: a row's own action, asked first where it says so
+    // (the white balance's "Zurücksetzen"), else "Flach".
+    function pressBandButton() {
+        var button = bandsRow.button;
+        if (!button) {
+            flattenBands();
+            return;
+        }
+        var context = ctx();
+        if (button.confirm) {
+            hostAction("confirm", { action: button.action, params: {},
+                                    title: context.t(button.confirm.title), text: context.t(button.confirm.text),
+                                    confirm: context.t(button.confirm.confirm), icon: "",
+                                    safe: false, danger: button.confirm.danger === true });
+        } else {
+            runAction(button.action, {});
+        }
     }
 
     // "Flach": every band to 0 at once, without asking; it is in view and changes back as easily.
     function flattenBands() {
         var context = ctx();
         var zeros = [];
-        for (var i = 0; i < bands.values.length; i++) zeros.push(0);
+        for (var i = 0; i < bands.columns.length; i++) zeros.push(0);
         commit(Engine.writeRequest(store, bandsRow, zeros, context), bandsRow, context);
     }
 
@@ -1141,12 +1162,11 @@ Item {
     readonly property var speech: {
         if (!active) return null;
         if (bandsOpen && bandEditor) {
-            var onBand = bandEditor.focusIndex < bands.labels.length;
-            var valueText = onBand ? bandEditor.signed(bands.values[bandEditor.focusIndex]) : "";
+            var column = bands.columns[bandEditor.focusIndex];
+            var valueText = column ? column.text : "";
             return { context: "settings", layer: "bands", subject: "band-" + bandEditor.focusIndex,
                      layerIntro: bands.title,
-                     text: onBand ? bands.labels[bandEditor.focusIndex] + ", " + valueText
-                                  : I18n.t("settings", "editor.flat"),
+                     text: column ? column.label + ", " + valueText : (bands.button ? bands.button.label : ""),
                      change: valueText };
         }
         if (dialogOpen && deviceModal && deviceModal.focusedRow) {
@@ -1521,7 +1541,7 @@ Item {
             visible: opacity > 0
             sourceComponent: Component {
                 BandEditor {
-                    readonly property var shownBands: settings.bandsShown || ({ labels: [], values: [] })
+                    readonly property var shownBands: settings.bandsShown || ({ columns: [], button: null })
                     unit: settings.unit
                     titleFont: settings.titleFont
                     rowFont: settings.rowFont
@@ -1532,17 +1552,16 @@ Item {
                     backdropArea: settings.backdropArea
                     hasBackdrop: settings.hasBackdrop
                     title: shownBands.title || ""
-                    labels: shownBands.labels
-                    values: shownBands.values
-                    minimum: shownBands.min !== undefined ? shownBands.min : -10
-                    maximum: shownBands.max !== undefined ? shownBands.max : 10
-                    step: shownBands.step || 1
-                    flatLabel: I18n.t("settings", "editor.flat")
-                    keys: [{ key: I18n.t("settings", "editor.key_left_right"), action: I18n.t("settings", "editor.band") },
-                           { key: I18n.t("settings", "editor.key_up_down"), action: I18n.t("settings", "editor.value") },
+                    columns: shownBands.columns
+                    buttonLabel: shownBands.button ? shownBands.button.label : ""
+                    buttonDanger: shownBands.button ? shownBands.button.danger : false
+                    keys: [{ key: I18n.t("settings", "editor.key_left_right"),
+                             action: I18n.t("settings", shownBands.levels ? "editor.choose_value" : "editor.band") },
+                           { key: I18n.t("settings", "editor.key_up_down"),
+                             action: I18n.t("settings", shownBands.levels ? "editor.change" : "editor.value") },
                            { key: I18n.t("settings", "editor.key_back"), action: I18n.t("settings", "editor.done") }]
-                    onBandChanged: settings.writeBand(index, value)
-                    onFlatten: settings.flattenBands()
+                    onColumnChanged: settings.writeBand(index, value)
+                    onButtonPressed: settings.pressBandButton()
                     onFinished: settings.closeBands()
                 }
             }

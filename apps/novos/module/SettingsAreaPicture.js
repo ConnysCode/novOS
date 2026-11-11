@@ -55,6 +55,94 @@ function twoPoint(ctx) {
     return ctx.val("picture.whiteBalanceMethod") === "2";
 }
 
+// 10 and 20 point white balance (K3-Einst-Weissabgleich): LG keeps one array per value with
+// an entry per point. "20 Punkte" has 22 points. Two ways to pick the point, as LG's own
+// screen: by signal level ("10", "22"; the level is a setting of its own, whiteBalanceIre,
+// and the arrays count their entries in the order the descriptor lists the levels) or by
+// code value ("10code", "22code"; whiteBalanceCodeValue holds the position, the codes
+// come from getSystemSettingValues per mastering luminance, SettingsData.readWhiteBalanceCodes).
+// The maximum luminance is a single value, set at level 100 only, and only by signal level.
+function method(ctx) {
+    return String(ctx.val("picture.whiteBalanceMethod"));
+}
+
+function multiPoint(ctx) {
+    return ["10", "22", "10code", "22code"].indexOf(method(ctx)) >= 0;
+}
+
+function tenPoint(ctx) {
+    return method(ctx).indexOf("10") === 0;
+}
+
+function byCode(ctx) {
+    return method(ctx).indexOf("code") > 0;
+}
+
+function wbKey(name) {
+    return function (ctx) { return "picture." + name + (tenPoint(ctx) ? "10pt" : ""); };
+}
+
+var wbLevel = { id: "wbLevel", type: "levels", keyOf: wbKey("whiteBalanceIre"), label: "row.wb_level",
+                group: 0, wide: true,
+                // While the descriptor lists no levels: LG's levels, lowest first.
+                fallback: function (ctx) {
+                    return tenPoint(ctx) ? [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+                                         : [2.5, 5, 7.5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60,
+                                            65, 70, 75, 80, 85, 90, 95, 100];
+                },
+                format: function (value, ctx) {
+                    return ctx.t("value.wb_level", { value: String(value).replace(".", ctx.t("format.decimal_mark")) });
+                } };
+
+// The codes of the current mastering luminance, highest last as LG lists them.
+function wbCodes(ctx) {
+    var all = ctx.list(tenPoint(ctx) ? "whiteBalanceCodes10" : "whiteBalanceCodes");
+    var codes = all ? all[ctx.val("other.masterLuminanceLevel")] : null;
+    var entries = [];
+    for (var i = 0; Array.isArray(codes) && i < codes.length; i++) entries.push({ value: i, label: String(codes[i]) });
+    return entries;
+}
+
+var wbCode = { id: "wbCode", type: "levels", group: 0, wide: true, label: "row.wb_code",
+               keyOf: function (ctx) { return "picture.whiteBalanceCodeValue" + (tenPoint(ctx) ? "10pt" : ""); },
+               entries: wbCodes };
+
+function wbAtTop(ctx) {
+    return Number(ctx.val(wbKey("whiteBalanceIre")(ctx))) === 100;
+}
+
+function wbColumn(id, name, label, dot) {
+    return { id: id, type: "slider", keyOf: wbKey(name), index: "level", label: label, dot: dot || "",
+             center: 0, format: "signed", group: 1 };
+}
+
+function wbColumns(ctx) {
+    var columns = [byCode(ctx) ? wbCode : wbLevel,
+                   wbColumn("wbLuminance", "adjustingLuminance", "row.wb_luminance"),
+                   wbColumn("wbRed", "whiteBalanceRed", "row.red", "channelRed"),
+                   wbColumn("wbGreen", "whiteBalanceGreen", "row.green", "channelGreen"),
+                   wbColumn("wbBlue", "whiteBalanceBlue", "row.blue", "channelBlue")];
+    if (!byCode(ctx)) {
+        columns.push({ id: "wbMaxLuminance", type: "slider", key: "picture.whiteBalanceLuminance",
+                       label: "row.wb_max_luminance", group: 2, wide: true,
+                       disabled: [{ when: function (ctx) { return !wbAtTop(ctx); }, reason: "reason.wb_only_at_100" }] });
+    }
+    return columns;
+}
+
+// "20 Punkte · Angepasst" while a value at some point is not 0.
+function wbPointsText(ctx) {
+    var points = ctx.label("picture.whiteBalanceMethod", method(ctx));
+    var names = ["adjustingLuminance", "whiteBalanceRed", "whiteBalanceGreen", "whiteBalanceBlue"];
+    for (var n = 0; n < names.length; n++) {
+        var values = ctx.val(wbKey(names[n])(ctx));
+        for (var i = 0; Array.isArray(values) && i < values.length; i++) {
+            if (Number(values[i]) !== 0) return points + " · " + ctx.t("value.adjusted");
+        }
+    }
+    return points;
+}
+
 var area = {
     id: "picture",
     icon: "picture",
@@ -175,7 +263,14 @@ var area = {
             id: "whiteBalance",
             title: "row.white_balance",
             watch: ["picture.whiteBalanceRedGain", "picture.whiteBalanceGreenGain", "picture.whiteBalanceBlueGain",
-                    "picture.whiteBalanceRedOffset", "picture.whiteBalanceGreenOffset", "picture.whiteBalanceBlueOffset"],
+                    "picture.whiteBalanceRedOffset", "picture.whiteBalanceGreenOffset", "picture.whiteBalanceBlueOffset",
+                    "picture.whiteBalanceIre", "picture.whiteBalanceIre10pt", "picture.whiteBalanceLuminance",
+                    "picture.adjustingLuminance", "picture.adjustingLuminance10pt",
+                    "picture.whiteBalanceRed", "picture.whiteBalanceRed10pt",
+                    "picture.whiteBalanceGreen", "picture.whiteBalanceGreen10pt",
+                    "picture.whiteBalanceBlue", "picture.whiteBalanceBlue10pt",
+                    "picture.whiteBalanceCodeValue", "picture.whiteBalanceCodeValue10pt",
+                    "picture.keyListForCopyWb", "other.masterLuminanceLevel"],
             sections: [
                 { rows: [
                     { id: "wbTemperature", type: "slider", key: "picture.colorTemperature",
@@ -192,12 +287,22 @@ var area = {
                     { id: "wbBlue", type: "slider", keyOf: whiteBalanceKey("Blue"), title: "row.blue",
                       format: "signed", requires: twoPoint }
                 ] },
-                // The 10 and 20 point steps keep one value per signal level; LG's own screen
-                // with its test levels does that better than a list here.
+                // The 10 and 20 point steps keep one value per signal level: a bar over the
+                // picture with the level and its values (BandEditor.qml).
                 { rows: [
-                    { id: "wbMultiPoint", type: "lgApp", title: "row.wb_multi_point", subtitle: "detail.wb_multi_point",
-                      app: { id: "com.palm.app.settings", params: { target: "WhiteBalance" } },
-                      requires: function (ctx) { return !twoPoint(ctx); } }
+                    { id: "wbMultiPoint", type: "bands", title: "row.wb_points",
+                      keyOf: function (ctx) { return byCode(ctx) ? wbCode.keyOf(ctx) : wbKey("whiteBalanceIre")(ctx); },
+                      subtitle: wbPointsText, columns: wbColumns,
+                      // As LG: back to the TV's values for every key of keyListForCopyWb.
+                      button: { label: "row.reset", danger: true, action: "resetWhiteBalance",
+                                confirm: { title: "confirm.wb_reset_title", text: "confirm.wb_reset_text",
+                                           confirm: "confirm.wb_reset_button", danger: true } },
+                      // "Weißabgleich · 20 Punkte"; the column names the code value.
+                      editorTitle: function (ctx) {
+                          return ctx.t("title.wb_editor", { points: ctx.label("picture.whiteBalanceMethod",
+                                                                                method(ctx).replace("code", "")) });
+                      },
+                      requires: multiPoint }
                 ] }
             ]
         },

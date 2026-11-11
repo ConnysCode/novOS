@@ -711,6 +711,11 @@ function sliderStep(row, ctx, direction) {
 // bands: the labels, one per entry ("100 Hz"); the range comes from the descriptor as for a
 // slider. Each band writes as a row with index, the button "Flach" writes the whole array;
 // alsoWrite goes along both times.
+// columns: function (ctx) instead of bands, for a bar that edits several arrays at one
+// position (the white balance, K3-Einst-Weissabgleich). Each column is a row of its own:
+// type "levels" picks the position from the values the descriptor lists (100 at the top),
+// type "slider" reads and writes like a slider row, mostly with index "level"; dot names a colour
+// token beside its label, center draws the zero line, disabled greys it with a reason.
 
 function bandValues(row, ctx) {
     var value = ctx.val(rowKey(row, ctx));
@@ -740,14 +745,141 @@ function bandRow(row, index) {
              alsoWrite: row.alsoWrite, extra: row.extra };
 }
 
-// What the editor shows: title, labels, values and range.
+// The values a "levels" column offers, in the descriptor's order: the arrays of the other
+// columns count their entries in that order. fallback serves while the descriptor lists none;
+// entries(ctx) gives [{ value, label }] instead, for levels that are no descriptor values.
+function levelEntries(spec, ctx) {
+    if (typeof spec.entries === "function") return spec.entries(ctx) || [];
+    var desc = ctx.desc(rowKey(spec, ctx));
+    var listed = desc && desc.values ? (desc.values.arrayExt || desc.values.array || []) : [];
+    var values = [];
+    for (var i = 0; i < listed.length; i++) {
+        values.push(listed[i] !== null && typeof listed[i] === "object" ? listed[i].value : listed[i]);
+    }
+    if (values.length === 0) values = call(spec.fallback, ctx) || [];
+    var entries = [];
+    for (var v = 0; v < values.length; v++) {
+        entries.push({ value: values[v], label: spec.format ? spec.format(values[v], ctx) : String(values[v]) });
+    }
+    return entries;
+}
+
+// The position of the current level among levelEntries, 0 when it is none of them.
+function levelIndex(spec, ctx) {
+    var entries = levelEntries(spec, ctx);
+    var current = String(ctx.val(rowKey(spec, ctx)));
+    for (var i = 0; i < entries.length; i++) {
+        if (String(entries[i].value) === current) return i;
+    }
+    return 0;
+}
+
+function constant(value) {
+    return function () { return value; };
+}
+
+// index "level" in a column: the position of the bar's level list.
+function bandColumns(row, ctx) {
+    if (typeof row.columns === "function") {
+        var specs = row.columns(ctx) || [];
+        var level = null;
+        for (var s = 0; s < specs.length; s++) {
+            if (specs[s].type === "levels") level = specs[s];
+        }
+        var result = [];
+        for (var c = 0; c < specs.length; c++) {
+            var spec = specs[c];
+            if (spec.index === "level" && level) {
+                var copy = {};
+                for (var name in spec) copy[name] = spec[name];
+                copy.index = levelIndex(level, ctx);
+                spec = copy;
+            }
+            result.push(spec);
+        }
+        return result;
+    }
+    var labels = row.bands || [];
+    var columns = [];
+    for (var i = 0; i < labels.length; i++) {
+        var band = bandRow(row, i);
+        band.type = "slider";
+        band.label = constant(labels[i]);       // "100 Hz" is no text key
+        band.center = 0;
+        band.format = "signed";
+        columns.push(band);
+    }
+    return columns;
+}
+
+// One column as the editor draws it. A level list shows the highest level on top.
+function resolveColumn(spec, ctx) {
+    var reason = disabledReason(spec, ctx);
+    var column = { id: spec.id, kind: spec.type === "levels" ? "levels" : "slider",
+                   label: typeof spec.label === "function" ? spec.label(ctx) : ctx.t(spec.label),
+                   dot: spec.dot || "", wide: spec.wide === true, disabled: reason !== "", reason: reason };
+    if (column.kind === "levels") {
+        var entries = levelEntries(spec, ctx);
+        var order = [];
+        for (var i = 0; i < entries.length; i++) order.push(i);
+        order.sort(function (a, b) { return numberOf(entries[b].value) - numberOf(entries[a].value); });
+        var current = levelIndex(spec, ctx);
+        column.options = [];
+        column.values = [];
+        for (var o = 0; o < order.length; o++) {
+            column.options.push(entries[order[o]].label);
+            column.values.push(entries[order[o]].value);
+            if (order[o] === current) column.selected = o;
+        }
+        if (column.selected === undefined) column.selected = 0;
+        column.text = column.options[column.selected] || "";
+        return column;
+    }
+    var range = sliderRange(spec, ctx);
+    column.min = range.min;
+    column.max = range.max;
+    column.step = range.step;
+    column.value = numberOf(rowRawValue(spec, ctx));
+    column.text = formatNumber(spec, column.value, ctx).replace("-", "\u2212");
+    column.center = spec.center !== undefined ? spec.center : null;
+    return column;
+}
+
+// What the editor shows: title, columns and the button at the right ("Flach").
 function resolveBands(store, i18n, areaId, row, param) {
     var ctx = context(store, areaId, i18n);
     ctx.area = areaById(areaId);
     ctx.param = param;
-    var range = sliderRange(row, ctx);
-    return { title: ctx.t(row.editorTitle || row.title), labels: row.bands || [], values: bandValues(row, ctx),
-             min: range.min, max: range.max, step: range.step };
+    var specs = bandColumns(row, ctx);
+    var columns = [];
+    var levels = false;
+    for (var i = 0; i < specs.length; i++) {
+        var column = resolveColumn(specs[i], ctx);
+        if (column.kind === "levels") levels = true;
+        // group: a divider stands between two columns of different groups.
+        column.group = specs[i].group || 0;
+        columns.push(column);
+    }
+    // button: { label, action, danger, confirm } of the row, else "Flach" for the bands.
+    var button = row.columns ? (row.button ? { label: ctx.t(row.button.label), danger: row.button.danger === true,
+                                               action: row.button.action } : null)
+                             : { label: ctx.t("editor.flat"), danger: false, action: "" };
+    return { title: typeof row.editorTitle === "function" ? row.editorTitle(ctx) : ctx.t(row.editorTitle || row.title),
+             columns: columns, button: button, levels: levels };
+}
+
+// A change in one column: a level list writes the level, a slider its entry.
+function bandWrite(store, i18n, areaId, row, param, index, value) {
+    var ctx = context(store, areaId, i18n);
+    ctx.area = areaById(areaId);
+    ctx.param = param;
+    var spec = bandColumns(row, ctx)[index];
+    if (!spec) return null;
+    if (spec.type === "levels") {
+        var shown = resolveColumn(spec, ctx);
+        value = shown.values[Math.max(0, Math.min(shown.values.length - 1, value))];
+    }
+    return { row: spec, request: writeRequest(store, spec, value, ctx) };
 }
 
 // Search over every row this TV shows: names, own search terms and LG's terms.

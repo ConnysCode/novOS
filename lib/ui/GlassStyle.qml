@@ -111,8 +111,20 @@ QtObject {
     readonly property int statUnitSize: 15                 // its unit beside it
     readonly property int chipValueSize: 26                // the value of a chip, for example the genre
     readonly property int barTitleSize: 30                 // title of a bar over the picture (BandEditor)
+    readonly property int barTitleCompactSize: 28          // the same in the taller white balance bar
     readonly property int bandValueSize: 24                // the value above a vertical slider, "+3"
     readonly property int bandLabelSize: 19                // the band below it, "1 kHz"
+    readonly property int bandReasonSize: 15               // why a column is greyed, "Nur bei Stufe 100 %"
+    readonly property int levelSize: 19                    // an entry of a level list in a bar, "90 %"
+    readonly property int levelChosenSize: 22              // the chosen level, bold
+    readonly property real levelRadius: 14                 // its plate, in logical px
+    readonly property color levelChosenFill: "#2effffff"   // its plate on glass: white 18 %
+    readonly property color levelChosenFocused: "#1a0b0c10" // on the focus surface: 10 %
+    readonly property color textDisabled: "#66ffffff"      // a greyed value: white 40 %
+    // The colour channels beside a label ("Rot", "Grün", "Blau" of the white balance).
+    readonly property color channelRed: "#e5484d"
+    readonly property color channelGreen: "#3fbf8f"
+    readonly property color channelBlue: "#4c9dff"
     // A bar over the picture at the bottom edge (K3-Einst-Equalizer), in logical px.
     readonly property real bottomBarInset: 56
     // A bar along the top edge (K3-Spiel-A-HUD), in logical px.

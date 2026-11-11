@@ -25,7 +25,7 @@ Item {
         rollbackVersion: true, openNetwork: true, blockUpdates: true, lgAutoUpdate: true,
         lgUpdateCheck: true, lgUpdateInstall: true, lgUpdateCancel: true,
         profileSwitch: true, profileSignOut: true, profileRemove: true, profileAutoSignIn: true,
-        profileRename: true, profileColour: true
+        profileRename: true, profileColour: true, resetWhiteBalance: true
     })
     property var bluetoothFeatures: []
 
@@ -66,6 +66,7 @@ Item {
         readSleepTimer();
         readUpdates();
         readLgUpdates();
+        readWhiteBalanceCodes();
         bluetooth.request();
         speakers.request();
     }
@@ -97,6 +98,35 @@ Item {
             if (desc && desc.ui && desc.ui.visible !== false && desc.ui.active !== false) keys.push(optional[i]);
         }
         luna("luna://com.webos.settingsservice", "/resetSystemSettings", { category: "other", keys: keys });
+    }
+
+    // The code values of the 10 and 20 point white balance, per mastering luminance, as LG's
+    // settings app reads them: { "<masterLuminanceLevel>": [codes …] }. One service each, as
+    // the answers do not name their key.
+    function readWhiteBalanceCodes() {
+        whiteBalanceCodes.call("luna://com.webos.settingsservice", "/getSystemSettingValues",
+                               JSON.stringify({ category: "picture", key: "whiteBalanceCodeValue" }));
+        whiteBalanceCodes10.call("luna://com.webos.settingsservice", "/getSystemSettingValues",
+                                 JSON.stringify({ category: "picture", key: "whiteBalanceCodeValue10pt" }));
+    }
+
+    // As LG: every key the TV lists for copying the white balance goes back to its value.
+    function resetWhiteBalance(ctx) {
+        var keys = ctx.val("picture.keyListForCopyWb");
+        if (!Array.isArray(keys) || keys.length === 0) return;
+        luna("luna://com.webos.settingsservice", "/resetSystemSettings", { category: "picture", keys: keys });
+    }
+
+    Service {
+        id: whiteBalanceCodes
+        appId: "com.webos.app.quicksettings"
+        onResponse: tvData.setList("whiteBalanceCodes", JSON.parse(payload))
+    }
+
+    Service {
+        id: whiteBalanceCodes10
+        appId: "com.webos.app.quicksettings"
+        onResponse: tvData.setList("whiteBalanceCodes10", JSON.parse(payload))
     }
 
     // LG forgets phones and devices in this order, some only where the TV has the feature.
@@ -673,6 +703,8 @@ Item {
             resetSound(ctx);
         } else if (name === "resetGameGenre") {
             resetGameGenre(ctx);
+        } else if (name === "resetWhiteBalance") {
+            resetWhiteBalance(ctx);
         } else if (name === "deleteConnectionHistory") {
             deleteConnectionHistory();
         } else if (name === "deepColorChanged") {
