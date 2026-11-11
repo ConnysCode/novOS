@@ -227,18 +227,31 @@ StarfishSystemUIWindow {
         property string eyeComfort: ""
         property string soundOutput: ""
         property string soundMode: ""
+        property string hearingAid: ""           // "Hörgerät gleichzeitig" (BF-1): off, bluetooth, external_arc
+        property string pendingOutput: ""        // an output that waits for the hearing aid question
         property var soundModes: []
-        // The title of the sound modes, 32 px below the last output (338 with two outputs).
+        // The title of the sound modes, 32 px below the last output (338 with two outputs) or
+        // below the hearing aid's volume.
         readonly property real soundModeLabelY: {
             var bottom = 306;
             for (var i = 0; i < soundRows.length; i++) {
-                if (soundRows[i].key === "soundOutput") bottom = soundRows[i].y + soundRows[i].h;
+                if (soundRows[i].key === "soundOutput" || soundRows[i].key === "hearingVolume") {
+                    bottom = soundRows[i].y + soundRows[i].h;
+                }
             }
             return bottom + 32;
         }
+        // The title "Hörgerät" above its volume, 32 px below the outputs.
+        readonly property real hearingLabelY: {
+            for (var i = 0; i < soundRows.length; i++) {
+                if (soundRows[i].key === "hearingVolume") return soundRows[i].y - 34;
+            }
+            return -1;
+        }
         property bool hasArcDevice: false
         readonly property var soundRows: buildSoundRows(soundModes, soundMode, soundOutput, hasArcDevice,
-                                                        bluetoothAudio.connected, wisaSpeakers.count)
+                                                        bluetoothAudio.connected, wisaSpeakers.count,
+                                                        hearingAid, bluetoothAudio.volume, arcHearing.volume)
         property int connectedInputs: -1
         property string networkState: ""        // wifi, wired or none
         property bool hasInternet: false
@@ -389,10 +402,13 @@ StarfishSystemUIWindow {
         // paired is left to the settings, the page has no room for more rows. Bluetooth with the
         // TV speaker names the speaker below (K3-Einst-BT-und-TV-13), WiSA the number of its
         // speakers (K3-Einst-WiSA-WOWCAST-20).
-        function buildSoundRows(modes, current, output, hasArc, bluetooth, wisaCount) {
+        function buildSoundRows(modes, current, output, hasArc, bluetooth, wisaCount, hearing, btVolume, arcVolume) {
             var outputs = ["tv_speaker"];
             if (hasArc) outputs.push("external_arc");
-            if (bluetooth) outputs.push("bt_soundbar");
+            if (bluetooth && hearing !== "bluetooth") outputs.push("bt_soundbar");
+            // The hearing aid's shared output, as LG offers it (K3-Einst-Hoergeraet-11, -13).
+            if (hearing === "bluetooth") outputs.push("tv_speaker_bluetooth");
+            if (hearing === "external_arc" && hasArc) outputs.push("tv_speaker_external_arc");
             if (output !== "" && outputs.indexOf(output) < 0) outputs.push(output);
             var result = [];
             var i;
@@ -414,6 +430,14 @@ StarfishSystemUIWindow {
                 result.push(row);
                 y += row.h + 4;
             }
+            // Hörgerät: the volume of the second device below its own title. Greyed with the
+            // reason when it cannot be set from here (-12, -14).
+            var hearingRow = buildHearingRow(hearing, output, bluetooth, btVolume, arcVolume);
+            if (hearingRow) {
+                hearingRow.y = y + 28 + 34;
+                result.push(hearingRow);
+                y = hearingRow.y + hearingRow.h + 4;
+            }
             // The title of the sound modes keeps its distance below the outputs.
             var top = y + 28 + 34;
             for (i = 0; i < modes.length; i++) {
@@ -429,7 +453,54 @@ StarfishSystemUIWindow {
             return result;
         }
 
+        function buildHearingRow(hearing, output, bluetooth, btVolume, arcVolume) {
+            var row = { key: "hearingVolume", plain: true, min: 0, max: 100, step: 1 };
+            if (hearing === "bluetooth") {
+                row.title = bluetooth ? I18n.t("panel", "row.device_volume", { name: bluetooth.name })
+                                      : I18n.t("panel", "row.hearing_volume");
+                row.number = btVolume;
+                if (!bluetooth || !bluetooth.avrcp) row.reason = I18n.t("panel", "reason.volume_on_hearing_aid");
+            } else if (hearing === "external_arc") {
+                row.title = I18n.t("panel", "row.sender_volume");
+                row.number = arcVolume;
+                if (output !== "tv_speaker_external_arc") row.reason = I18n.t("panel", "reason.only_arc_and_tv");
+            } else {
+                return null;
+            }
+            if (row.reason) {
+                delete row.step;
+                row.sublabel = row.reason;
+                row.disabled = true;
+                row.h = 80;
+            } else {
+                row.h = 104;
+            }
+            return row;
+        }
+
+        // While the hearing aid plays along, another output switches it off: a question first,
+        // as on the settings' Audioausgabe (K3-Einst-Hoergeraet-17).
+        function askHearingOutput(value) {
+            pendingOutput = value;
+            var bluetooth = hearingAid === "bluetooth";
+            withFlow(function (flow) {
+                flow.openDialog({
+                    action: "hearingOutput", icon: "hearing-44", safe: !bluetooth, danger: false,
+                    title: I18n.t("panel", "modal.hearing_output_title"),
+                    text: I18n.t("panel", bluetooth ? "modal.hearing_output_bt_text" : "modal.hearing_output_text",
+                                 { output: settingsStore.label("sound.soundOutput", value) }),
+                    confirm: I18n.t("panel", "modal.hearing_output_confirm")
+                });
+            });
+        }
+
         function selectSound(setting, value) {
+            var shared = hearingAid === "bluetooth" ? "tv_speaker_bluetooth" :
+                         (hearingAid === "external_arc" ? "tv_speaker_external_arc" : "");
+            if (setting === "soundOutput" && shared !== "" && value !== shared) {
+                askHearingOutput(value);
+                return;
+            }
             var values = {};
             values[setting] = value;
             if (setting === "soundMode") soundMode = value;
@@ -724,7 +795,13 @@ StarfishSystemUIWindow {
         }
 
         function runDialogAction(action) {
-            if (action === "settings") {
+            if (action === "hearingOutput") {
+                soundOutput = pendingOutput;
+                settingsStore.commit({ category: "sound", settings: { hearingAid: "off", soundOutput: pendingOutput } },
+                                     null, null);
+                settingsStore.flushWrite();
+                if (flow()) flow().closeFlow();
+            } else if (action === "settings") {
                 settingsLoader.item.confirmed(settingsConfirm, settingsConfirmParams);
                 if (flow()) flow().closeFlow();
             } else if (action === "removeApp") {
@@ -824,12 +901,19 @@ StarfishSystemUIWindow {
         }
 
         function sliderValue(key) {
+            if (key === "hearingVolume") {
+                var level = hearingAid === "bluetooth" ? bluetoothAudio.volume : arcHearing.volume;
+                return level < 0 ? 0 : level;
+            }
             return key === "debugBlur" ? GlassStyle.blur : 0;
         }
 
         function adjustSlider(row, direction) {
             var value = Math.max(row.min, Math.min(row.max, sliderValue(row.key) + direction * row.step));
             if (row.key === "debugBlur") GlassStyle.blur = value;
+            // The hearing aid over Bluetooth takes a value, a sender on HDMI (ARC) only steps.
+            if (row.key === "hearingVolume" && hearingAid === "bluetooth") bluetoothAudio.setVolume(value);
+            else if (row.key === "hearingVolume") arcHearing.step(direction);
         }
 
         function toggleOption(property, key) {
@@ -1024,6 +1108,12 @@ StarfishSystemUIWindow {
                 return networkState === "none" ? I18n.t("panel", "status.not_connected") : "";
             }
             if (key === "tvName") return tvName;
+            if (key === "hearingVolume") {
+                var level = hearingAid === "bluetooth" ? bluetoothAudio.volume : arcHearing.volume;
+                var greyed = hearingAid === "bluetooth" ? !(bluetoothAudio.connected && bluetoothAudio.connected.avrcp)
+                                                        : soundOutput !== "tv_speaker_external_arc";
+                return greyed || level < 0 ? "–" : String(level);
+            }
             if (key === "profiles") {
                 if (!profileStore.known) return "";
                 return profileStore.active ? profileStore.active.nick : I18n.t("profile", "value.not_signed_in");
@@ -1158,7 +1248,11 @@ StarfishSystemUIWindow {
             { key: "sources", title: settingsStore.areaTitle("sources") },
             { key: "picture", title: I18n.t("panel", "title.picture_mode") },
             { key: "sound", title: settingsStore.areaTitle("sound"),
-              labels: [{ text: I18n.t("panel", "section.sound_output"), y: 132 },
+              labels: hearingLabelY < 0 ?
+                      [{ text: I18n.t("panel", "section.sound_output"), y: 132 },
+                       { text: I18n.t("panel", "section.sound_mode"), y: soundModeLabelY }] :
+                      [{ text: I18n.t("panel", "section.sound_output"), y: 132 },
+                       { text: I18n.t("panel", "section.hearing_aid"), y: hearingLabelY },
                        { text: I18n.t("panel", "section.sound_mode"), y: soundModeLabelY }] },
             { key: "network", title: settingsStore.areaTitle("network"),
               labels: [{ text: I18n.t("panel", "section.connection"), y: 278 },
@@ -1725,6 +1819,7 @@ StarfishSystemUIWindow {
             if ((value = text("picture.eyeComfortMode")) !== undefined) eyeComfort = value;
             if ((value = text("sound.soundOutput")) !== undefined) soundOutput = value;
             if ((value = text("sound.soundMode")) !== undefined) soundMode = value;
+            if ((value = text("sound.hearingAid")) !== undefined) hearingAid = value;
             if ((value = text("sound.audioDescription")) !== undefined) audioDescription = value;
             if ((value = text("option.quickStartMode")) !== undefined) quickStart = value;
             if ((value = text("option.country")) !== undefined) countryCode = value;
@@ -1913,10 +2008,18 @@ StarfishSystemUIWindow {
 
         readonly property var sharedSettings: settingsStore
 
-        // The connected Bluetooth headphones or speaker, offered on the sound page by name.
+        // The connected Bluetooth headphones or speaker, offered on the sound page by name; its
+        // volume while it is the hearing aid.
         BluetoothOutput {
             id: bluetoothAudio
             active: true
+            readsVolume: panel.hearingAid === "bluetooth" && rootWindow.opened
+        }
+
+        // A sender on HDMI (ARC) as the hearing aid: its volume in steps.
+        HearingAidOutput {
+            id: arcHearing
+            active: panel.hearingAid === "external_arc" && rootWindow.opened
         }
 
         // The WiSA speakers, counted while WiSA is the output.
@@ -2976,6 +3079,7 @@ StarfishSystemUIWindow {
                                 mark: row.isIcon || row.rowData.danger === true || row.rowData.plain === true ? "" :
                                       (row.isChoice ? (row.rowData.active === true ? "choice" : "") : "chevron")
                                 toggle: row.rowData.toggle
+                                disabled: row.rowData.disabled === true
                                 sliderShare: row.rowData.step === undefined ? -1 :
                                              (panel.sliderValue(row.rowData.key) - row.rowData.min) /
                                              (row.rowData.max - row.rowData.min)

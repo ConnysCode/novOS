@@ -25,7 +25,8 @@ Item {
         rollbackVersion: true, openNetwork: true, blockUpdates: true, lgAutoUpdate: true,
         lgUpdateCheck: true, lgUpdateInstall: true, lgUpdateCancel: true,
         profileSwitch: true, profileSignOut: true, profileRemove: true, profileAutoSignIn: true,
-        profileRename: true, profileColour: true, resetWhiteBalance: true
+        profileRename: true, profileColour: true, resetWhiteBalance: true,
+        hearingAidAsk: true, hearingAidSet: true, hearingAidOffTo: true, arcVolume: true
     })
     property var bluetoothFeatures: []
 
@@ -127,6 +128,59 @@ Item {
         id: whiteBalanceCodes10
         appId: "com.webos.app.quicksettings"
         onResponse: tvData.setList("whiteBalanceCodes10", JSON.parse(payload))
+    }
+
+    // ---- Hearing aid at the same time (BF-1) ----
+    // As LG's MultiOutputItemPanel: a question first, then hearingAid and soundOutput together.
+    // Turning Bluetooth on or off clears LG's Bluetooth history by itself; those questions are
+    // destructive and start on "Abbrechen".
+    function hearingAidAsk(ctx, params) {
+        var from = ctx.val("sound.hearingAid") || "off";
+        var to = params.value;
+        if (from === to) return;
+        var name = to === "off" ? (from === "bluetooth" ? "hearing_off_bluetooth" : "hearing_off_arc") :
+                   (to === "bluetooth" ? "hearing_on_bluetooth" :
+                    (from === "bluetooth" ? "hearing_switch_arc" : "hearing_on_arc"));
+        var destructive = to === "bluetooth" || from === "bluetooth";
+        settings.hostAction("confirm", { action: "hearingAidSet", params: { value: to },
+                                         icon: to === "external_arc" || (to === "off" && from === "external_arc") ?
+                                               "transmitter-44" : "hearing-44",
+                                         safe: !destructive, danger: false,
+                                         title: ctx.t("confirm." + name + "_title"),
+                                         text: ctx.t("confirm." + name + "_text"),
+                                         confirm: ctx.t("confirm." + name + "_button") });
+    }
+
+    // LG's values per change; Bluetooth goes on to the pairing (LG starts its own setup app).
+    function hearingAidSet(ctx, params) {
+        var from = ctx.val("sound.hearingAid") || "off";
+        var to = params.value;
+        var values = { hearingAid: to };
+        if (to === "bluetooth") values.soundOutput = "tv_speaker_bluetooth";
+        else if (to === "external_arc") values.soundOutput = "tv_speaker_external_arc";
+        else if (from === "external_arc") values.soundOutput = "tv_speaker";
+        settings.commit({ category: "sound", settings: values }, null, ctx);
+        settings.flushWrite();
+        if (to === "bluetooth") settings.push({ kind: "page", page: "hearingPair", rowId: "", focus: 0 });
+    }
+
+    // Another output while the hearing aid is on (K3-Einst-Hoergeraet-17): off and the output.
+    function hearingAidOffTo(ctx, params) {
+        settings.commit({ category: "sound", settings: { hearingAid: "off", soundOutput: params.output } }, null, ctx);
+        settings.flushWrite();
+    }
+
+    // The volume of a sender on HDMI (ARC): LG has only steps, audio/master volumeUp and
+    // volumeDown for the output external_arc (HearingAidOutput.qml).
+    function arcVolume(ctx, params) {
+        hearingOutput.step(Number(params.value) >= Number(ctx.state.arcVolume || 0) ? 1 : -1);
+    }
+
+    HearingAidOutput {
+        id: hearingOutput
+        active: !!tvData.settings && tvData.settings.active === true &&
+                !!tvData.settings.store.values.sound && tvData.settings.store.values.sound.hearingAid === "external_arc"
+        onVolumeChanged: tvData.setState("arcVolume", volume)
     }
 
     // LG forgets phones and devices in this order, some only where the TV has the feature.
@@ -705,6 +759,14 @@ Item {
             resetGameGenre(ctx);
         } else if (name === "resetWhiteBalance") {
             resetWhiteBalance(ctx);
+        } else if (name === "hearingAidAsk") {
+            hearingAidAsk(ctx, params);
+        } else if (name === "hearingAidSet") {
+            hearingAidSet(ctx, params);
+        } else if (name === "hearingAidOffTo") {
+            hearingAidOffTo(ctx, params);
+        } else if (name === "arcVolume") {
+            arcVolume(ctx, params);
         } else if (name === "deleteConnectionHistory") {
             deleteConnectionHistory();
         } else if (name === "deepColorChanged") {

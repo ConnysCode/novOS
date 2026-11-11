@@ -970,6 +970,16 @@ Item {
             push({ kind: "choice", row: row.row, rowId: row.id, focus: focusIndex });
         } else if (row.type === "bands") {
             openBands(row.row);
+        } else if (row.type === "option" && row.row && row.row.ask && row.row.ask.when(context)) {
+            // ask on an option: a question before the value changes, as switching the output
+            // while the hearing aid plays along (K3-Einst-Hoergeraet-17). Its texts may be
+            // functions of the option.
+            var check = row.row.ask;
+            var said = function (text) { return typeof text === "function" ? text(context, row) : context.t(text); };
+            hostAction("confirm", { action: check.action, params: { output: row.option, value: row.option },
+                                    title: said(check.title), text: said(check.text), confirm: said(check.confirm),
+                                    icon: check.icon || "", danger: false,
+                                    safe: typeof check.safe === "function" ? check.safe(context) : check.safe === true });
         } else if (row.type === "option" && row.action) {
             runAction(row.action, row.params || {});
         } else if (row.type === "option" && row.write) {

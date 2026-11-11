@@ -267,6 +267,12 @@ ICONS = [
     # The arrows above the level list of the white balance (K3-Einst-Weissabgleich).
     ("chevron-up-20", 20, 2.4, strokes(["M6 15l6-6 6 6"]), [("", LIGHT), ("-dark", "#5b5e66")]),
     ("chevron-down-20", 20, 2.4, strokes(["M6 9l6 6 6-6"]), [("", LIGHT), ("-dark", "#5b5e66")]),
+    # The questions of "Hörgerät gleichzeitig" (K3-Einst-Hoergeraet-04 … 08, -17): an ear for
+    # the hearing aid, a TV with a signal for the sender on HDMI (ARC).
+    ("hearing-44", 44, 1.5, strokes(["M8 15.5c0 2 1.5 3.5 3.5 3.5s3-1.2 3.5-3c.4-1.4 1.2-2.2 2-3a5.5 5.5 0 1 0-9-4.2",
+                                     "M10.5 9.5a2 2 0 0 1 4 0c0 1.2-1 1.7-1.6 2.3"]), LIGHT_ONLY),
+    ("transmitter-44", 44, 1.5, '<rect x="3" y="4.5" width="13" height="10" rx="2"/>' +
+     strokes(["M7 18.5h5", "M18.5 8v8M21 10.5v3"]), LIGHT_ONLY),
     # The preview pill of the shutdown videos.
     ("play-18", 18, 1.8, PLAY, LIGHT_ONLY),
     # Novelties in "Neu in novOS" (K3-Neu-*), 28 px in a 56 px circle; -dark on the focus.

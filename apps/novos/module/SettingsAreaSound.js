@@ -92,6 +92,50 @@ function hearingAidBluetooth(ctx) {
     return ctx.val("sound.hearingAid") === "bluetooth";
 }
 
+// ---- Hörgerät gleichzeitig (BF-1, K3-Einst-Hoergeraet-16/17) ----
+// The shared output stands among the outputs with the volume of the second device; another
+// output first asks to switch the hearing aid off (SettingsData.hearingAidOffTo).
+function hearingAid(ctx) {
+    return ctx.val("sound.hearingAid") || "off";
+}
+
+function hearingName(ctx) {
+    var speakers = ctx.list("btSurround");
+    for (var i = 0; i < speakers.length; i++) {
+        if (speakers[i].state === "connected") return speakers[i].title;
+    }
+    return "";
+}
+
+function hearingSpeaker(ctx) {
+    var speakers = ctx.list("btSurround");
+    for (var i = 0; i < speakers.length; i++) {
+        if (speakers[i].state === "connected") return speakers[i];
+    }
+    return null;
+}
+
+var hearingAsk = {
+    action: "hearingAidOffTo",
+    icon: "hearing-44",
+    when: function (ctx) { return hearingAid(ctx) !== "off"; },
+    safe: function (ctx) { return hearingAid(ctx) !== "bluetooth"; },
+    title: "confirm.hearing_output_title",
+    text: function (ctx, option) {
+        return ctx.t(hearingAid(ctx) === "bluetooth" ? "confirm.hearing_output_bt_text" : "confirm.hearing_output_text",
+                     { output: option.title });
+    },
+    confirm: "confirm.hearing_output_button"
+};
+
+// An option of the output list; with the hearing aid on, choosing it asks first.
+function outputOption(id, value, extra) {
+    var row = { id: id, type: "option", key: "sound.soundOutput", option: value,
+                title: "value.sound_output." + value, ask: hearingAsk };
+    for (var name in extra || {}) row[name] = extra[name];
+    return row;
+}
+
 // LG's wte(): the balance shows with two speakers of the same model, the first connected one
 // with AVRCP; it works once the first two connected ones both have AVRCP connected.
 function baseName(name) {
@@ -286,28 +330,52 @@ var area = {
             session: "btAudio",
             sections: [
                 { title: "section.output", rows: [
-                    { id: "tvSpeaker", type: "option", key: "sound.soundOutput", option: "tv_speaker",
-                      title: "value.sound_output.tv_speaker" },
-                    { id: "arc", type: "option", key: "sound.soundOutput", option: "external_arc",
-                      title: "value.sound_output.external_arc", requires: hasArc,
+                    outputOption("tvSpeaker", "tv_speaker"),
+                    outputOption("arc", "external_arc", {
+                        requires: hasArc,
+                        subtitle: function (ctx) {
+                            return ctx.val("sound.eArcSupport") === "on" ? ctx.t("detail.earc") : "";
+                        } }),
+                    // As LG: only while the hearing aid is the sender on HDMI (ARC).
+                    outputOption("arcAndTv", "tv_speaker_external_arc", {
+                        requires: function (ctx) { return hasArc(ctx) && hearingAid(ctx) === "external_arc"; } }),
+                    outputOption("optical", "external_optical", { requires: hasOptical }),
+                    outputOption("opticalAndTv", "tv_external_speaker", { requires: hasOptical }),
+                    outputOption("lineOut", "lineout", {
+                        requires: function (ctx) { return truthy(ctx.cfg("tv.model.supportAudioLineOut")); } }),
+                    outputOption("headphone", "headphone", {
+                        requires: function (ctx) { return truthy(ctx.cfg("tv.model.supportHeadPhone")); } }),
+                    outputOption("headphoneAndTv", "tv_speaker_headphone", {
+                        requires: function (ctx) { return truthy(ctx.cfg("tv.model.supportHeadPhone")); } }),
+                    // The hearing aid over Bluetooth plays with the TV speaker.
+                    { id: "hearingBt", type: "option", key: "sound.soundOutput", option: "tv_speaker_bluetooth",
+                      title: "value.sound_output.tv_speaker_bluetooth",
                       subtitle: function (ctx) {
-                          return ctx.val("sound.eArcSupport") === "on" ? ctx.t("detail.earc") : "";
-                      } },
-                    { id: "arcAndTv", type: "option", key: "sound.soundOutput", option: "tv_speaker_external_arc",
-                      title: "value.sound_output.tv_speaker_external_arc", requires: hasArc },
-                    { id: "optical", type: "option", key: "sound.soundOutput", option: "external_optical",
-                      title: "value.sound_output.external_optical", requires: hasOptical },
-                    { id: "opticalAndTv", type: "option", key: "sound.soundOutput", option: "tv_external_speaker",
-                      title: "value.sound_output.tv_external_speaker", requires: hasOptical },
-                    { id: "lineOut", type: "option", key: "sound.soundOutput", option: "lineout",
-                      title: "value.sound_output.lineout",
-                      requires: function (ctx) { return truthy(ctx.cfg("tv.model.supportAudioLineOut")); } },
-                    { id: "headphone", type: "option", key: "sound.soundOutput", option: "headphone",
-                      title: "value.sound_output.headphone",
-                      requires: function (ctx) { return truthy(ctx.cfg("tv.model.supportHeadPhone")); } },
-                    { id: "headphoneAndTv", type: "option", key: "sound.soundOutput", option: "tv_speaker_headphone",
-                      title: "value.sound_output.tv_speaker_headphone",
-                      requires: function (ctx) { return truthy(ctx.cfg("tv.model.supportHeadPhone")); } }
+                          var name = hearingName(ctx);
+                          return name ? ctx.t("detail.with_hearing_aid", { name: name }) : "";
+                      },
+                      requires: function (ctx) { return hearingAid(ctx) === "bluetooth"; } },
+                    // btaudiosrc setDeviceVolume, only with AVRCP; LG greys it without.
+                    { id: "hearingBtVolume", type: "slider", min: 0, max: 100, action: "btSurroundHearing",
+                      title: function (ctx) {
+                          var name = hearingName(ctx);
+                          return name ? ctx.t("row.device_volume", { name: name }) : ctx.t("row.hearing_aid_volume");
+                      },
+                      read: function (ctx) { return (ctx.state.btAudioVolume || {})[ctx.state.btSurroundDevice]; },
+                      value: function (ctx) { var item = hearingSpeaker(ctx); return item && !item.avrcpConnected ? "–" : ""; },
+                      requires: function (ctx) { return hearingAid(ctx) === "bluetooth" && hearingSpeaker(ctx) !== null; },
+                      disabled: [{ when: function (ctx) { var item = hearingSpeaker(ctx); return !item || !item.avrcpConnected; },
+                                   reason: "reason.volume_on_hearing_aid" }] },
+                    // A sender on HDMI (ARC): LG's steps, audio/master volumeUp/volumeDown.
+                    { id: "hearingArcVolume", type: "slider", min: 0, max: 100, action: "arcVolume",
+                      title: "row.sender_volume",
+                      read: function (ctx) { return ctx.state.arcVolume >= 0 ? ctx.state.arcVolume : 0; },
+                      value: function (ctx) {
+                          return output(ctx) !== "tv_speaker_external_arc" || !(ctx.state.arcVolume >= 0) ? "–" : "";
+                      },
+                      requires: function (ctx) { return hearingAid(ctx) === "external_arc"; },
+                      disabled: [{ when: function (ctx) { return output(ctx) !== "tv_speaker_external_arc"; },
+                                   reason: "reason.only_arc_and_tv" }] }
                 ] },
                 { title: "section.bluetooth",
                   rows: [

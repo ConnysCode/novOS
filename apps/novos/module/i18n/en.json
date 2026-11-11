@@ -325,7 +325,17 @@
     "value.wifi": "Wi-Fi",
     "detail.bluetooth": "Bluetooth",
     "detail.speaker_one": "1 speaker",
-    "detail.speakers": "{count} speakers"
+    "detail.speakers": "{count} speakers",
+    "section.hearing_aid": "Hearing Aid",
+    "row.device_volume": "{name} Volume",
+    "row.hearing_volume": "Hearing Aid Volume",
+    "row.sender_volume": "Transmitter Volume",
+    "reason.volume_on_hearing_aid": "Set the volume on the hearing aid",
+    "reason.only_arc_and_tv": "Only with output HDMI (ARC) device and TV speaker",
+    "modal.hearing_output_title": "Turn off hearing aid at the same time?",
+    "modal.hearing_output_text": "Sound then plays through “{output}”. The setting is under Accessibility › Hearing.",
+    "modal.hearing_output_bt_text": "Sound then plays through “{output}”. Bluetooth devices paired so far are removed. The setting is under Accessibility › Hearing.",
+    "modal.hearing_output_confirm": "Turn Off"
   },
   "picker": {
     "detail.no_signal": "No signal – is the device on?",

@@ -325,7 +325,17 @@
     "value.wifi": "Wi-Fi",
     "detail.bluetooth": "Bluetooth",
     "detail.speaker_one": "1 altavoz",
-    "detail.speakers": "{count} altavoces"
+    "detail.speakers": "{count} altavoces",
+    "section.hearing_aid": "Audífono",
+    "row.device_volume": "Volumen de {name}",
+    "row.hearing_volume": "Volumen del audífono",
+    "row.sender_volume": "Volumen del transmisor",
+    "reason.volume_on_hearing_aid": "Ajusta el volumen en el audífono",
+    "reason.only_arc_and_tv": "Solo con la salida dispositivo HDMI (ARC) y altavoces del televisor",
+    "modal.hearing_output_title": "¿Desactivar el audífono simultáneo?",
+    "modal.hearing_output_text": "El sonido sonará por «{output}». El ajuste está en Accesibilidad › Audición.",
+    "modal.hearing_output_bt_text": "El sonido sonará por «{output}». Se eliminarán los dispositivos Bluetooth emparejados. El ajuste está en Accesibilidad › Audición.",
+    "modal.hearing_output_confirm": "Desactivar"
   },
   "picker": {
     "detail.no_signal": "Sin señal – ¿está encendido el dispositivo?",

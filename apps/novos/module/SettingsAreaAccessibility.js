@@ -1,4 +1,5 @@
 .pragma library
+.import "DeviceList.js" as DeviceList
 
 // Area 08 "Barrierefreiheit" of the settings modal. Keys, locks and their order as in
 // LG's "Allgemein › Barrierefreiheit" (docs/lg-settings/alle-einstellungen.md). The
@@ -41,11 +42,33 @@ function shortcut(name, title, key) {
                           reason: "reason.shortcut_last" }] };
 }
 
+// Hearing aid at the same time (BF-1, K3-Einst-Hoergeraet), as LG's MultiOutputItemPanel:
+// Bluetooth needs Bluetooth with the TV speaker (bluetoothPlusTvSpeaker), HDMI (ARC) an ARC
+// port. Every change asks first and then writes the sound output along (SettingsData).
+function hearingValues(ctx) {
+    var values = ["off"];
+    var features = ctx.cfg("system.supportBluetoothFeatures");
+    if (features && features.indexOf("bluetoothPlusTvSpeaker") >= 0) values.push("bluetooth");
+    var port = ctx.cfg("system.arcPort");
+    if (port !== undefined && port !== null && port !== 0) values.push("external_arc");
+    return values;
+}
+
+var hearingDetails = { bluetooth: "detail.hearing_bluetooth", external_arc: "detail.hearing_arc" };
+
+// The pairing after "Bluetooth-Gerät", with TON-B's list and search.
+var hearingDevices = {
+    source: "bluetooth", found: "bluetoothFound", page: "",
+    connect: "btAudioConnect", disconnect: "btAudioDisconnect", remove: "btAudioRemove", search: "btAudioSearch",
+    searching: "btAudioSearching", ready: "btAudioReady", disconnectText: "confirm.disconnect_audio_text"
+};
+
 var area = {
     id: "accessibility",
     icon: "accessibility",
     title: "area.accessibility",
-    configs: ["profile.list", "tv.conti.supportVideoDescription", "tv.conti.supportAddAudioDescription"],
+    configs: ["profile.list", "tv.conti.supportVideoDescription", "tv.conti.supportAddAudioDescription",
+              "system.supportBluetoothFeatures", "system.arcPort"],
     reads: ["option.adjustments", "option.audioGuidance", "option.remoteSlowInput"],
     page: {
         id: "accessibility",
@@ -104,13 +127,22 @@ var area = {
                       summary: ["caption.captionEnable", "option.subtitleLanguageFirst"], search: "search.subtitles" },
                     { id: "hardOfHearing", type: "toggle", key: "caption.hardOfHearing", title: "row.hard_of_hearing",
                       subtitle: "detail.hard_of_hearing", search: "search.subtitles" },
-                    // LG switches the sound output along with it and checks the connected devices,
-                    // so its own page does the choosing.
-                    { id: "hearingAid", type: "lgApp", title: "row.hearing_aid", subtitle: "detail.hearing_aid",
-                      search: "search.hearing_aid",
-                      requires: function (ctx) { return ctx.has("sound.hearingAid"); },
+                    // Each value asks first: it switches the sound output along (SettingsData,
+                    // hearingAidAsk). Auracast is left out.
+                    { id: "hearingAid", type: "choice", key: "sound.hearingAid", title: "row.hearing_aid",
+                      subtitle: "detail.hearing_aid", search: "search.hearing_aid", note: "note.hearing_aid",
+                      requires: function (ctx) { return hearingValues(ctx).length > 1; },
                       value: function (ctx) { return ctx.label("sound.hearingAid", ctx.val("sound.hearingAid")); },
-                      app: { id: "com.palm.app.settings", params: { target: "MultiOutputItemPanel" } } },
+                      options: function (ctx) {
+                          var values = hearingValues(ctx);
+                          var current = ctx.val("sound.hearingAid");
+                          return values.map(function (value) {
+                              return { id: value, label: ctx.t("value.hearing_aid." + value),
+                                       detail: hearingDetails[value] ? ctx.t(hearingDetails[value]) : "",
+                                       selected: value === current,
+                                       action: "hearingAidAsk", params: { value: value } };
+                          });
+                      } },
                     { id: "signLanguageZoom", type: "toggle", key: "other.autoSLZoomWithObjectDetection",
                       title: "row.sign_language_zoom", subtitle: "detail.sign_language_zoom",
                       search: "search.sign_language", disabled: [invertOn] }
@@ -139,6 +171,15 @@ var area = {
         ]
     },
     pages: {
+        // Right after "Bluetooth-Gerät" was confirmed: the hearing aid pairs here.
+        hearingPair: {
+            id: "hearingPair",
+            title: "page.hearing_pair",
+            subtitle: "detail.hearing_pair",
+            session: "btAudioPair",
+            sections: [DeviceList.availableSection(hearingDevices)]
+        },
+
         audioGuidance: {
             id: "audioGuidance",
             title: "page.audio_guidance",

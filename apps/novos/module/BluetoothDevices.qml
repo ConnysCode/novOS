@@ -898,7 +898,8 @@ Item {
         store.state.btSurroundLevel = balancing.level;
         store.state.btSurroundBalance = balancing.balance;
         surroundConnected = firstSurroundConnected();
-        hearingDevice = surroundOpen && hearingAid() ? surroundConnected : "";
+        // The hearing aid's volume shows on Bluetooth und Fernsehlautsprecher and on Audioausgabe.
+        hearingDevice = (surroundOpen || audioOpen) && hearingAid() ? surroundConnected : "";
         store.state.btSurroundDevice = surroundConnected;
         store.state.btInputSearching = inputSearching;
         store.state.btInputReady = inputReady;
