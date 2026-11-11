@@ -323,7 +323,9 @@
     "value.switzerland": "Suisse",
     "value.timezone_berlin": "Heure d'Europe centrale (Berlin)",
     "value.wifi": "Wi-Fi",
-    "detail.bluetooth": "Bluetooth"
+    "detail.bluetooth": "Bluetooth",
+    "detail.speaker_one": "1 enceinte",
+    "detail.speakers": "{count} enceintes"
   },
   "picker": {
     "detail.no_signal": "Aucun signal – l'appareil est-il allumé ?",
@@ -526,7 +528,9 @@
     "speech.volume": "Volume",
     "speech.muted": "Muet",
     "notice.on_device": "Volume sur l'appareil",
-    "speech.on_device": "Réglez le volume sur l'appareil"
+    "speech.on_device": "Réglez le volume sur l'appareil",
+    "label.wisa": "Enceintes WiSA",
+    "label.wowcast": "WOWCAST"
   },
   "profile": {
     "button.cancel": "Annuler",

@@ -30,12 +30,18 @@ Item {
     property var bluetoothFeatures: []
 
     function runs(name) {
-        return actions[name] === true || bluetooth.runs(name);
+        return actions[name] === true || bluetooth.runs(name) || speakers.runs(name);
     }
 
     // Bluetooth headphones, speakers and input devices (TON-B, QG-1), see BluetoothDevices.qml.
     BluetoothDevices {
         id: bluetooth
+        settings: tvData.settings
+    }
+
+    // WiSA speakers and WOWCAST devices (TON-E), see WirelessSpeakers.qml.
+    WirelessSpeakers {
+        id: speakers
         settings: tvData.settings
     }
 
@@ -61,6 +67,7 @@ Item {
         readUpdates();
         readLgUpdates();
         bluetooth.request();
+        speakers.request();
     }
 
     // The input of a page opened for one input, for example "hdmi2".
@@ -597,6 +604,8 @@ Item {
         var updateState = settings.store.state;
         if (bluetooth.runs(name)) {
             bluetooth.run(name, params, ctx);
+        } else if (speakers.runs(name)) {
+            speakers.run(name, params, ctx);
         } else if (name === "checkUpdates") {
             sendUpdate("check");
         } else if (name === "installUpdate") {
@@ -745,6 +754,8 @@ Item {
         }
         setList("inputs", items);
         setState("hasArc", response.arcDevice === true);
+        // LG's WOWCAST dongle at HDMI (ARC) shows in the same answer.
+        speakers.applyInputs(response);
     }
 
     // ---- Profiles (area "Profile", SettingsAreaProfile.js) -------------------------------

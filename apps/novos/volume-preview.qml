@@ -42,7 +42,11 @@ StarfishSystemUIWindow {
                         cause: "volumeUp" }, true]],
         // K3-Einst-Bluetooth-Audio-17 and -18: a Bluetooth device with and without AVRCP.
         bluetooth: [[0, bluetooth(34, true)], [300, bluetooth(35, true), true]],
-        bluetoothDevice: [[0, bluetooth(20, false), true]]
+        bluetoothDevice: [[0, bluetooth(20, false), true]],
+        // K3-Einst-WiSA-WOWCAST-21 and -22: WiSA speakers take the TV's volume, WOWCAST keeps its own.
+        wisa: [[0, { volume: 39, maximum: 100, output: "wisa_speaker" }],
+               [300, { volume: 40, maximum: 100, output: "wisa_speaker" }, true]],
+        wowcast: [[0, { volume: 0, maximum: 100, output: "wow_cast", exterior: true, cause: "volumeUp" }, true]]
     })
     property int step: 0
 

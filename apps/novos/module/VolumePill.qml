@@ -28,8 +28,10 @@ Item {
     // With AVRCP it takes the TV's volume (K3-Einst-Bluetooth-Audio-17), without it keeps its
     // own and the pill says so (-18).
     property var bluetooth: null
-    readonly property bool onDevice: look === "notice" && !!bluetooth && bluetooth.avrcp === false &&
-                                     /^(bt_soundbar|tv_speaker_bluetooth)$/.test(output)
+    // WOWCAST always keeps its own (K3-Einst-WiSA-WOWCAST-22).
+    readonly property bool onDevice: look === "notice" && ((!!bluetooth && bluetooth.avrcp === false &&
+                                     /^(bt_soundbar|tv_speaker_bluetooth)$/.test(output)) ||
+                                     (exterior && output === "wow_cast"))
 
     // "hidden", "level", "muted" (volume key while muted), "notice" (short pill) or "chip".
     property string look: "hidden"
@@ -72,7 +74,10 @@ Item {
         if (/^(headphone|bt_soundbar|tv_speaker_bluetooth|tv_speaker_bt_surround)$/.test(name))
             return { icon: "volume-headphones-30",
                      label: I18n.t("volume", name === "headphone" ? "label.headphones" : "label.bluetooth") };
-        if (/^(external_arc|external_arc_sound_mode_sync|tv_speaker_external_arc_harmony|bt_atmos|wisa_speaker|flex_connector|wow_cast|tv_speaker_wow_cast)$/.test(name))
+        // WiSA speakers and WOWCAST by their own names (K3-Einst-WiSA-WOWCAST-21, -22).
+        if (name === "wisa_speaker") return { icon: "volume-speaker-30", label: I18n.t("volume", "label.wisa") };
+        if (name === "wow_cast") return { icon: "volume-soundbar-30", label: I18n.t("volume", "label.wowcast") };
+        if (/^(external_arc|external_arc_sound_mode_sync|tv_speaker_external_arc_harmony|bt_atmos|flex_connector|tv_speaker_wow_cast)$/.test(name))
             return { icon: "volume-soundbar-30", label: I18n.t("volume", "label.soundbar") };
         if (/^(external_optical|lineout|urcu_oss)$/.test(name))
             return { icon: "volume-soundbar-30", label: I18n.t("volume", "label.audio_out") };
@@ -111,6 +116,9 @@ Item {
             present("muted");
         } else if (device && bluetooth && bluetooth.avrcp === false && /^(bt_soundbar|tv_speaker_bluetooth)$/.test(output)) {
             // The device keeps its own volume: its name and where to set it.
+            notice(device.icon, device.label, I18n.t("volume", "notice.on_device"));
+        } else if (exterior && output === "wow_cast") {
+            // WOWCAST keeps its own volume: its name and where to set it (-22).
             notice(device.icon, device.label, I18n.t("volume", "notice.on_device"));
         } else if (exterior) {
             // The device keeps its value: name it and the direction of the key.

@@ -255,6 +255,15 @@ ICONS = [
     ("notice-speaker", 34, 1.5, BT_SPEAKER, LIGHT_ONLY),
     ("notice-bluetooth", 34, 1.5, BLUETOOTH, LIGHT_ONLY),
     ("volume-speaker-30", 30, 1.7, BT_SPEAKER, LIGHT_ONLY),
+    # Bluetooth und Fernsehlautsprecher, WiSA and WOWCAST (K3-Einst-BT-und-TV, -WiSA-WOWCAST): the
+    # head block, the head of a device dialog and the empty hints, the setup with the remote's
+    # microphone, the test tone of a speaker.
+    ("speaker-26", 26, 1.7, BT_SPEAKER, LIGHT_ONLY),
+    ("speaker-32", 32, 1.6, BT_SPEAKER, LIGHT_ONLY),
+    ("soundbar-32", 32, 1.6, SOUNDBAR, LIGHT_ONLY),
+    ("row-microphone", 30, 1.7, '<rect x="9" y="3.5" width="6" height="11" rx="3"/>' +
+     path("M5.5 11a6.5 6.5 0 0 0 13 0") + path("M12 17.5v3"), BOTH),
+    ("row-test-tone", 30, 1.7, SPEAKER + WAVE_NEAR + WAVE_FAR, BOTH),
     # The preview pill of the shutdown videos.
     ("play-18", 18, 1.8, PLAY, LIGHT_ONLY),
     # Novelties in "Neu in novOS" (K3-Neu-*), 28 px in a 56 px circle; -dark on the focus.

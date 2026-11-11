@@ -27,9 +27,10 @@ StarfishSystemUIWindow {
                 rootWindow.opened = false;
                 rootWindow.exit();
             } else if (rootWindow.opened && payload && payload.params && String(payload.params.page || "").indexOf("settings") === 0) {
-                // A long press of the gear key, or LG's settings app handing over: open the modal.
-                var wanted = String(payload.params.page).split(":");
-                panel.openSettings(wanted[1] || "picture", wanted[2] || "");
+                // A long press of the gear key, or LG's settings app handing over: open the modal,
+                // on a page and with "arrive" when the launch names them (see settingsOpenTimer).
+                var parts = String(payload.params.page).split(":");
+                panel.openSettings(parts[1] || "picture", parts[2] || "", parts[3] === "arrive");
             } else if (rootWindow.opened) {
                 panel.close();
             } else {
@@ -237,7 +238,7 @@ StarfishSystemUIWindow {
         }
         property bool hasArcDevice: false
         readonly property var soundRows: buildSoundRows(soundModes, soundMode, soundOutput, hasArcDevice,
-                                                        bluetoothAudio.connected)
+                                                        bluetoothAudio.connected, wisaSpeakers.count)
         property int connectedInputs: -1
         property string networkState: ""        // wifi, wired or none
         property bool hasInternet: false
@@ -385,8 +386,10 @@ StarfishSystemUIWindow {
         // The TV lists every output it could drive, not what is plugged in. Only
         // outputs that certainly exist are offered, plus the current one. A connected
         // Bluetooth device stands with its name (K3-Einst-Bluetooth-Audio-16); one that is only
-        // paired is left to the settings, the page has no room for more rows.
-        function buildSoundRows(modes, current, output, hasArc, bluetooth) {
+        // paired is left to the settings, the page has no room for more rows. Bluetooth with the
+        // TV speaker names the speaker below (K3-Einst-BT-und-TV-13), WiSA the number of its
+        // speakers (K3-Einst-WiSA-WOWCAST-20).
+        function buildSoundRows(modes, current, output, hasArc, bluetooth, wisaCount) {
             var outputs = ["tv_speaker"];
             if (hasArc) outputs.push("external_arc");
             if (bluetooth) outputs.push("bt_soundbar");
@@ -396,12 +399,18 @@ StarfishSystemUIWindow {
             var y = 166;
             for (i = 0; i < outputs.length; i++) {
                 var device = outputs[i] === "bt_soundbar" && bluetooth;
+                var below = "";
+                if (device) below = I18n.t("panel", "detail.bluetooth");
+                else if (outputs[i] === "tv_speaker_bluetooth" && bluetooth) below = bluetooth.name;
+                else if (outputs[i] === "wisa_speaker" && wisaCount > 0)
+                    below = wisaCount === 1 ? I18n.t("panel", "detail.speaker_one")
+                                            : I18n.t("panel", "detail.speakers", { count: wisaCount });
                 var row = {
-                    key: "soundOutput", value: outputs[i], h: device ? 80 : 68, y: y,
+                    key: "soundOutput", value: outputs[i], h: below !== "" ? 80 : 68, y: y,
                     title: device ? bluetooth.name : settingsStore.label("sound.soundOutput", outputs[i]),
                     active: outputs[i] === output
                 };
-                if (device) row.sublabel = I18n.t("panel", "detail.bluetooth");
+                if (below !== "") row.sublabel = below;
                 result.push(row);
                 y += row.h + 4;
             }
@@ -1626,8 +1635,8 @@ StarfishSystemUIWindow {
         // The settings modal, opened on one of its areas.
         // The modal is built in the background (about 120 ms of work, which in one piece
         // stopped the picture) and opens once it stands. Keys wait for it meanwhile.
-        function openSettings(areaId, pageId) {
-            var wanted = { area: areaId || "picture", page: pageId || "" };
+        function openSettings(areaId, pageId, arrive) {
+            var wanted = { area: areaId || "picture", page: pageId || "", arrive: arrive === true };
             if (settingsLoader.status !== Loader.Ready) {
                 PerfProbe.mark("settings.request");
                 pendingSettings = wanted;
@@ -1640,14 +1649,14 @@ StarfishSystemUIWindow {
                 return;
             }
             var started = PerfProbe.now();
-            settingsLoader.item.open(wanted.area, wanted.page);
+            settingsLoader.item.open(wanted.area, wanted.page, wanted.arrive);
             PerfProbe.cost("settings.open", started);
         }
 
         function settingsBuilt() {
             var wanted = pendingSettings;
             pendingSettings = null;
-            if (wanted !== null && !closing) openSettings(wanted.area, wanted.page);
+            if (wanted !== null && !closing) openSettings(wanted.area, wanted.page, wanted.arrive);
         }
 
         function settingsHostAction(name, params) {
@@ -1908,6 +1917,12 @@ StarfishSystemUIWindow {
         BluetoothOutput {
             id: bluetoothAudio
             active: true
+        }
+
+        // The WiSA speakers, counted while WiSA is the output.
+        WisaOutput {
+            id: wisaSpeakers
+            active: panel.soundOutput === "wisa_speaker"
         }
 
         // LG's settings for the panel and the settings modal: one subscription, one way
@@ -3245,8 +3260,9 @@ StarfishSystemUIWindow {
             id: settingsOpenTimer
             property string area: "picture"
             property string page: ""
+            property bool arrive: false
             interval: 60
-            onTriggered: panel.openSettings(area, page)
+            onTriggered: panel.openSettings(area, page, arrive)
         }
 
         ParallelAnimation {
@@ -3263,8 +3279,11 @@ StarfishSystemUIWindow {
                 } else if (panel.launchPage.indexOf("settings") === 0) {
                     // "settings", "settings:<area>" or "settings:<area>:<page>": straight into
                     // the settings modal, for example from novOS' update notice.
+                    // "settings:<area>:<page>:arrive": back from an LG app, the page's arrive
+                    // puts the focus and shows its notice (Einrichten mit Messung, TON-D).
                     settingsOpenTimer.area = panel.launchPage.split(":")[1] || "picture";
                     settingsOpenTimer.page = panel.launchPage.split(":")[2] || "";
+                    settingsOpenTimer.arrive = panel.launchPage.split(":")[3] === "arrive";
                     settingsOpenTimer.restart();
                 } else if (panel.launchPage !== "") {
                     panel.openPage(panel.launchPage);

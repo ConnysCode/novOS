@@ -3,6 +3,8 @@
 // long press of the gear key) hands over to novOS's settings modal and closes. A launch
 // with a target, such as the deep links of the modal itself, stays in LG's app. A start
 // in the background (LG prerenders this app) does nothing until the app becomes visible.
+// novosPage: an LG app that returns here (appReturn, as LG's btsurroundautotuning does) asks
+// for a page of novOS's modal, "settings:<area>:<page>:arrive"; it is handed over as it is.
 (function () {
     var handing = false;
     function launchParams() {
@@ -15,7 +17,8 @@
     function handOver() {
         if (handing || document.hidden || typeof PalmServiceBridge === "undefined") return;
         var params = launchParams();
-        if (params.target || params.path || params.item || params.id || params.page) return;
+        var page = /^settings(:[A-Za-z]+){0,3}$/.test(String(params.novosPage || "")) ? params.novosPage : "";
+        if (!page && (params.target || params.path || params.item || params.id || params.page)) return;
         handing = true;
         try {
             var bridge = new PalmServiceBridge();
@@ -27,7 +30,7 @@
                 else handing = false;
             };
             bridge.call("luna://com.webos.service.systemUIManager/launch",
-                        JSON.stringify({ appId: "com.webos.app.quicksettings", params: { page: "settings" } }));
+                        JSON.stringify({ appId: "com.webos.app.quicksettings", params: { page: page || "settings" } }));
         } catch (error) {
             handing = false;
         }

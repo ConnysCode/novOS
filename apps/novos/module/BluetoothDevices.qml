@@ -5,14 +5,15 @@ import "SettingsEngine.js" as Engine
 import "DeviceList.js" as DeviceList
 
 // Bluetooth devices of the settings: headphones and speakers through LG's btaudiosrc (TON-B,
-// Ton › Audioausgabe) and gamepads, keyboards and mice through bthidmanager (QG-1, Quellen ›
-// Bluetooth-Geräte). Every call is the one LG's own settings app makes (main.js of
+// Ton › Audioausgabe), Bluetooth speakers together with the TV speaker (TON-D, Bluetooth und
+// Fernsehlautsprecher: btaudiosrc/surround) and gamepads, keyboards and mice through
+// bthidmanager (QG-1, Quellen › Bluetooth-Geräte). Every call is the one LG's own settings app makes (main.js of
 // com.palm.app.settings, webOS 10.3.2: SoundBluetooth and ConnectBluetooth); where it
 // differs it says why. The lists land in the settings store for the device list
-// (DeviceList.js): bluetooth, bluetoothFound, bluetoothInput, bluetoothInputFound.
+// (DeviceList.js): bluetooth, bluetoothFound, btSurround, bluetoothInput, bluetoothInputFound.
 //
 // The pages decide when it talks to the services: a page with session "btAudio", "btAudioPair",
-// "btAudioDevice", "btInput" or "btInputDevice" keeps its subscriptions while it is in the stack
+// "btAudioDevice", "btSurround", "btInput" or "btInputDevice" keeps its subscriptions while it is in the stack
 // of the modal (SettingsModal.sessions). Everything that changes something goes through act().
 Item {
     id: bt
@@ -33,10 +34,15 @@ Item {
     readonly property int menuDelay: 500           // LG waits as long after onDeviceSelectionMenu
     readonly property int volumeDelay: 120         // the volume goes out once the key rests
     readonly property int inputLimit: 4            // LG: "up to 4 input devices"
+    readonly property string surroundUri: "luna://com.webos.service.btaudiosrc/surround"
+    // Positions of a speaker beside the TV speaker, as btaudiosrc names them in "surround".
+    readonly property var positions: ["left", "right", "front", "rear"]
 
     readonly property var actionNames: ["btAudioConnect", "btAudioDisconnect", "btAudioRemove", "btAudioSearch",
                                         "btAudioUse", "btAudioVolume", "btInputConnect", "btInputDisconnect",
-                                        "btInputRemove", "btInputSearch", "btInputPick"]
+                                        "btInputRemove", "btInputSearch", "btInputPick", "btSurroundPosition",
+                                        "btSurroundLevel", "btSurroundBalance", "btSurroundReset",
+                                        "btSurroundHearing"]
 
     // What the services reported, before it becomes the store's lists.
     property var audioPaired: []        // getPairedDevices, only entries with display
@@ -52,6 +58,9 @@ Item {
     property var jobs: ({})
     property var failed: ({})           // address -> true until it is tried again
     property var lastAudioState: ({})   // address -> state, to see connecting end in disconnected
+    // surround/getVolumeBalancing: tvspeaker_bluetooth (0–10) and bluetooth_left_right (0–10, 5
+    // the middle); undefined until it answers. LG asks only while a device is connected.
+    property var balancing: ({})
 
     function has(name) {
         for (var i = 0; i < sessions.length; i++) {
@@ -71,6 +80,14 @@ Item {
     readonly property bool pairOpen: has("btAudioPair")
     readonly property string audioDevice: paramOf("btAudioDevice")
     readonly property bool inputOpen: has("btInput") || has("btInputDevice")
+    readonly property bool surroundOpen: has("btSurround")
+    // The first connected speaker of Bluetooth und Fernsehlautsprecher, and with a hearing aid
+    // over Bluetooth (BF-1) the one whose device volume the page sets (LG's jte()). Set by
+    // publish(): the store's values are no QML properties.
+    property string surroundConnected: ""
+    property string hearingDevice: ""
+    readonly property string volumeDevice: audioDevice !== "" ? audioDevice : hearingDevice
+    onSurroundOpenChanged: publish()
     property bool audioListening: false     // the subscriptions run, 500 ms after the menu flag
     property bool audioDiscovering: false   // the startDiscovery subscription runs
 
@@ -139,6 +156,7 @@ Item {
         else if (method === "/getDeviceStatus") applyAudioStatus(response);
         else if (method === "/startDiscovery") applyAudioDiscovery(response);
         else if (method === "/getDeviceVolume") applyVolume(response);
+        else if (method === "/getVolumeBalancing") applyBalancing(response);
         else if (method === "/getPairedDeviceLists") applyInputPaired(response);
         else if (method === "/subscribeDevicesStatus") applyInputStatus(response);
         else if (method === "/subscribeDiscovery") applyInputDiscovery(response);
@@ -245,11 +263,32 @@ Item {
     }
 
     Instantiator {
-        active: bt.audioDevice !== "" && !bt.demo && bt.avrcpConnected(bt.audioDevice)
+        active: bt.volumeDevice !== "" && !bt.demo && bt.avrcpConnected(bt.volumeDevice)
         delegate: Service {
             appId: "com.webos.app.quicksettings"
             Component.onCompleted: call(bt.audioUri, "/getDeviceVolume",
-                                        JSON.stringify({ subscribe: true, address: bt.audioDevice }))
+                                        JSON.stringify({ subscribe: true, address: bt.volumeDevice }))
+            onResponse: bt.answer(method, JSON.parse(payload))
+        }
+    }
+
+    // Bluetooth und Fernsehlautsprecher, as LG's BluetoothSurround reads it: the paired devices as
+    // a subscription and, while one is connected, surround/getVolumeBalancing {subscribe:true}.
+    // The page changes nothing by opening; onDeviceSelectionMenu belongs to the device lists.
+    Instantiator {
+        active: bt.surroundOpen && !bt.audioListening && !bt.demo
+        delegate: Service {
+            appId: "com.webos.app.quicksettings"
+            Component.onCompleted: call(bt.audioUri, "/getPairedDevices", JSON.stringify({ subscribe: true }))
+            onResponse: bt.answer(method, JSON.parse(payload))
+        }
+    }
+
+    Instantiator {
+        active: bt.surroundOpen && !bt.demo && bt.surroundConnected !== ""
+        delegate: Service {
+            appId: "com.webos.app.quicksettings"
+            Component.onCompleted: call(bt.surroundUri, "/getVolumeBalancing", JSON.stringify({ subscribe: true }))
             onResponse: bt.answer(method, JSON.parse(payload))
         }
     }
@@ -289,8 +328,11 @@ Item {
                 else if (job.job === "disconnect" && device.state === "disconnected") disconnected(address, device.name);
             }
             lastAudioState[address] = device.state;
+            // surround: the position a speaker holds beside the TV speaker ("left", "right",
+            // "front", "rear"), set by LG's setup app or setChannel.
             list.push({ address: address, name: device.name || address, state: device.state || "disconnected",
-                        surround: device.surround === true, avrcpSupported: device.avrcpSupported === true,
+                        position: positions.indexOf(device.surround) >= 0 ? device.surround : "",
+                        avrcpSupported: device.avrcpSupported === true,
                         avrcpConnected: device.avrcpConnected === true, atmos: !!device.ATMOSDevice,
                         kind: audioKind(device) });
         }
@@ -392,6 +434,104 @@ Item {
     function avrcpConnected(address) {
         var device = pairedAudio(address);
         return !!device && device.avrcpConnected;
+    }
+
+    // An answer with errorCode (1012 "There is no connected device") changes nothing, as LG.
+    function applyBalancing(response) {
+        if (!response || response.errorCode !== undefined || response.returnValue === false) return;
+        var next = copy(balancing, {});
+        if (response.tvspeaker_bluetooth !== undefined) next.level = Number(response.tvspeaker_bluetooth);
+        if (response.bluetooth_left_right !== undefined) next.balance = Number(response.bluetooth_left_right);
+        balancing = next;
+        publish();
+    }
+
+    // ---- Bluetooth und Fernsehlautsprecher (TON-D) -------------------------------------------
+
+    function hearingAid() {
+        var sound = settings && settings.store.values.sound ? settings.store.values.sound : {};
+        return sound.hearingAid === "bluetooth";
+    }
+
+    function bluetoothTv() {
+        var sound = settings && settings.store.values.sound ? settings.store.values.sound : {};
+        return sound.soundOutput === "tv_speaker_bluetooth";
+    }
+
+    // The speakers of the page: those that hold a position, and while Bluetooth plays with the
+    // TV speaker every connected one that is no headphones. LG lists every paired device there;
+    // headphones of the device list would read wrong under "Lautsprecher".
+    function surroundSpeakers() {
+        var both = bluetoothTv();
+        return audioPaired.filter(function (device) {
+            return device.position !== "" || (both && device.state === "connected" && device.kind !== "headphones");
+        });
+    }
+
+    function firstSurroundConnected() {
+        var speakers = surroundSpeakers();
+        for (var i = 0; i < speakers.length; i++) {
+            if (speakers[i].state === "connected") return speakers[i].address;
+        }
+        return "";
+    }
+
+    // The values LG offers for a speaker: left and right, or front and rear (LG's tne()).
+    function positionPair(position) {
+        return position === "front" || position === "rear" ? ["front", "rear"] : ["left", "right"];
+    }
+
+    function holderOf(position, except) {
+        var speakers = surroundSpeakers();
+        for (var i = 0; i < speakers.length; i++) {
+            if (speakers[i].address !== except && speakers[i].position === position) return speakers[i];
+        }
+        return null;
+    }
+
+    // setChannel {address, from, to}, as LG's nne(). A position another speaker holds asks first
+    // (K3-Einst-BT-und-TV-06); LG asks for the swap of left and right.
+    function setPosition(params) {
+        var entry = pairedAudio(params.id);
+        if (!entry || params.to === entry.position) return;
+        var holder = holderOf(params.to, entry.address);
+        if (holder && params.confirmed !== true) {
+            var name = t("sound", "value.position." + params.to);
+            settings.hostAction("confirm", { action: "btSurroundPosition", danger: false,
+                                             params: { id: params.id, to: params.to, confirmed: true },
+                                             icon: "alert-44",
+                                             title: t("sound", "confirm.position_title", { position: name }),
+                                             text: t("sound", "confirm.position_text", { name: holder.name }),
+                                             confirm: t("sound", "confirm.position_button") });
+            return;
+        }
+        act(audioUri, "/setChannel", { address: entry.address, from: entry.position, to: params.to });
+        // Shown at once; getPairedDevices brings the positions LG keeps.
+        audioPaired = audioPaired.map(function (device) {
+            if (device.address === entry.address) return copy(device, { position: params.to });
+            if (holder && device.address === holder.address) return copy(device, { position: entry.position });
+            return device;
+        });
+        publish();
+    }
+
+    // setVolumeBalancing once the key rests, as the volume of a device.
+    Timer {
+        id: balancingTimer
+        property var request: ({})
+        interval: bt.volumeDelay
+        onTriggered: bt.act(bt.surroundUri, "/setVolumeBalancing", request)
+    }
+
+    function setBalancing(name, field, value) {
+        var next = copy(balancing, {});
+        next[name] = Math.max(0, Math.min(10, Number(value)));
+        balancing = next;
+        var request = {};
+        request[field] = next[name];
+        balancingTimer.request = request;
+        balancingTimer.restart();
+        publish();
     }
 
     function applyVolume(response) {
@@ -637,6 +777,17 @@ Item {
             publish();
             leaveDevice();
             notice(t("sources", "device.toast_removed", { name: entry.name }), "", entry.kind);
+        } else if (name === "btSurroundPosition") {
+            setPosition(params);
+        } else if (name === "btSurroundLevel") {
+            setBalancing("level", "tvspeaker_bluetooth", params.value);
+        } else if (name === "btSurroundBalance") {
+            setBalancing("balance", "bluetooth_left_right", params.value);
+        } else if (name === "btSurroundHearing") {
+            if (hearingDevice !== "") run("btAudioVolume", { id: hearingDevice, value: params.value }, ctx);
+        } else if (name === "btSurroundReset") {
+            // LG's "Einstellungen zurücksetzen": surround/notifyEvent {event:"resetSetup"}.
+            act(surroundUri, "/notifyEvent", { event: "resetSetup" });
         } else if (name === "btInputPick") {
             // "Ein Gerät trennen": the focus goes to the first connected device.
             for (var i = 0; i < inputPaired.length; i++) {
@@ -654,7 +805,8 @@ Item {
 
     // The page of a device that is gone: one level up.
     function leaveDevice() {
-        if (settings && settings.page && (settings.page.id === "bluetoothDevice" || settings.page.id === "bluetoothInputDevice"))
+        if (settings && settings.dialogOpen) settings.closeDialog();
+        else if (settings && settings.page && (settings.page.id === "bluetoothDevice" || settings.page.id === "bluetoothInputDevice"))
             settings.back();
     }
 
@@ -714,7 +866,15 @@ Item {
             return { id: device.address, title: device.name, kind: device.kind, atmos: device.atmos,
                      state: shownState(device.address, device.state, "audio"),
                      avrcpSupported: device.avrcpSupported, avrcpConnected: device.avrcpConnected,
-                     surround: device.surround, output: output === "bt_soundbar" && device.state === "connected" };
+                     position: device.position, output: output === "bt_soundbar" && device.state === "connected" };
+        });
+        // Bluetooth und Fernsehlautsprecher: the speakers with their position and the values LG
+        // offers for it.
+        store.lists.btSurround = surroundSpeakers().map(function (device) {
+            return { id: device.address, title: device.name, kind: "speaker", position: device.position,
+                     positions: positionPair(device.position),
+                     state: shownState(device.address, device.state, "audio"),
+                     avrcpSupported: device.avrcpSupported, avrcpConnected: device.avrcpConnected };
         });
         store.lists.bluetoothFound = audioFound.map(function (device) {
             return { id: device.address, title: device.name, kind: device.kind,
@@ -735,6 +895,11 @@ Item {
         store.state.btAudioSearching = audioSearching;
         store.state.btAudioReady = audioReady;
         store.state.btAudioVolume = volumes;
+        store.state.btSurroundLevel = balancing.level;
+        store.state.btSurroundBalance = balancing.balance;
+        surroundConnected = firstSurroundConnected();
+        hearingDevice = surroundOpen && hearingAid() ? surroundConnected : "";
+        store.state.btSurroundDevice = surroundConnected;
         store.state.btInputSearching = inputSearching;
         store.state.btInputReady = inputReady;
         store.state.btInputCounts = counts;
@@ -747,7 +912,7 @@ Item {
 
     function demoAudio(name, kind, state, extra) {
         var device = { address: "demo-" + name.replace(/[^A-Za-z0-9]/g, ""), name: name, kind: kind, state: state,
-                       avrcpSupported: true, avrcpConnected: state === "connected", atmos: false, surround: false };
+                       avrcpSupported: true, avrcpConnected: state === "connected", atmos: false, position: "" };
         return copy(device, extra || {});
     }
 
@@ -776,11 +941,42 @@ Item {
                                           demoInput("Apple Magic Keyboard", "keyboard", false)];
         // Bluetooth is the output (K3-Einst-Bluetooth-Audio-02) or Bluetooth with the TV
         // speaker (-15): shown here only, nothing is written.
-        if (scene === "output" || scene === "btTv") {
-            if (!settings.store.values.sound) settings.store.values.sound = {};
-            settings.store.values.sound.soundOutput = scene === "output" ? "bt_soundbar" : "tv_speaker_bluetooth";
-        }
+        if (scene === "output" || scene === "btTv") demoSound({ soundOutput: scene === "output" ? "bt_soundbar"
+                                                                                             : "tv_speaker_bluetooth" });
+        if (scene.indexOf("surround") === 0) demoSurround(scene);
         publish();
+    }
+
+    // Values the demo shows, nothing is written. Again later, in case LG's answers came after.
+    function demoSound(values) {
+        var apply = function () {
+            if (!settings.store.values.sound) settings.store.values.sound = {};
+            for (var key in values) settings.store.values.sound[key] = values[key];
+            bt.publish();
+        };
+        apply();
+        demoLater(1500, apply);
+        demoLater(4000, apply);
+    }
+
+    // TON-D (K3-Einst-BT-und-TV): surroundOne, surroundTwo, surroundEmpty, surroundHearing,
+    // surroundSecondOff (the second speaker not connected), surroundOff (output not Bluetooth
+    // with the TV speaker: position greyed out).
+    function demoSurround(scene) {
+        var first = demoAudio("LG XBOOM Go XG8T", "speaker", "connected", { position: "left" });
+        // The balance needs two speakers of the same model (LG's wte()).
+        var second = demoAudio("LG XBOOM Go XG8T (2)", "speaker", scene === "surroundSecondOff" ? "disconnected" : "connected",
+                               { position: "right" });
+        // The headphones of the other boards stay paired, not connected.
+        audioPaired = audioPaired.map(function (device) { return copy(device, { state: "disconnected", avrcpConnected: false }); });
+        if (scene === "surroundEmpty") audioPaired = audioPaired.filter(function (device) { return device.kind === "headphones"; });
+        else if (scene === "surroundTwo" || scene === "surroundSecondOff") audioPaired = audioPaired.concat([first, second]);
+        else audioPaired = audioPaired.concat([first]);
+        balancing = scene === "surroundEmpty" ? {} : { level: 6, balance: 4 };
+        volumes = copy(volumes, { "demo-LGXBOOMGoXG8T": 40 });
+        demoSound({ soundOutput: scene === "surroundOff" ? "tv_speaker" : "tv_speaker_bluetooth",
+                    hearingAid: scene === "surroundHearing" ? "bluetooth" : "off", avSyncBtSurround: "20",
+                    bluetoothMode: "surroundMode" });
     }
 
     property var demoQueue: []

@@ -323,7 +323,9 @@
     "value.switzerland": "Switzerland",
     "value.timezone_berlin": "Central European Time (Berlin)",
     "value.wifi": "Wi-Fi",
-    "detail.bluetooth": "Bluetooth"
+    "detail.bluetooth": "Bluetooth",
+    "detail.speaker_one": "1 speaker",
+    "detail.speakers": "{count} speakers"
   },
   "picker": {
     "detail.no_signal": "No signal – is the device on?",
@@ -526,7 +528,9 @@
     "speech.volume": "Volume",
     "speech.muted": "Mute",
     "notice.on_device": "Volume on the device",
-    "speech.on_device": "Set the volume on the device"
+    "speech.on_device": "Set the volume on the device",
+    "label.wisa": "WiSA speakers",
+    "label.wowcast": "WOWCAST"
   },
   "profile": {
     "button.cancel": "Cancel",

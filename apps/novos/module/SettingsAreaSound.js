@@ -67,6 +67,121 @@ var audioDevices = {
     note: function (ctx, entry) { return entry.output ? ctx.t("detail.current_output") : ""; }
 };
 
+// ---- Bluetooth und Fernsehlautsprecher (TON-D, K3-Einst-BT-und-TV) ----
+// The speakers come from BluetoothDevices.qml (list btSurround, with position and positions);
+// connect, disconnect and remove are the ones of TON-B. Setting up with a measurement stays
+// LG's app btsurroundautotuning, which comes back here through its appReturn.
+var surroundDevices = {
+    source: "btSurround", connect: "btAudioConnect", disconnect: "btAudioDisconnect", remove: "btAudioRemove",
+    disconnectText: "confirm.disconnect_audio_text", footer: true
+};
+
+function surroundItem(ctx) {
+    return DeviceList.item(ctx, "btSurround", ctx.param);
+}
+
+function surroundConnected(ctx) {
+    return ctx.list("btSurround").filter(function (entry) { return entry.state === "connected"; });
+}
+
+function hasSurroundSpeaker(ctx) {
+    return surroundConnected(ctx).length > 0;
+}
+
+function hearingAidBluetooth(ctx) {
+    return ctx.val("sound.hearingAid") === "bluetooth";
+}
+
+// LG's wte(): the balance shows with two speakers of the same model, the first connected one
+// with AVRCP; it works once the first two connected ones both have AVRCP connected.
+function baseName(name) {
+    var text = String(name || "");
+    return (text.indexOf("(") >= 0 ? text.split("(")[0] : text.split("_")[0]).trim();
+}
+
+function balanceShown(ctx) {
+    var connected = surroundConnected(ctx);
+    if (connected.length === 0 || !connected[0].avrcpSupported) return false;
+    var name = baseName(connected[0].title);
+    return ctx.list("btSurround").filter(function (entry) {
+        return entry.avrcpSupported && baseName(entry.title) === name;
+    }).length > 1;
+}
+
+function balanceWorks(ctx) {
+    var connected = surroundConnected(ctx);
+    return connected.length > 1 && connected[0].avrcpConnected && connected[1].avrcpConnected;
+}
+
+function positionText(ctx, position) {
+    return position ? ctx.t("value.position." + position) : "";
+}
+
+var surroundLocked = [{ when: function (ctx) { return !hasSurroundSpeaker(ctx); }, reason: "reason.connect_speaker_first" }];
+
+// ---- WiSA and WOWCAST (TON-E, K3-Einst-WiSA-WOWCAST) ----
+// The host is WirelessSpeakers.qml: wisa/*, pdm for the dongle, wowplay/*, wifi for WOWCAST.
+var wisaPositions = ["left", "right", "center", "subwoofer", "surround_left", "surround_right"];
+
+function wisaItem(ctx) {
+    return DeviceList.item(ctx, "wisa", ctx.param);
+}
+
+function wisaSearching(ctx) {
+    return ctx.state.wisaSearching === true;
+}
+
+function wisaTesting(ctx) {
+    return !!ctx.state.wisaTesting;
+}
+
+function wisaMissing(ctx) {
+    var item = wisaItem(ctx);
+    return !item || item.missing === true;
+}
+
+// LG greys out a speaker's rows while it is missing or being removed; volume also while a
+// test tone plays.
+var wisaLocked = [{ when: wisaMissing, reason: "reason.unreachable" },
+                  { when: function (ctx) { var item = wisaItem(ctx); return !!item && item.removing; },
+                    reason: "reason.not_available_now" }];
+
+function wisaSection(position) {
+    return {
+        title: function (ctx) {
+            return ctx.t("section.wisa_position", { position: ctx.t("value.position." + position),
+                                                    count: ctx.list("wisa_" + position).length });
+        },
+        rows: [{ id: "wisa_" + position, type: "list", source: "wisa_" + position, page: "wisaSpeaker", dialog: true,
+                 decorate: function (ctx, entry) {
+                     return { title: entry.title, icon: "speaker",
+                              subtitle: ctx.t(entry.missing ? "detail.unreachable" : "device.connected"),
+                              tone: entry.missing ? "warning" : "" };
+                 } }]
+    };
+}
+
+// WOWCAST: no Wi-Fi, a frequency it cannot use or LG's WOWCAST dongle at HDMI (ARC) replace the
+// list with a hint (LG's _7()).
+function wowBlock(ctx) {
+    if (ctx.state.wowDongle === true) return "dongle";
+    if (ctx.state.wowWifi === false) return "wifi";
+    if (ctx.state.wowWifi === true && ctx.state.wowFrequency === false) return "frequency";
+    return "";
+}
+
+var wowcastDevices = {
+    source: "wowcast", found: "wowcastFound", page: "wowcastDevice",
+    connect: "wowConnect", disconnect: "wowDisconnect", remove: "wowRemove", search: "wowSearch",
+    searching: "wowSearching", ready: "wowReady", footer: true, searchingHint: true,
+    emptyHint: { icon: "soundbar-32", title: "device.none_found", text: "detail.wowcast_empty" },
+    noneMore: "detail.wowcast_none_more",
+    unavailableHint: { icon: "soundbar-32", title: "detail.wowcast_unavailable", text: "device.unavailable_hint" },
+    when: function (ctx) { return wowBlock(ctx) === ""; },
+    // LG: connecting a registered device needs Wi-Fi.
+    locked: [{ when: function (ctx) { return ctx.state.wowWifi !== true; }, reason: "reason.needs_wifi" }]
+};
+
 function bluetoothItem(ctx) {
     return DeviceList.item(ctx, "bluetooth", ctx.param);
 }
@@ -92,7 +207,7 @@ var area = {
               "com.webos.service.wowplay.supportWowCast", "com.webos.service.arccontroller.supportEARC",
               "com.palm.app.settings.enableMagicSoundTuning"],
     // Read only for requires/disabled, no row of their own.
-    watch: ["sound.blegattSoundbar", "sound.auracast", "sound.userEqualizer"],
+    watch: ["sound.blegattSoundbar", "sound.auracast", "sound.userEqualizer", "sound.hearingAid"],
 
     page: {
         id: "sound",
@@ -213,16 +328,26 @@ var area = {
                       details: { dualConnection: "detail.dual_connection" },
                       disabled: [{ when: function (ctx) { return DeviceList.anyBusy(ctx, audioDevices); },
                                    reason: "reason.device_busy" }] },
-                    { id: "bluetoothAndTv", type: "lgApp", title: "row.bluetooth_and_tv",
-                      app: { id: "com.palm.app.settings", params: { target: "BluetoothSurround" } },
-                      requires: function (ctx) { return bluetoothFeature(ctx, "bluetoothPlusTvSpeaker"); } }
+                    // TON-D: novOS' own page; only the setup with a measurement is LG's.
+                    { id: "bluetoothAndTv", type: "page", page: "bluetoothAndTv", title: "row.bluetooth_and_tv",
+                      search: "search.bluetooth_and_tv",
+                      requires: function (ctx) { return bluetoothFeature(ctx, "bluetoothPlusTvSpeaker"); },
+                      subtitle: function (ctx) {
+                          return output(ctx) === "tv_speaker_bluetooth" ? ctx.t("value.on") : "";
+                      } }
                 ] },
                 { title: "section.more", rows: [
-                    { id: "wisa", type: "lgApp", title: "row.wisa",
-                      app: { id: "com.palm.app.settings", params: { target: "WiSASoundSync" } },
-                      requires: function (ctx) { return truthy(ctx.cfg("tv.model.supportWiSA")); } },
-                    { id: "wowcast", type: "lgApp", title: "row.wowcast",
-                      app: { id: "com.palm.app.settings", params: { target: "Wowcast" } },
+                    // TON-E: WiSA only with LG's WiSA dongle in a USB port.
+                    { id: "wisa", type: "page", page: "wisa", title: "row.wisa", search: "search.wisa",
+                      requires: function (ctx) { return truthy(ctx.cfg("tv.model.supportWiSA")); },
+                      subtitle: function (ctx) {
+                          var count = ctx.list("wisa").length;
+                          return count > 0 ? ctx.t(count === 1 ? "detail.speaker_one" : "detail.speakers",
+                                                   { count: count }) : "";
+                      },
+                      disabled: [{ when: function (ctx) { return ctx.state.wisaDongle !== true; },
+                                   reason: "reason.no_wisa_dongle" }] },
+                    { id: "wowcast", type: "page", page: "wowcast", title: "row.wowcast", search: "search.wowcast",
                       requires: hasWowCast },
                     { id: "auracast", type: "lgApp", title: "row.auracast",
                       app: { id: "com.webos.app.leaudio", params: {} },
@@ -278,6 +403,226 @@ var area = {
             ]
         },
 
+        // Bluetooth und Fernsehlautsprecher (K3-Einst-BT-und-TV-01 … 12). Back from LG's setup
+        // app the modal opens here with the focus on "Einrichten mit Messung" and a notice.
+        bluetoothAndTv: {
+            id: "bluetoothAndTv",
+            title: "row.bluetooth_and_tv",
+            session: "btSurround",
+            arrive: { focus: "setup", notice: "toast.setup_done", icon: "notice-speaker" },
+            sections: [
+                DeviceList.headSection(function (ctx) { return { icon: "speaker-26", text: ctx.t("block.bt_tv") }; }),
+                { rows: [
+                    // descOptional: LG's own page shows it whether or not the service describes it.
+                    { id: "playback", type: "choice", key: "sound.bluetoothMode", title: "row.playback_option",
+                      search: "search.playback_option", values: ["surroundMode", "speakerMode"], descOptional: true,
+                      details: { surroundMode: "detail.surround_mode", speakerMode: "detail.speaker_mode" },
+                      disabled: surroundLocked.concat([{ when: hearingAidBluetooth, reason: "reason.not_with_hearing_aid" }]) }
+                ] },
+                { title: function (ctx) { return ctx.t("section.speakers", { count: ctx.list("btSurround").length }); },
+                  rows: [
+                    { id: "speakers", type: "list", source: "btSurround", page: "btSurroundDevice", dialog: true,
+                      decorate: function (ctx, entry) {
+                          var row = DeviceList.pairedRow(ctx, entry);
+                          row.value = positionText(ctx, entry.position);
+                          return row;
+                      } },
+                    { id: "noSpeakers", type: "info", title: "detail.no_speakers", focusable: false,
+                      requires: function (ctx) { return ctx.list("btSurround").length === 0; } }
+                ] },
+                { title: "section.adjust", rows: [
+                    { id: "surroundDelay", type: "slider", key: "sound.avSyncBtSurround", title: "row.sound_delay",
+                      min: 0, max: 60, descOptional: true,
+                      requires: function (ctx) { return hasSurroundSpeaker(ctx) && !hearingAidBluetooth(ctx); } },
+                    // surround/setVolumeBalancing, no descriptor: the value LG reads back.
+                    { id: "surroundLevel", type: "slider", title: "row.bt_speaker_volume", min: 0, max: 10,
+                      action: "btSurroundLevel",
+                      read: function (ctx) { return ctx.state.btSurroundLevel; },
+                      requires: function (ctx) { return hasSurroundSpeaker(ctx) && !hearingAidBluetooth(ctx); } },
+                    { id: "surroundBalance", type: "slider", title: "row.balance", min: 0, max: 10, center: 5,
+                      format: "balance", ends: ["value.left_short", "value.right_short"], action: "btSurroundBalance",
+                      read: function (ctx) {
+                          return ctx.state.btSurroundBalance === undefined ? 5 : ctx.state.btSurroundBalance;
+                      },
+                      requires: balanceShown,
+                      disabled: [{ when: function (ctx) { return !balanceWorks(ctx); }, reason: "reason.connect_both" }] },
+                    // Hearing aid over Bluetooth (BF-1): the device volume of the first speaker.
+                    { id: "hearingVolume", type: "slider", title: "row.hearing_aid_volume", min: 0, max: 100,
+                      action: "btSurroundHearing",
+                      read: function (ctx) { return (ctx.state.btAudioVolume || {})[ctx.state.btSurroundDevice]; },
+                      requires: function (ctx) {
+                          var connected = surroundConnected(ctx);
+                          return hearingAidBluetooth(ctx) && connected.length > 0 && connected[0].avrcpSupported;
+                      },
+                      disabled: [{ when: function (ctx) { return !surroundConnected(ctx)[0].avrcpConnected; },
+                                   reason: "reason.volume_on_device" }] }
+                ] },
+                { title: "section.setup", rows: [
+                    // LG's app; its appReturn goes to LG's settings app, which hands over to this
+                    // page (settings-redirect.inc, novosPage). With a speaker connected it asks
+                    // first, as LG does: setting up again ends the connections.
+                    { id: "setup", type: "lgApp", title: "row.setup_measure", subtitle: "detail.setup_measure",
+                      icon: "microphone", search: "search.setup_measure",
+                      app: { id: "com.webos.app.btsurroundautotuning",
+                             params: { appReturn: { appId: "com.palm.app.settings",
+                                                    params: { novosPage: "settings:sound:bluetoothAndTv:arrive" } } } },
+                      confirm: { when: hasSurroundSpeaker, title: "confirm.setup_title", text: "confirm.setup_text",
+                                 confirm: "confirm.setup_button" } },
+                    { id: "surroundReset", type: "action", action: "btSurroundReset", title: "row.reset",
+                      disabled: surroundLocked,
+                      confirm: { title: "confirm.reset_bt_tv_title", text: "confirm.reset_bt_tv_text",
+                                 confirm: "confirm.reset_button", danger: true } }
+                ] }
+            ]
+        },
+
+        // A speaker of Bluetooth und Fernsehlautsprecher as a dialog (K3-Einst-BT-und-TV-05 … 07).
+        btSurroundDevice: {
+            id: "btSurroundDevice",
+            dialog: true,
+            icon: "speaker",
+            title: function (ctx) { var item = surroundItem(ctx); return item ? item.title : ""; },
+            subtitle: function (ctx) { return DeviceList.stateText(ctx, surroundItem(ctx)); },
+            busy: function (ctx) { return DeviceList.isBusy(surroundItem(ctx)); },
+            sections: [
+                { rows: [
+                    // LG: only for a connected speaker, changeable with Bluetooth and the TV speaker
+                    // as output. Two values: OK takes the other one.
+                    { id: "position", type: "choice", title: "row.position", cycle: true,
+                      requires: function (ctx) { var item = surroundItem(ctx); return !!item && item.state === "connected"; },
+                      options: function (ctx) {
+                          var item = surroundItem(ctx);
+                          if (!item) return [];
+                          return item.positions.map(function (position) {
+                              return { id: position, label: positionText(ctx, position), selected: position === item.position,
+                                       action: "btSurroundPosition", params: { id: item.id, to: position } };
+                          });
+                      },
+                      disabled: [{ when: function (ctx) { return output(ctx) !== "tv_speaker_bluetooth"; },
+                                   reason: "reason.bt_tv_output_only" },
+                                 { when: function (ctx) { return DeviceList.isBusy(surroundItem(ctx)); },
+                                   reason: "reason.not_available_now" }] }
+                ].concat(DeviceList.deviceRows(surroundDevices)) }
+            ]
+        },
+
+        // WiSA speakers by position (K3-Einst-WiSA-WOWCAST-03 … 06).
+        wisa: {
+            id: "wisa",
+            title: "row.wisa",
+            session: "wisa",
+            sections: [
+                { rows: [
+                    { id: "channelType", type: "choice", key: "sound.wisaSpeakerChannelType", title: "row.channel_type",
+                      search: "search.channel_type", values: ["2", "2.1"], descOptional: true,
+                      details: { "2.1": "detail.with_subwoofer" },
+                      disabled: [{ when: wisaSearching, reason: "reason.not_while_searching" }] }
+                ] }
+            ].concat(wisaPositions.map(wisaSection)).concat([
+                { rows: [
+                    { id: "wisaHint", type: "hint",
+                      requires: function (ctx) {
+                          return ctx.state.wisaReady === false || (ctx.list("wisa").length === 0 && !wisaSearching(ctx));
+                      },
+                      hint: function (ctx) {
+                          if (ctx.state.wisaReady === false) {
+                              return { icon: "speaker-32", title: ctx.t("detail.wisa_unavailable"),
+                                       text: ctx.t("device.unavailable_hint") };
+                          }
+                          return { icon: "speaker-32", title: ctx.t("detail.wisa_none"), text: ctx.t("detail.wisa_none_hint") };
+                      } },
+                    DeviceList.searchRow({ search: "wisaSearch", searching: "wisaSearching", ready: "wisaReady", source: "wisa" })
+                ] }
+            ])
+        },
+
+        // One WiSA speaker (K3-Einst-WiSA-WOWCAST-07 … 11): position beside its row, volume
+        // from -5 to 10 around 0, a test tone, and "Entfernen".
+        wisaSpeaker: {
+            id: "wisaSpeaker",
+            dialog: true,
+            // Closing the dialog stops a test tone that still plays.
+            session: "wisaSpeaker",
+            icon: "speaker",
+            title: function (ctx) { var item = wisaItem(ctx); return item ? item.title : ""; },
+            subtitle: function (ctx) {
+                var item = wisaItem(ctx);
+                return item ? ctx.t(item.missing ? "detail.unreachable" : "device.connected") : "";
+            },
+            sections: [
+                { rows: [
+                    { id: "position", type: "choice", title: "row.position",
+                      options: function (ctx) {
+                          var item = wisaItem(ctx);
+                          if (!item) return [];
+                          var taken = ctx.state.wisaTaken || {};
+                          return wisaPositions.map(function (position) {
+                              var holder = taken[position];
+                              return { id: position, label: positionText(ctx, position), selected: position === item.position,
+                                       detail: holder && holder !== item.id ? ctx.t("detail.taken") : "",
+                                       action: "wisaPosition", params: { id: item.id, to: position } };
+                          });
+                      },
+                      disabled: wisaLocked.concat([{ when: wisaTesting, reason: "reason.test_tone_running" }]) },
+                    { id: "wisaVolume", type: "slider", title: "row.volume", min: -5, max: 10, center: 0,
+                      format: "signed", ends: ["value.minus", "value.plus"], action: "wisaVolume",
+                      read: function (ctx) { var item = wisaItem(ctx); return item ? item.volume : 0; },
+                      disabled: wisaLocked.concat([{ when: wisaTesting, reason: "reason.test_tone_running" }]) },
+                    // OK plays the tone, OK again stops it (LG's soundTestOneSpeaker play/stop).
+                    { id: "testTone", type: "action", title: "row.test_tone", icon: "test-tone", action: "wisaTestTone",
+                      paramsOf: function (ctx) { return { id: ctx.param }; },
+                      value: function (ctx) { return ctx.state.wisaTesting === ctx.param ? ctx.t("value.running") : ""; },
+                      busy: function (ctx) { return ctx.state.wisaTesting === ctx.param; },
+                      disabled: wisaLocked },
+                    { id: "remove", type: "action", action: "wisaRemove", title: "row.remove", danger: true, footer: true,
+                      paramsOf: function (ctx) { return { id: ctx.param }; },
+                      disabled: [{ when: wisaTesting, reason: "reason.test_tone_running" }],
+                      confirm: { title: "confirm.remove_title", text: "confirm.remove_wisa_text",
+                                 confirm: "confirm.remove_button", danger: true,
+                                 params: function (ctx) { var item = wisaItem(ctx); return { name: item ? item.title : "" }; } } }
+                ] }
+            ]
+        },
+
+        // WOWCAST over Wi-Fi (K3-Einst-WiSA-WOWCAST-12 … 19). "WLAN einrichten" opens novOS'
+        // own Wi-Fi setup over the modal (WifiSetup), not LG's firstuse-overlay.
+        wowcast: {
+            id: "wowcast",
+            title: "row.wowcast",
+            session: "wowcast",
+            sections: [
+                { rows: [
+                    { id: "wowHint", type: "hint",
+                      requires: function (ctx) { return wowBlock(ctx) !== ""; },
+                      hint: function (ctx) {
+                          var block = wowBlock(ctx);
+                          return { icon: block === "wifi" ? "wifi-off-32" : (block === "dongle" ? "soundbar-32" : "wifi-32"),
+                                   title: ctx.t("detail.wowcast_" + block + "_title"),
+                                   text: ctx.t("detail.wowcast_" + block + "_text") };
+                      } },
+                    { id: "wowWifi", type: "action", action: "wifiSetup", title: "row.wifi_setup", icon: "network",
+                      requires: function (ctx) { var block = wowBlock(ctx); return block === "wifi" || block === "frequency"; } }
+                ] },
+                { title: "section.registered_device", rows: [
+                    { id: "wowRegistered", type: "list", source: "wowcast", page: "wowcastDevice", dialog: true,
+                      requires: function (ctx) { return wowBlock(ctx) === ""; },
+                      decorate: function (ctx, entry) { return DeviceList.pairedRow(ctx, entry); } }
+                ] },
+                DeviceList.availableSection(wowcastDevices)
+            ]
+        },
+
+        // The registered WOWCAST device as a dialog: Verbinden or Trennen, Entfernen.
+        wowcastDevice: {
+            id: "wowcastDevice",
+            dialog: true,
+            icon: "soundbar",
+            title: function (ctx) { var item = DeviceList.item(ctx, "wowcast", ctx.param); return item ? item.title : ""; },
+            subtitle: function (ctx) { return DeviceList.stateText(ctx, DeviceList.item(ctx, "wowcast", ctx.param)); },
+            busy: function (ctx) { return DeviceList.isBusy(DeviceList.item(ctx, "wowcast", ctx.param)); },
+            sections: [{ rows: DeviceList.deviceRows(wowcastDevices) }]
+        },
+
         tone: {
             id: "tone",
             title: "page.tone",
@@ -303,8 +648,11 @@ var area = {
                                      var desc = ctx.desc("sound.userEqualizer");
                                      return desc && desc.ui && desc.ui.active === false;
                                  }, reason: "reason.not_available_now" }] },
+                    // The same look as the balance of Bluetooth und Fernsehlautsprecher: L/R around
+                    // the middle (TON-D).
                     { id: "balance", type: "slider", key: "sound.audioBalance", title: "row.balance",
-                      format: "signed", search: "search.balance",
+                      format: "balance", center: 0, ends: ["value.left_short", "value.right_short"],
+                      search: "search.balance",
                       disabled: [{ when: function (ctx) { return output(ctx) === "external_arc"; },
                                    reason: "reason.not_for_arc" }] },
                     { id: "autoVolume", type: "toggle", key: "sound.autoVolume", title: "row.auto_volume",
