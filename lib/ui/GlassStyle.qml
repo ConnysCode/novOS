@@ -36,6 +36,8 @@ QtObject {
     readonly property color danger: "#ff9a90"
     readonly property color keyRed: "#e5484d"              // the red key of the remote in key hints
     readonly property color dangerFocused: "#c42b20"
+    readonly property color warning: "#ffc08a"             // a second line that went wrong ("Verbindung fehlgeschlagen")
+    readonly property color warningFocused: "#9a4300"
     // StatusCard: the card, the circle of its symbol, the circle of an error.
     readonly property color cardFill: "#14ffffff"          // white 8 %
     readonly property color circleFill: "#29ffffff"        // white 16 %
@@ -49,6 +51,12 @@ QtObject {
     readonly property color profileInkLight: "#ffffff"
     readonly property real profileInitialShare: 0.44       // initial size per avatar size
     readonly property color profileRing: "#47ffffff"       // inner light at the top, white 28 %
+    // Plates without focus inside a list: a head block, a counter (K3-Einst-Geraeteliste).
+    readonly property color plateFill: "#12ffffff"         // white 7 %
+    readonly property color chipFill: "#14ffffff"          // white 8 %
+    readonly property color chipCircle: "#1fffffff"        // white 12 %
+    readonly property color hintCircle: "#24ffffff"        // white 14 %, the circle of a hint block
+    readonly property color spinnerTrack: "#38ffffff"      // the ring of a spinner on glass
     // Motion.
     readonly property var curve: [0.2, 0.8, 0.2, 1, 1, 1]
     readonly property int focusDuration: 220               // the focus surface and lists glide
@@ -60,6 +68,7 @@ QtObject {
     readonly property real pageShift: 16
     readonly property int popoverDuration: 160             // popovers, dimming, fades
     readonly property int listFadeDuration: 180            // a list end fades in or out
+    readonly property int noticeDuration: 2500             // a short message stands, then goes
     readonly property int pressDuration: 40
     readonly property real dimmedOpacity: 0.4              // what steps back behind a popover
     // Dark layers over the picture. Glass lies on top of them and samples them too, as
@@ -85,6 +94,11 @@ QtObject {
     readonly property int detailSize: 17
     readonly property int pillTextSize: 20                 // status pill of background work
     readonly property int sectionSize: 16
+    readonly property int hintTitleSize: 24                // title of a hint block ("Keine Geräte gefunden")
+    readonly property int blockTextSize: 20                // text of a head block over a list
+    readonly property int counterSize: 24                  // the number of a counter chip
+    readonly property int counterLabelSize: 15            // its label below
+    readonly property int badgeSize: 16                    // an outlined badge beside a title ("Dolby Atmos")
     readonly property real sectionTracking: 0.96          // 0.06 em, as in the hand-off
     readonly property int statSize: 34                     // a live value, for example of the game bar
     readonly property int statUnitSize: 15                 // its unit beside it

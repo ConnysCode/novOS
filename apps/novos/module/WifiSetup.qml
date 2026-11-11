@@ -119,7 +119,8 @@ Item {
         }
         if (name === "dialog") {
             return { appIcon: dialog.appIcon, icon: dialog.icon, title: dialog.title, text: dialog.text,
-                     buttons: [{ id: "dialogConfirm", label: dialog.confirm, danger: dialog.safe !== true },
+                     buttons: [{ id: "dialogConfirm", label: dialog.confirm,
+                                 danger: dialog.danger !== undefined ? dialog.danger === true : dialog.safe !== true },
                                { id: "done", label: I18n.t("global", "cancel") }] };
         }
         if (name === "dialogBusy") {
@@ -252,8 +253,9 @@ Item {
         setScreen("forget", "done");
     }
 
-    // { action, appIcon or icon, title, text, confirm, busyTitle, safe }. Destructive
-    // dialogs start on Cancel, safe ones on the confirm button.
+    // { action, appIcon or icon, title, text, confirm, busyTitle, safe, danger }. Destructive
+    // dialogs start on Cancel, safe ones on the confirm button. danger colours the confirm
+    // button; without it every dialog that is not safe does ("Trennen" asks without it).
     function openDialog(config) {
         dialog = config;
         active = true;
@@ -1185,73 +1187,21 @@ Item {
                     }
                 }
 
-                // Searching, nothing found, Wi-Fi not available.
-                Column {
+                // Searching, nothing found, Wi-Fi not available: the shared hint block.
+                HintBlock {
                     y: setup.listTop * setup.unit + (setup.listHeight * setup.unit - height) / 2
                     width: parent.width
                     visible: setup.listState !== "ready"
-                    spacing: 0
-
-                    Item {
-                        width: parent.width
-                        height: (setup.listState === "searching" ? 44 : 72) * setup.unit
-
-                        Spinner {
-                            anchors.centerIn: parent
-                            size: 44 * setup.unit
-                            lineWidth: 4 * setup.unit
-                            running: setup.shown && setup.screen === "list" && setup.listState === "searching"
-                            visible: running
-                        }
-
-                        GlassControl {
-                            anchors.centerIn: parent
-                            visible: setup.listState !== "searching"
-                            width: 72 * setup.unit
-                            height: width
-                            unit: setup.unit
-                            radius: 36
-                            fill: "#24ffffff"
-
-                            Image {
-                                anchors.centerIn: parent
-                                source: Qt.resolvedUrl(setup.listState === "unavailable" ?
-                                                       "icons/wifi-off-36.png" : "icons/wifi-36.png")
-                            }
-                        }
-                    }
-
-                    Item { width: 1; height: 20 * setup.unit }
-
-                    Text {
-                        width: parent.width
-                        height: 30 * setup.unit
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        text: setup.listState === "searching" ? I18n.t("wifi", "state.searching") :
-                              (setup.listState === "empty" ? I18n.t("wifi", "state.empty") : I18n.t("wifi", "state.unavailable"))
-                        color: "#ffffff"
-                        font.family: setup.rowFont
-                        font.pixelSize: 24 * setup.unit
-                        font.hintingPreference: Font.PreferNoHinting
-                    }
-
-                    Item { width: 1; height: 6 * setup.unit }
-
-                    Text {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        width: 520 * setup.unit
-                        horizontalAlignment: Text.AlignHCenter
-                        wrapMode: Text.WordWrap
-                        lineHeight: 1.4
-                        text: setup.listState === "searching" ? I18n.t("wifi", "text.few_seconds") :
-                              (setup.listState === "empty" ? I18n.t("wifi", "hint.empty") :
-                               I18n.t("wifi", "hint.unavailable"))
-                        color: GlassStyle.textSecondary
-                        font.family: setup.valueFont
-                        font.pixelSize: 18 * setup.unit
-                        font.hintingPreference: Font.PreferNoHinting
-                    }
+                    unit: setup.unit
+                    titleFont: setup.rowFont
+                    valueFont: setup.valueFont
+                    spinner: setup.listState === "searching"
+                    running: setup.shown && setup.screen === "list"
+                    icon: setup.listState === "unavailable" ? "wifi-off-36" : "wifi-36"
+                    title: setup.listState === "searching" ? I18n.t("wifi", "state.searching") :
+                           (setup.listState === "empty" ? I18n.t("wifi", "state.empty") : I18n.t("wifi", "state.unavailable"))
+                    text: setup.listState === "searching" ? I18n.t("wifi", "text.few_seconds") :
+                          (setup.listState === "empty" ? I18n.t("wifi", "hint.empty") : I18n.t("wifi", "hint.unavailable"))
                 }
 
                 FooterButton {

@@ -24,6 +24,12 @@ Item {
     property real sliderShare: -1       // 0..1 draws the slider under the title
     property bool danger: false
     property bool disabled: false
+    // A device list (K3-Einst-Geraeteliste): busy draws a 26 px spinner at the right instead of
+    // the mark while something runs ("Verbindet …"); iconBusy puts it in the icon's place (the
+    // search row while it searches); tone "warning" colours the second line ("fehlgeschlagen").
+    property bool busy: false
+    property bool iconBusy: false
+    property string tone: ""
     property real titleSize: 22
     property real subtitleSize: 17
     property int colorDuration: 120
@@ -32,7 +38,7 @@ Item {
     // build-icons.py. iconOnly centres it and drops the text (panel shortcuts).
     property string iconPng: ""
     property bool iconOnly: false
-    readonly property bool hasIcon: iconPng !== ""
+    readonly property bool hasIcon: iconPng !== "" || iconBusy
     // A profile's avatar instead of the icon: { initial, tint }. 32 px leaves the text where
     // an icon leaves it, a larger one moves it right by the difference.
     property var avatar: null
@@ -47,7 +53,7 @@ Item {
     readonly property real titleTop: slider ? 18 : (twoLines ? (logicalHeight - 49) / 2 : 0)
     readonly property real titleHeight: slider ? 30 : (twoLines ? 27 : logicalHeight)
     // Room for the mark at the right of the value; the panel keeps 54 for every row.
-    property real markSpace: mark === "" ? 20 : 54
+    property real markSpace: mark === "" && !busy ? 20 : 54
     readonly property color mainColor: focused ? GlassStyle.focusText : GlassStyle.textPrimary
     readonly property color sideColor: focused ? GlassStyle.focusSecondary : GlassStyle.textSecondary
     // Room the text leaves at the right for value, mark or switch.
@@ -56,7 +62,7 @@ Item {
 
     // The icon pair cross-fades, which keeps focus changes free of canvas repaints.
     Repeater {
-        model: glassRow.iconPng !== "" ? ["", "-dark"] : []
+        model: glassRow.iconPng !== "" && !glassRow.iconBusy ? ["", "-dark"] : []
         Image {
             x: glassRow.iconOnly ? (glassRow.width - glassRow.iconSize) / 2 : 20 * glassRow.unit
             y: (glassRow.height - glassRow.iconSize) / 2
@@ -102,7 +108,8 @@ Item {
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
         text: glassRow.subtitle
-        color: glassRow.focused ? GlassStyle.focusSecondary : GlassStyle.textDetail
+        color: glassRow.tone === "warning" ? (glassRow.focused ? GlassStyle.warningFocused : GlassStyle.warning) :
+               (glassRow.focused ? GlassStyle.focusSecondary : GlassStyle.textDetail)
         font.family: glassRow.valueFont
         font.pixelSize: glassRow.subtitleSize * glassRow.unit
         font.hintingPreference: Font.PreferNoHinting
@@ -133,8 +140,8 @@ Item {
 
     // Chevron, ↗ or choice tick, 18 px, in the middle of the row.
     Repeater {
-        model: glassRow.mark === "chevron" || glassRow.mark === "external" || glassRow.mark === "choice" ?
-               ["", "-dark"] : []
+        model: !glassRow.busy && (glassRow.mark === "chevron" || glassRow.mark === "external" ||
+                                  glassRow.mark === "choice") ? ["", "-dark"] : []
         Image {
             anchors.right: parent.right
             anchors.rightMargin: 20 * glassRow.unit
@@ -161,6 +168,27 @@ Item {
             source: Qt.resolvedUrl("icons/check-24" + modelData + ".png")
             Behavior on opacity { NumberAnimation { duration: glassRow.colorDuration } }
         }
+    }
+
+    Spinner {
+        anchors.right: parent.right
+        anchors.rightMargin: 20 * glassRow.unit
+        anchors.verticalCenter: parent.verticalCenter
+        visible: glassRow.busy
+        size: 26 * glassRow.unit
+        lineWidth: 3 * glassRow.unit
+        dark: glassRow.focused
+        running: visible
+    }
+
+    Spinner {
+        x: 22 * glassRow.unit
+        anchors.verticalCenter: parent.verticalCenter
+        visible: glassRow.iconBusy
+        size: 26 * glassRow.unit
+        lineWidth: 3 * glassRow.unit
+        dark: glassRow.focused
+        running: visible
     }
 
     // Switch, 64 × 36 with a 28 px knob. Off keeps its grey on the white focus surface,

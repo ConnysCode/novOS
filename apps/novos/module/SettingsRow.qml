@@ -171,6 +171,140 @@ Item {
         }
     }
 
+    // The hint of an empty device list: the shared HintBlock (DeviceList.js).
+    Loader {
+        anchors.fill: parent
+        active: cell.isRow && cell.row.type === "hint"
+        sourceComponent: Component {
+            Item {
+                anchors.fill: parent
+
+                HintBlock {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width
+                    unit: cell.unit
+                    titleFont: cell.titleFont
+                    valueFont: cell.valueFont
+                    spinner: cell.row.hint.spinner === true
+                    icon: cell.row.hint.icon || ""
+                    circleSize: 64
+                    titleGap: 18
+                    textWidth: 600
+                    title: cell.row.hint.title || ""
+                    text: cell.row.hint.text || ""
+                }
+            }
+        }
+    }
+
+    // A block over a device list, without focus: a hint beside a 44 px circle, or counters of
+    // the devices per kind and a line (K3-Einst-BT-Eingabegeraete-02).
+    Loader {
+        anchors.fill: parent
+        active: cell.isRow && cell.row.type === "block"
+        sourceComponent: Component {
+            Item {
+                id: headBlock
+                readonly property var block: cell.row.block || ({})
+                readonly property var counters: block.counters || []
+                anchors.fill: parent
+
+                GlassControl {
+                    anchors.fill: parent
+                    unit: cell.unit
+                    radius: headBlock.counters.length > 0 ? 30 : 26
+                    fill: GlassStyle.plateFill
+                }
+
+                Row {
+                    id: counterRow
+                    x: 18 * cell.unit
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 12 * cell.unit
+                    visible: headBlock.counters.length > 0
+
+                    Repeater {
+                        model: headBlock.counters
+
+                        Rectangle {
+                            width: counterText.x + counterText.width + 22 * cell.unit
+                            height: 60 * cell.unit
+                            radius: height / 2
+                            color: GlassStyle.chipFill
+
+                            Rectangle {
+                                x: 10 * cell.unit
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 42 * cell.unit
+                                height: width
+                                radius: width / 2
+                                color: GlassStyle.chipCircle
+
+                                Image {
+                                    anchors.centerIn: parent
+                                    source: Qt.resolvedUrl("icons/" + modelData.icon + ".png")
+                                }
+                            }
+
+                            Column {
+                                id: counterText
+                                x: 66 * cell.unit
+                                anchors.verticalCenter: parent.verticalCenter
+
+                                Text {
+                                    text: String(modelData.count)
+                                    color: GlassStyle.textPrimary
+                                    font.family: cell.owner ? cell.owner.titleFont : ""
+                                    font.pixelSize: GlassStyle.counterSize * cell.unit
+                                    font.hintingPreference: Font.PreferNoHinting
+                                }
+
+                                Text {
+                                    text: modelData.label
+                                    color: GlassStyle.textSecondary
+                                    font.family: cell.valueFont
+                                    font.pixelSize: GlassStyle.counterLabelSize * cell.unit
+                                    font.hintingPreference: Font.PreferNoHinting
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    id: blockCircle
+                    x: 24 * cell.unit
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 44 * cell.unit
+                    height: width
+                    radius: width / 2
+                    visible: headBlock.counters.length === 0
+                    color: GlassStyle.hintCircle
+
+                    Image {
+                        anchors.centerIn: parent
+                        source: headBlock.block.icon ? Qt.resolvedUrl("icons/" + headBlock.block.icon + ".png") : ""
+                    }
+                }
+
+                Text {
+                    x: headBlock.counters.length > 0 ? counterRow.x + counterRow.width + 26 * cell.unit
+                                                     : blockCircle.x + blockCircle.width + 18 * cell.unit
+                    width: parent.width - x - 24 * cell.unit
+                    anchors.verticalCenter: parent.verticalCenter
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
+                    elide: Text.ElideRight
+                    text: headBlock.block.text || ""
+                    color: headBlock.counters.length > 0 ? GlassStyle.textSecondary : GlassStyle.textPrimary
+                    font.family: headBlock.counters.length > 0 ? cell.valueFont : cell.titleFont
+                    font.pixelSize: (headBlock.counters.length > 0 ? GlassStyle.valueSize : GlassStyle.blockTextSize) * cell.unit
+                    font.hintingPreference: Font.PreferNoHinting
+                }
+            }
+        }
+    }
+
     // Section title: 16 px, capitals, 60 % white.
     SectionTitle {
         x: 20 * cell.unit
@@ -298,7 +432,8 @@ Item {
     // The row itself: the shared GlassRow, as in the quick panel.
     GlassRow {
         anchors.fill: parent
-        visible: cell.isRow && cell.row.type !== "statusCard" && cell.row.type !== "notes"
+        visible: cell.isRow && cell.row.type !== "statusCard" && cell.row.type !== "notes" &&
+                 cell.row.type !== "hint" && cell.row.type !== "block"
         unit: cell.unit
         titleFont: cell.titleFont
         valueFont: cell.valueFont
@@ -307,8 +442,10 @@ Item {
         subtitle: cell.row.subtitle || ""
         iconPng: cell.row.icon || ""
         value: cell.row.type === "toggle" ? "" : (cell.row.value || "")
-        mark: cell.row.external === true ? "external" :
-              (cell.row.selected === true ? "check" : (cell.hasChevron ? "chevron" : ""))
+        // A list entry may name its mark itself: a found device has none.
+        mark: cell.row.mark !== undefined && cell.row.mark !== null ? cell.row.mark :
+              (cell.row.external === true ? "external" :
+               (cell.row.selected === true ? "check" : (cell.hasChevron ? "chevron" : "")))
         toggle: cell.row.type === "toggle" ? cell.row.on === true : undefined
         sliderShare: cell.slider && cell.row.max > cell.row.min ?
                      (cell.row.number - cell.row.min) / (cell.row.max - cell.row.min) : -1
@@ -318,6 +455,9 @@ Item {
         avatar: cell.row.item && cell.row.item.avatar ? cell.row.item.avatar : null
         avatarSize: cell.row.item && cell.row.item.avatarSize ? cell.row.item.avatarSize : 32
         iconPng: cell.row.item && cell.row.item.png ? cell.row.item.png : ""
+        busy: cell.row.busy === true
+        iconBusy: cell.row.iconBusy === true
+        tone: cell.row.tone || ""
 
         MouseArea {
             anchors.fill: parent

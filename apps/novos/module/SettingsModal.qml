@@ -90,6 +90,10 @@ Item {
     readonly property var searchPage: searchLoader.item
 
     readonly property var area: Engine.areas[areaIndex]
+    // Pages with session: "<name>" keep a session running as long as they lie in the stack, as
+    // the Bluetooth lists (BluetoothDevices.qml): it subscribes when the page opens and ends
+    // the subscription when the page is left. A page opened for an entry adds ":<entry id>".
+    readonly property var sessions: sessionsOf(active, areaIndex, stack)
     readonly property var page: resolveCurrent(revision, areaIndex, stack)
     readonly property var layout: layoutOf(page)
     readonly property var focusedRow: zone === "content" && page.rows.length > 0 ?
@@ -125,6 +129,21 @@ Item {
         var param = paramOf(stack.length);
         if (top && top.kind === "choice") return Engine.resolveChoice(store, I18n, area.id, top.row, param);
         return Engine.resolvePage(store, I18n, area.id, top ? top.page : area.page.id, param);
+    }
+
+    function sessionsOf() {
+        var names = [];
+        if (!active) return names;
+        var add = function (pageData, param) {
+            if (!pageData || !pageData.session) return;
+            var name = pageData.session + (param !== undefined ? ":" + param : "");
+            if (names.indexOf(name) < 0) names.push(name);
+        };
+        add(area.page, undefined);
+        for (var i = 0; i < stack.length; i++) {
+            if (stack[i].kind === "page") add(Engine.pageOf(area, stack[i].page), stack[i].param);
+        }
+        return names;
     }
 
     // The entry the levels up to depth were opened for; a choice inherits its page's.
@@ -197,6 +216,10 @@ Item {
     function rowHeight(row) {
         var twoLines = row.subtitle !== "";
         if (row.type === "slider") return 104;   // as the panel's slider rows
+        // The hint of an empty device list (64 px circle, title, hint) and the block above it:
+        // a plate of counters (QG-1) or a hint beside a 44 px circle (K3-Einst-Geraeteliste).
+        if (row.type === "hint") return 190;
+        if (row.type === "block") return (row.block.counters || []).length > 0 ? 96 : 80;
         // StatusCard: 26 above and below a 64 px circle, a bar with its texts, a 60 px button row.
         if (row.type === "statusCard") {
             return 26 * 2 + 64 + (row.card.progress >= 0 ? 18 + 10 + 10 + 24 : 0) +
@@ -314,8 +337,26 @@ Item {
                                            { start: layout.rowY[last], size: layout.rowH[last] });
     }
 
+    // The row the focus is on, by id: when rows come or go above it on the same page (a device
+    // list that grows while it searches), the focus stays on its row instead of its place.
+    property string focusedRowId: ""
+    property string focusedPageKey: ""
+
+    function keepFocusedRow() {
+        var key = area.id + "/" + page.id + "/" + stack.length;
+        if (key === focusedPageKey && focusedRowId !== "" && page.rows[focusIndex] &&
+                page.rows[focusIndex].id !== focusedRowId) {
+            for (var i = 0; i < page.rows.length; i++) {
+                if (page.rows[i].id === focusedRowId && page.rows[i].focusable) focusIndex = i;
+            }
+        }
+        focusedPageKey = key;
+        focusedRowId = page.rows[focusIndex] ? page.rows[focusIndex].id : "";
+    }
+
     onLayoutChanged: {
         growRows();
+        keepFocusedRow();
         settleCardFocus();
         if (focusIndex >= layout.rowY.length) focusIndex = Math.max(0, layout.rowY.length - 1);
         // A page opened straight from a launch starts at 0, maybe before its focusable rows
@@ -340,6 +381,7 @@ Item {
     Component.onCompleted: growRows()
 
     onFocusIndexChanged: {
+        if (page.rows[focusIndex]) focusedRowId = page.rows[focusIndex].id;
         keepVisible();
         cardFocus = defaultCardButton();
     }
@@ -497,6 +539,8 @@ Item {
         } else if (name === "deleteShutdown") {
             tvData.deleteShutdown(String(params.id));
             if (page.custom === "shutdownEdit") back();
+        } else if (name === "openPage") {
+            push({ kind: "page", page: params.page, rowId: params.rowId || "", focus: focusIndex });
         } else if (name === "applySoundToAll") {
             settingsStore.call("luna://com.webos.settingsservice", "/setSystemSettings",
                          JSON.stringify({ category: "sound", settings: { applyToAllInputSSM: "sound" } }));
@@ -534,6 +578,35 @@ Item {
         }
         settingsStore.call("luna://com.webos.settingsservice", "/setSystemSettings",
                      JSON.stringify({ category: "picture", settings: settingsOut }));
+    }
+
+    // Puts the focus on a row of the open page, if it is there (a dialog that leads to it).
+    function focusRow(rowId) {
+        for (var i = 0; i < page.rows.length; i++) {
+            if (page.rows[i].id === rowId && page.rows[i].focusable) {
+                zone = "content";
+                focusIndex = i;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // A short message at the bottom centre (K3-Einst-Bluetooth-Audio-02, -19, -20): "Ton über
+    // Sony WH-1000XM5", "… verbunden". It goes by itself; the modal stays as it is.
+    property var notice: ({ title: "", detail: "", icon: "notice-info", buttons: [] })
+    property bool noticeShown: false
+
+    function showNotice(title, detail, icon) {
+        notice = { title: title, detail: detail || "", icon: icon || "notice-info", buttons: [] };
+        noticeShown = true;
+        noticeTimer.restart();
+    }
+
+    Timer {
+        id: noticeTimer
+        interval: GlassStyle.noticeDuration
+        onTriggered: settings.noticeShown = false
     }
 
     // The panel answers a confirmation with this.
@@ -728,7 +801,10 @@ Item {
         } else if ((key === Qt.Key_Left || key === Qt.Key_Right) && row && row.type === "slider") {
             if (!row.disabled) {
                 var context = ctx();
-                write(row.row, Engine.sliderStep(row.row, context, key === Qt.Key_Right ? 1 : -1));
+                var next = Engine.sliderStep(row.row, context, key === Qt.Key_Right ? 1 : -1);
+                // A slider over no settings key (read) writes through its host action.
+                if (row.row.action) runAction(row.row.action, { value: next });
+                else write(row.row, next);
             }
         } else if (key === Qt.Key_Left) {
             toSidebar();
@@ -746,7 +822,8 @@ Item {
 
     // Rows with pin: "parental" ask LG's own PIN prompt first; the PIN never reaches us.
     function activate(row) {
-        if (row.disabled) return;
+        // inert: the row waits for something it started, as a device that connects.
+        if (row.disabled || row.inert) return;
         if (row.row && row.row.pin && row.type !== "page") {
             tvData.askPin(row.row.pin, function () { perform(row); });
             return;
@@ -756,7 +833,14 @@ Item {
 
     function perform(row) {
         var context = ctx();
-        if (row.type === "page") {
+        if (row.type === "page" && row.row.ask && row.row.ask.when(context)) {
+            // ask: a question before the page opens, as the warning before pairing while
+            // Bluetooth plays with the TV speaker (K3-Einst-Bluetooth-Audio-15).
+            var question = row.row.ask;
+            hostAction("confirm", { action: "openPage", params: { page: row.row.page, rowId: row.id },
+                                    title: context.t(question.title), text: context.t(question.text),
+                                    confirm: context.t(question.confirm), safe: false, danger: false });
+        } else if (row.type === "page") {
             push({ kind: "page", page: row.row.page, rowId: row.id, focus: focusIndex });
             // onOpen: what a page fetches when it opens, as the list of versions.
             if (row.row.onOpen) runAction(row.row.onOpen, {});
@@ -794,15 +878,21 @@ Item {
                 // confirm.params: values for its texts, as the version and the date of a way back.
                 var asked = catalogRow.confirm;
                 var texts = typeof asked.params === "function" ? asked.params(context) : (asked.params || {});
+                // A text may depend on the page, as the question to remove a gamepad.
+                var textOf = function (key) { return context.t(typeof key === "function" ? key(context) : key, texts); };
                 hostAction("confirm", { action: catalogRow.action, params: actionParams,
-                                        title: context.t(asked.title, texts),
-                                        text: context.t(asked.text, texts),
-                                        confirm: context.t(asked.confirm, texts),
+                                        title: textOf(asked.title),
+                                        text: textOf(asked.text),
+                                        confirm: textOf(asked.confirm),
                                         icon: asked.icon || "",
-                                        safe: asked.safe === true });
+                                        safe: asked.safe === true,
+                                        danger: asked.danger });
             } else {
                 runAction(catalogRow.action, actionParams);
             }
+        } else if (row.type === "listItem" && row.action) {
+            // An entry with an action of its own, as a found device that OK connects.
+            runAction(row.action, row.params || {});
         } else if (row.type === "listItem" && row.row.page) {
             push({ kind: "page", page: row.row.page, param: row.item.id, rowId: row.id, focus: focusIndex });
         } else if (row.type === "listItem") {
@@ -1199,6 +1289,8 @@ Item {
                     back: settings.stack.length > 0 ? settings.pathText() : ""
                     title: settings.page.title
                     subtitle: settings.page.subtitle
+                    badge: settings.page.badge || ""
+                    busy: settings.page.busy === true
                 }
 
                 Text {
@@ -1330,6 +1422,22 @@ Item {
                     onFinished: settings.closeBands()
                 }
             }
+        }
+
+        NoticeBar {
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: parent.height - height - GlassStyle.bottomBarInset * settings.unit
+            unit: settings.unit
+            titleFont: settings.titleFont
+            valueFont: settings.valueFont
+            glassShader: settings.glassShader
+            shadowShader: settings.shadowShader
+            backdrop: settings.backdrop
+            backdropMargin: settings.backdropMargin
+            backdropArea: settings.backdropArea
+            hasBackdrop: settings.hasBackdrop
+            notice: settings.notice
+            shown: settings.noticeShown && settings.shown
         }
     }
 

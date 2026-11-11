@@ -1639,7 +1639,7 @@ StarfishSystemUIWindow {
                     // Without an icon of its own a confirmation warns: "" left an empty circle.
                     flow.openDialog({ action: "settings", icon: params.icon || "alert-44",
                                       title: params.title, text: params.text, confirm: params.confirm,
-                                      safe: params.safe === true });
+                                      safe: params.safe === true, danger: params.danger });
                 });
             } else if (name === "wifiSetup") {
                 withFlow(function (flow) { flow.openList(); });

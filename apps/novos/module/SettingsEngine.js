@@ -59,6 +59,8 @@ function rowKey(row, ctx) {
 // A row with member reads and writes only its part. Others are arrays, as the bands of an
 // equalizer: a row with index reads and writes one entry.
 function rowRawValue(row, ctx) {
+    // read: a value that is no settings key, as the volume of a Bluetooth device.
+    if (typeof row.read === "function") return row.read(ctx);
     var value = ctx.val(rowKey(row, ctx));
     if (typeof row.field === "string") {
         return value && typeof value === "object" ? value[row.field] : undefined;
@@ -284,7 +286,7 @@ function pageHasRows(area, pageId, ctx, depth) {
 function disabledReason(row, ctx) {
     var rules = row.disabled || [];
     for (var i = 0; i < rules.length; i++) {
-        if (rules[i].when(ctx)) return ctx.t(rules[i].reason);
+        if (rules[i].when(ctx)) return typeof rules[i].reason === "function" ? rules[i].reason(ctx) : ctx.t(rules[i].reason);
     }
     var key = rowKey(row, ctx);
     var desc = key ? ctx.desc(key) : null;
@@ -440,9 +442,30 @@ function resolveRow(row, ctx) {
         danger: row.danger === true,
         thumb: row.thumb || "",
         preview: row.preview || null,
-        icon: row.icon || "",
+        icon: call(row.icon, ctx) || "",
+        // A device list (DeviceList.js): a spinner at the right or in the icon's place, a
+        // second line in the warning colour, a row that takes no OK while something runs.
+        busy: call(row.busy, ctx) === true,
+        iconBusy: call(row.iconBusy, ctx) === true,
+        tone: call(row.tone, ctx) || "",
+        inert: call(row.inert, ctx) === true,
+        // selected: a row that is the current choice without being an option, as "Als
+        // Audioausgabe verwenden" while the device plays.
+        selected: call(row.selected, ctx) === true,
         row: row
     };
+    if (typeof row.focusable === "function") resolved.focusable = row.focusable(ctx) !== false;
+    // Blocks inside a list, without focus: the hint of an empty list and a head block.
+    if (row.type === "hint") {
+        resolved.hint = row.hint(ctx) || {};
+        resolved.focusable = false;
+        return resolved;
+    }
+    if (row.type === "block") {
+        resolved.block = row.block(ctx) || {};
+        resolved.focusable = false;
+        return resolved;
+    }
     // A card with the state of a task and its buttons, and a block of release notes.
     if (row.type === "statusCard") {
         resolved.card = row.card(ctx);
@@ -464,6 +487,8 @@ function resolveRow(row, ctx) {
         resolved.max = range.max;
         resolved.number = numberOf(rowRawValue(row, ctx));
         resolved.value = formatNumber(row, resolved.number, ctx);
+        // A value of its own, as "–" for a volume the device keeps.
+        if (typeof row.value === "function") resolved.value = row.value(ctx) || resolved.value;
     } else {
         resolved.value = rowValue(row, ctx);
     }
@@ -471,23 +496,33 @@ function resolveRow(row, ctx) {
 }
 
 // Rows of a host list. Each entry brings its own id, title and value.
+// decorate: function (ctx, item) gives what a row shows of an entry, as the device lists
+// do (DeviceList.js); without it the entry brings its texts itself.
 function listRows(row, ctx) {
     var items = ctx.list(row.source);
     var rows = [];
     for (var i = 0; i < items.length && i < maxRowsPerList; i++) {
         var item = items[i];
+        var shown = typeof row.decorate === "function" ? row.decorate(ctx, item) : item;
         rows.push({
             id: row.id + ":" + item.id,
             type: "listItem",
-            title: item.title,
-            subtitle: item.subtitle || "",
-            value: item.value || "",
-            disabled: item.disabled === true,
-            focusable: item.focusable !== false,
-            selected: item.selected === true,
-            external: item.external === true,
-            thumb: item.thumb || "",
-            preview: item.preview || null,
+            title: shown.title,
+            subtitle: shown.subtitle || "",
+            value: shown.value || "",
+            disabled: shown.disabled === true,
+            focusable: shown.focusable !== false,
+            selected: shown.selected === true,
+            external: shown.external === true,
+            thumb: shown.thumb || "",
+            preview: shown.preview || null,
+            icon: shown.icon || "",
+            busy: shown.busy === true,
+            tone: shown.tone || "",
+            inert: shown.inert === true,
+            mark: shown.mark,
+            action: shown.action || "",
+            params: shown.params || null,
             row: row,
             item: item
         });
@@ -543,22 +578,28 @@ function resolvePage(store, i18n, areaId, pageId, param) {
     var hero = typeof page.hero === "function" ? page.hero(ctx) : null;
     return { id: page.id, title: title, subtitle: subtitle || "", sections: sections, rows: all, hero: hero,
              note: page.note ? ctx.t(call(page.note, ctx)) : "", custom: page.custom || "",
-             target: page.target || "" };
+             target: page.target || "", badge: call(page.badge, ctx) || "", busy: call(page.busy, ctx) === true };
 }
 
 // The page of a choice: one row per visible value, the current one checked.
 function resolveChoice(store, i18n, areaId, row, param) {
     var ctx = context(store, areaId, i18n);
+    ctx.area = areaById(areaId);
     ctx.param = param;
     var current = rowRawValue(row, ctx);
     var options = choiceOptions(row, ctx);
+    // What greys out the row greys out every value while its page is open (K3-Einst-Bluetooth-
+    // Audio-04: "Nicht, während ein Gerät verbindet").
+    var reason = disabledReason(row, ctx);
     var rows = [];
     for (var i = 0; i < options.length; i++) {
         var selected = options[i].selected !== undefined ? options[i].selected
                                                          : String(options[i].value) === String(current);
+        // details: a second line per value, { value: "detail.<name>" }.
+        var detail = row.details && row.details[options[i].value] ? ctx.t(row.details[options[i].value]) : "";
         rows.push({ id: "option:" + options[i].value, type: "option", title: options[i].label,
-                    subtitle: options[i].active ? "" : ctx.t("reason.not_available_now"),
-                    value: "", disabled: !options[i].active, focusable: true,
+                    subtitle: reason !== "" ? reason : (options[i].active ? detail : ctx.t("reason.not_available_now")),
+                    value: "", disabled: reason !== "" || !options[i].active, focusable: true,
                     selected: selected, option: options[i].value, write: options[i].write,
                     action: options[i].action, params: options[i].params, row: row });
     }
@@ -711,7 +752,8 @@ function searchIndex(store, i18n) {
                     var row = rows[r];
                     // A card and a block of notes are no setting of their own.
                     if (row.type === "list" || row.type === "info" || row.type === "statusCard" ||
-                        row.type === "notes" || !rowVisible(row, ctx, 0)) continue;
+                        row.type === "notes" || row.type === "hint" || row.type === "block" ||
+                        !rowVisible(row, ctx, 0)) continue;
                     var title = typeof row.title === "function" ? row.title(ctx) : ctx.t(row.title);
                     var terms = row.search ? ctx.t(row.search) : "";
                     var shown = row.type === "toggle" ? ctx.t(toggleOn(row, ctx) ? "value.on" : "value.off") :

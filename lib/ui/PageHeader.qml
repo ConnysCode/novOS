@@ -13,6 +13,10 @@ Item {
     property string back: ""            // text of the back link; empty hides it
     property string title: ""
     property string subtitle: ""
+    // A device's page (K3-Einst-Bluetooth-Audio): an outlined badge beside the title ("Dolby
+    // Atmos") and a small spinner before the second line while it connects.
+    property string badge: ""
+    property bool busy: false
 
     readonly property real titleY: back !== "" ? (large ? 34 : 32) : 0
     readonly property real titleHeight: large ? 48 : 38.4
@@ -52,8 +56,9 @@ Item {
     }
 
     Text {
+        id: titleText
         y: header.titleY * header.unit
-        width: parent.width
+        width: Math.min(implicitWidth, parent.width - (header.badge !== "" ? badgeBox.width + 18 * header.unit : 0))
         height: header.titleHeight * header.unit
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
@@ -65,9 +70,43 @@ Item {
         font.hintingPreference: Font.PreferNoHinting
     }
 
+    Rectangle {
+        id: badgeBox
+        x: titleText.width + 18 * header.unit
+        y: (header.titleY + (header.titleHeight - 32) / 2) * header.unit
+        width: badgeText.implicitWidth + 24 * header.unit
+        height: 32 * header.unit
+        radius: 8 * header.unit
+        visible: header.badge !== ""
+        color: "transparent"
+        border.width: 1.5 * header.unit
+        border.color: GlassStyle.textSecondary
+
+        Text {
+            id: badgeText
+            anchors.centerIn: parent
+            text: header.badge
+            color: GlassStyle.textPrimary
+            font.family: GlassStyle.titleFont
+            font.pixelSize: GlassStyle.badgeSize * header.unit
+            font.letterSpacing: 0.64 * header.unit
+            font.capitalization: Font.AllUppercase
+            font.hintingPreference: Font.PreferNoHinting
+        }
+    }
+
+    Spinner {
+        y: (header.subtitleY + (header.subtitleHeight - 18) / 2) * header.unit
+        visible: header.busy && header.subtitle !== ""
+        size: 18 * header.unit
+        lineWidth: 2.5 * header.unit
+        running: visible
+    }
+
     Text {
+        x: (header.busy ? 28 : 0) * header.unit
         y: header.subtitleY * header.unit
-        width: parent.width
+        width: parent.width - x
         height: header.subtitleHeight * header.unit
         visible: header.subtitle !== ""
         verticalAlignment: Text.AlignVCenter

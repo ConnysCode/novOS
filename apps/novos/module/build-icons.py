@@ -91,6 +91,12 @@ WAVE_FAR = path("M18 7a7 7 0 0 1 0 10")
 MUTED = SPEAKER + path("M16 9.5l5 5M21 9.5l-5 5")
 SOUNDBAR = '<rect x="2.5" y="9.5" width="19" height="6" rx="2"/>' + path("M6.5 12.5h0.01M17.5 12.5h0.01")
 HEADPHONES = path("M4.5 15v-3a7.5 7.5 0 0 1 15 0v3") + '<rect x="4" y="14" width="4" height="6" rx="1.5"/><rect x="16" y="14" width="4" height="6" rx="1.5"/>'
+# Devices of the Bluetooth lists, as the boards draw them.
+BT_SPEAKER = '<rect x="6" y="3.5" width="12" height="17" rx="3"/><circle cx="12" cy="14" r="3.2"/>' + path("M12 7.5v0.1")
+KEYBOARD = ('<rect x="2.5" y="6.5" width="19" height="11" rx="2.5"/>' +
+            path("M6 10h0.1M9 10h0.1M12 10h0.1M15 10h0.1M18 10h0.1M6 13.8h0.1M18 13.8h0.1M8.5 13.8h7"))
+MOUSE = '<rect x="6.5" y="3.5" width="11" height="17" rx="5.5"/>' + path("M12 7v3")
+BLUETOOTH = path("M7 7.5l10 9-5 4.5v-18l5 4.5-10 9")
 
 
 
@@ -230,6 +236,25 @@ ICONS = [
     ("row-equalizer", 30, 1.6, strokes(["M6 4v16M12 4v16M18 4v16"]) +
      '<circle cx="6" cy="14" r="2" fill="currentColor"/><circle cx="12" cy="8" r="2" fill="currentColor"/>'
      '<circle cx="18" cy="15" r="2" fill="currentColor"/>', BOTH),
+    # The device lists of the settings (K3-Einst-Geraeteliste, K3-Einst-Bluetooth-Audio,
+    # K3-Einst-BT-Eingabegeraete): a symbol per kind of device, the search row, the Bluetooth
+    # sign in the head block and the empty hint, the counters of input devices.
+    ("row-headphones", 30, 1.7, HEADPHONES, BOTH),
+    ("row-speaker", 30, 1.7, BT_SPEAKER, BOTH),
+    ("row-soundbar", 30, 1.7, SOUNDBAR, BOTH),
+    ("row-keyboard", 30, 1.7, KEYBOARD, BOTH),
+    ("row-mouse", 30, 1.7, MOUSE, BOTH),
+    ("row-bluetooth", 30, 1.7, BLUETOOTH, BOTH),
+    ("row-search", 30, 1.7, '<circle cx="10.5" cy="10.5" r="6"/>' + path("M15 15l5 5"), BOTH),
+    ("bluetooth-26", 26, 1.7, BLUETOOTH, LIGHT_ONLY),
+    ("bluetooth-32", 32, 1.6, BLUETOOTH, LIGHT_ONLY),
+    ("bluetooth-off-32", 32, 1.6, BLUETOOTH + path("M4 4l16 16"), LIGHT_ONLY),
+    ("counter-gamepad", 26, 1.7, GAMEPAD, LIGHT_ONLY),
+    ("counter-keyboard", 26, 1.7, KEYBOARD, LIGHT_ONLY),
+    ("counter-mouse", 26, 1.7, MOUSE, LIGHT_ONLY),
+    ("notice-speaker", 34, 1.5, BT_SPEAKER, LIGHT_ONLY),
+    ("notice-bluetooth", 34, 1.5, BLUETOOTH, LIGHT_ONLY),
+    ("volume-speaker-30", 30, 1.7, BT_SPEAKER, LIGHT_ONLY),
     # The preview pill of the shutdown videos.
     ("play-18", 18, 1.8, PLAY, LIGHT_ONLY),
     # Novelties in "Neu in novOS" (K3-Neu-*), 28 px in a 56 px circle; -dark on the focus.
