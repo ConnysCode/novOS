@@ -26,14 +26,14 @@ Item {
         visible: !tile.focused
         unit: tile.unit
         radius: 32
-        fill: "#1affffff"
+        fill: GlassStyle.fillRest
     }
 
     Image {
         x: 20 * tile.unit
         y: 20 * tile.unit
         visible: !tile.busy && tile.source.isApp !== true
-        opacity: tile.source.off === true ? 0.55 : 1
+        opacity: tile.source.off === true ? GlassStyle.iconDimmed : 1
         source: tile.source.isApp ? "" : Qt.resolvedUrl("icons/" + tile.source.icon + (tile.focused ? "-dark.png" : ".png"))
     }
 
@@ -68,7 +68,7 @@ Item {
         visible: tile.source.running === true && !tile.busy
         unit: tile.unit
         radius: 15
-        fill: tile.focused ? "#140b0c10" : "#2effffff"
+        fill: tile.focused ? GlassStyle.fillOnFocus : GlassStyle.fillActiveStrong
 
         // The row spans the badge's full height; the Row only sets x, so the text
         // can sit by its own baseline.

@@ -1014,7 +1014,7 @@ Item {
                     height: width
                     unit: setup.unit
                     radius: 32
-                    fill: "#24ffffff"
+                    fill: GlassStyle.fillRaised
 
                     Image {
                         anchors.centerIn: parent
@@ -1192,7 +1192,7 @@ Item {
                                     height: 34 * setup.unit
                                     unit: setup.unit
                                     radius: 17
-                                    fill: networkRow.focused ? "#1a0b0c10" : "#29ffffff"
+                                    fill: networkRow.focused ? GlassStyle.levelChosenFocused : GlassStyle.fillActive
 
                                     Row {
                                         id: pillRow
@@ -1599,7 +1599,7 @@ Item {
                     height: width
                     unit: setup.unit
                     radius: 44
-                    fill: "#24ffffff"
+                    fill: GlassStyle.fillRaised
                     visible: setup.message.appIcon === undefined
 
                     Spinner {
@@ -1642,7 +1642,7 @@ Item {
                     wrapMode: Text.WordWrap
                     lineHeight: 1.3
                     text: setup.message.text
-                    color: "#c7ffffff"
+                    color: GlassStyle.textGlance
                     font.family: setup.valueFont
                     font.pixelSize: 22 * setup.unit
                     font.hintingPreference: Font.PreferNoHinting

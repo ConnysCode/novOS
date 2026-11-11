@@ -346,7 +346,7 @@ Item {
                         height: 10 * pill.unit
                         anchors.verticalCenter: parent.verticalCenter
                         radius: height / 2
-                        color: "#33ffffff"
+                        color: GlassStyle.fillSelected
                         border.width: 1 * pill.unit
                         border.color: "#1aaab2c4"
                         clip: true
@@ -355,7 +355,7 @@ Item {
                             height: parent.height
                             width: parent.width * pill.fraction
                             radius: parent.radius
-                            color: pill.look === "muted" ? "#66ffffff" : "#ffffff"
+                            color: pill.look === "muted" ? GlassStyle.textDisabled : "#ffffff"
 
                             Behavior on width {
                                 NumberAnimation { duration: pill.stepTime; easing.type: Easing.OutQuad }

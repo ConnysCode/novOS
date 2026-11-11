@@ -22,7 +22,7 @@ Item {
     property real backdropMargin: 56
     property rect backdropArea: Qt.rect(0, 0, 0, 0)
     property real hasBackdrop: 0
-    readonly property real backdropVeil: 0.38   // its own dimming, over the host's
+    readonly property real backdropVeil: GlassStyle.backdropVeil   // its own dimming, over the host's
     property var focusCurve: GlassStyle.curve
     property var hostState: ({})          // source, network and device facts the panel knows
 
@@ -1307,7 +1307,7 @@ Item {
                 height: (settings.cardHeight - 2 * settings.sideY) * settings.unit
                 unit: settings.unit
                 radius: 34
-                fill: "#12ffffff"
+                fill: GlassStyle.fillFaint
             }
 
             // The chosen area keeps a plate while the focus works on the page.
@@ -1317,7 +1317,7 @@ Item {
                 width: settings.tabWidth * settings.unit
                 height: settings.tabHeight * settings.unit
                 radius: 22 * settings.unit
-                color: "#2effffff"
+                color: GlassStyle.fillActiveStrong
                 opacity: settings.zone === "content" ? 1 : 0
                 visible: settings.zone !== "search"
                 Behavior on opacity { NumberAnimation { duration: 160 } }
@@ -1335,7 +1335,7 @@ Item {
                     radius: 26 * settings.unit
                     color: "#2e000000"
                     border.width: Math.max(1, settings.unit)
-                    border.color: "#24ffffff"
+                    border.color: GlassStyle.divider
                 }
             }
 
@@ -1344,7 +1344,7 @@ Item {
                 y: (settings.tabY(settings.separatorAfter + 1) - 13) * settings.unit
                 width: (settings.tabWidth - 36) * settings.unit
                 height: Math.max(1, settings.unit)
-                color: "#24ffffff"
+                color: GlassStyle.fillRaised
             }
 
             // The focus surface glides between side bar and page.
@@ -1702,7 +1702,7 @@ Item {
             height: 56 * settings.unit
             unit: settings.unit
             radius: 28
-            fill: "#29ffffff"
+            fill: GlassStyle.fillActive
             visible: shutdownPreview.running
 
             Row {

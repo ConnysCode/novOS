@@ -377,7 +377,7 @@ FocusScope {
         Text {
             anchors.right: parent.right
             text: hub.dateText
-            color: "#c7ffffff"
+            color: GlassStyle.textGlance
             font.family: hub.valueFamily
             font.pixelSize: 18 * hub.unit
             font.hintingPreference: Font.PreferNoHinting
@@ -443,7 +443,7 @@ FocusScope {
                     var line = HubModel.stateText(stage.device, hub.tr);
                     return HubModel.remoteOff(stage.device) ? line + " · " + hub.tr("hint.remote_off") : line;
                 }
-                color: "#d1ffffff"
+                color: GlassStyle.textRaised
                 font.family: hub.rowFamily
                 font.pixelSize: 26 * hub.unit
                 font.hintingPreference: Font.PreferNoHinting
@@ -477,7 +477,7 @@ FocusScope {
                             radius: 9 * hub.unit
                             color: "transparent"
                             border.width: 1.5 * hub.unit
-                            border.color: "#8cffffff"
+                            border.color: GlassStyle.optionRing
 
                             Text {
                                 id: capText
@@ -493,7 +493,7 @@ FocusScope {
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             text: modelData[1]
-                            color: "#d1ffffff"
+                            color: GlassStyle.textRaised
                             font.family: hub.rowFamily
                             font.pixelSize: 20 * hub.unit
                             font.hintingPreference: Font.PreferNoHinting
@@ -510,7 +510,7 @@ FocusScope {
         y: 592 * hub.unit
         visible: hub.backgroundCredit !== ""
         text: I18n.t("launcher", "label.image_credit", { credit: hub.backgroundCredit })
-        color: "#9effffff"
+        color: GlassStyle.textFaint
         font.family: hub.rowFamily
         font.pixelSize: 16 * hub.unit
         font.hintingPreference: Font.PreferNoHinting
@@ -560,7 +560,7 @@ FocusScope {
                     Rectangle {
                         anchors.fill: parent
                         radius: height / 2
-                        color: parent.focused ? GlassStyle.focusFill : (parent.selected ? "#33ffffff" : "#1affffff")
+                        color: parent.focused ? GlassStyle.focusFill : (parent.selected ? GlassStyle.fillSelected : GlassStyle.fillRest)
 
                         Behavior on color { ColorAnimation { duration: 180 } }
                     }

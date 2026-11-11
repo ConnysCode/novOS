@@ -25,7 +25,7 @@ Row {
 
     Text {
         text: "OS"
-        color: "#b8ffffff"
+        color: GlassStyle.textSecondary
         font.family: GlassStyle.valueFont
         font.pixelSize: mark.size * mark.unit
         font.letterSpacing: -0.035 * mark.size * mark.unit

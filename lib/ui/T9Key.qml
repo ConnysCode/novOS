@@ -27,7 +27,7 @@ Item {
         visible: !cap.focused
         unit: cap.u
         radius: 20
-        fill: cap.latched ? "#4dffffff" : "#1affffff"
+        fill: cap.latched ? GlassStyle.fillLatchedStrong : GlassStyle.fillRest
     }
 
     Column {

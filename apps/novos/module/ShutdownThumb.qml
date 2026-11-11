@@ -96,7 +96,7 @@ Item {
         radius: 20 * thumb.unit
         color: "#00ffffff"
         border.width: 2 * thumb.unit
-        border.color: thumb.focused ? "#400b0c10" : "#47ffffff"
+        border.color: thumb.focused ? GlassStyle.lineOnFocus : GlassStyle.lineLight
 
         Image {
             anchors.centerIn: parent

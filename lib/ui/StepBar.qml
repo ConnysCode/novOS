@@ -18,7 +18,7 @@ Row {
             width: 36 * bar.unit
             height: 6 * bar.unit
             radius: 3 * bar.unit
-            color: index < bar.reached ? "#ebffffff" : "#38ffffff"
+            color: index < bar.reached ? GlassStyle.stepDone : GlassStyle.spinnerTrack
         }
     }
 }

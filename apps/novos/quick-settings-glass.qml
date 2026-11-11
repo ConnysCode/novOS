@@ -70,9 +70,9 @@ StarfishSystemUIWindow {
         // Hand-off tokens.
         readonly property color textPrimary: GlassStyle.textPrimary
         readonly property color textSecondary: GlassStyle.textSecondary   // white 72 %
-        readonly property color chevronIdle: "#80ffffff"     // white 50 %
+        readonly property color chevronIdle: GlassStyle.chevronIdle      // white 50 %
         readonly property color separator: GlassStyle.separator       // white 12 %
-        readonly property color hover: "#14ffffff"           // white 8 %
+        readonly property color hover: GlassStyle.fillSoft           // white 8 %
         readonly property color focusFill: GlassStyle.focusFill       // white 95 %
         readonly property color focusText: GlassStyle.focusText
         readonly property color focusSecondary: GlassStyle.focusSecondary
@@ -170,12 +170,14 @@ StarfishSystemUIWindow {
         // A modal lies on the dimmed picture: the modal scrim (none when the panel never
         // stood, see settingsLaunch), and for the settings modal its own dimming on top.
         // The glass takes all of it beyond the content scrim.
+        // With high contrast the content scrim is stronger than the grade holds: contentVeil.
         readonly property real modalVeil: {
-            if (!modalBackdrop) return 0;
+            if (!modalBackdrop) return GlassStyle.contentVeil;
             var sheet = settingsLoader.item;
             var total = settingsLaunch || mode === "game" ? 0 : GlassStyle.modalScrim;
             if (settingsBackdrop && sheet !== null) total = GlassStyle.stackScrims(total, sheet.backdropVeil);
-            return GlassStyle.veilBeyondContent(total) * (1 - settingsPicture);
+            var modal = GlassStyle.veilBeyondContent(Math.max(total, GlassStyle.contentScrim));
+            return GlassStyle.contentVeil + (modal - GlassStyle.contentVeil) * (1 - settingsPicture);
         }
         // The settings modal's band editor stands over the bare picture (module/BandEditor.qml):
         // 0 to 1 while the modal's card steps aside, the dimming goes with it.
@@ -2648,7 +2650,7 @@ StarfishSystemUIWindow {
                                             height: 28 * panel.unit
                                             verticalAlignment: Text.AlignVCenter
                                             text: settingsStore.title("option.audioGuidanceSpeed")
-                                            color: "#66ffffff"
+                                            color: GlassStyle.textDisabled
                                             font.family: panel.rowFamily
                                             font.pixelSize: 22 * panel.unit
                                             font.hintingPreference: Font.PreferNoHinting
@@ -2671,7 +2673,7 @@ StarfishSystemUIWindow {
                                             height: parent.height
                                             verticalAlignment: Text.AlignVCenter
                                             text: panel.rowValue("guidanceSpeed")
-                                            color: "#66ffffff"
+                                            color: GlassStyle.textDisabled
                                             font.family: panel.valueFamily
                                             font.pixelSize: 18 * panel.unit
                                             font.hintingPreference: Font.PreferNoHinting
@@ -2736,11 +2738,11 @@ StarfishSystemUIWindow {
                                                     height: 128 * panel.unit
                                                     unit: panel.unit
                                                     radius: 32
-                                                    fill: "#1affffff"
+                                                    fill: GlassStyle.fillRest
 
                                                     Image {
                                                         anchors.centerIn: parent
-                                                        opacity: panel.detailDevice && !panel.detailDevice.hdmiPlugIn ? 0.55 : 1
+                                                        opacity: panel.detailDevice && !panel.detailDevice.hdmiPlugIn ? GlassStyle.iconDimmed : 1
                                                         source: panel.detailDevice ?
                                                                 Qt.resolvedUrl("module/icons/detail-" +
                                                                                SourceList.deviceIcon(panel.detailDevice) + ".png") : ""
@@ -2844,7 +2846,7 @@ StarfishSystemUIWindow {
                                                     height: 112 * panel.unit
                                                     unit: panel.unit
                                                     radius: 26
-                                                    fill: "#1affffff"
+                                                    fill: GlassStyle.fillRest
 
                                                     ProfileAvatar {
                                                         x: 20 * panel.unit
@@ -2897,7 +2899,7 @@ StarfishSystemUIWindow {
                                                     height: 112 * panel.unit
                                                     unit: panel.unit
                                                     radius: 26
-                                                    fill: "#1affffff"
+                                                    fill: GlassStyle.fillRest
 
                                                     GlassControl {
                                                         x: 20 * panel.unit
@@ -2906,7 +2908,7 @@ StarfishSystemUIWindow {
                                                         height: width
                                                         unit: panel.unit
                                                         radius: 32
-                                                        fill: "#24ffffff"
+                                                        fill: GlassStyle.fillRaised
 
                                                         Image {
                                                             anchors.centerIn: parent
@@ -2958,7 +2960,7 @@ StarfishSystemUIWindow {
                                                         height: 28 * panel.unit
                                                         verticalAlignment: Text.AlignVCenter
                                                         text: I18n.t("panel", "row.forget_network")
-                                                        color: "#66ffffff"
+                                                        color: GlassStyle.textDisabled
                                                         font.family: GlassStyle.rowFont
                                                         font.pixelSize: 22 * panel.unit
                                                         font.hintingPreference: Font.PreferNoHinting
@@ -2971,7 +2973,7 @@ StarfishSystemUIWindow {
                                                         text: panel.networkState === "wired" ?
                                                               I18n.t("panel", "detail.forget_wired") :
                                                               I18n.t("panel", "detail.forget_none")
-                                                        color: "#66ffffff"
+                                                        color: GlassStyle.textDisabled
                                                         font.family: GlassStyle.valueFont
                                                         font.pixelSize: 17 * panel.unit
                                                         font.hintingPreference: Font.PreferNoHinting

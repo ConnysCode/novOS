@@ -42,7 +42,7 @@ Item {
                     anchors.fill: parent
                     unit: cell.unit
                     radius: 28
-                    fill: "#14ffffff"
+                    fill: GlassStyle.fillSoft
                 }
 
                 Row {
@@ -72,7 +72,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     width: Math.max(1, cell.unit)
                     height: 60 * cell.unit
-                    color: "#29ffffff"
+                    color: GlassStyle.fillActive
                 }
 
                 Column {
@@ -380,7 +380,7 @@ Item {
                     visible: index > 0
                     anchors.verticalCenter: parent.verticalCenter
                     text: "·"
-                    color: "#66ffffff"
+                    color: GlassStyle.textDisabled
                     font.family: cell.valueFont
                     font.pixelSize: 18 * cell.unit
                 }
@@ -392,7 +392,7 @@ Item {
                     radius: 9 * cell.unit
                     color: "#00ffffff"
                     border.width: 1.5 * cell.unit
-                    border.color: "#8cffffff"
+                    border.color: GlassStyle.optionRing
 
                     // The red key: a red bar as on the remote.
                     Rectangle {
@@ -421,7 +421,7 @@ Item {
                                                   focusedRow.item.entry.own === true
                     anchors.verticalCenter: parent.verticalCenter
                     text: onOwn && modelData.textOwn ? modelData.textOwn : modelData.text
-                    color: "#c7ffffff"
+                    color: GlassStyle.textGlance
                     font.family: cell.valueFont
                     font.pixelSize: 18 * cell.unit
                 }

@@ -12,7 +12,7 @@ Rectangle {
 
     height: barHeight * unit
     radius: height / 2
-    color: barHeight > 8 ? "#29ffffff" : "#2effffff"
+    color: barHeight > 8 ? GlassStyle.fillActive : GlassStyle.fillActiveStrong
     clip: true
 
     Rectangle {

@@ -33,7 +33,7 @@ Item {
         anchors.fill: parent
         unit: modeSwitch.unit
         radius: 32
-        fill: "#1affffff"
+        fill: GlassStyle.fillRest
     }
 
     Row {
@@ -55,7 +55,7 @@ Item {
                 Rectangle {
                     anchors.fill: parent
                     radius: 28 * modeSwitch.unit
-                    color: "#3dffffff"
+                    color: GlassStyle.fillStrong
                     visible: parent.selected && !parent.focused
                     antialiasing: true
                 }

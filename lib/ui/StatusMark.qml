@@ -22,9 +22,9 @@ Item {
         visible: mark.status !== "running"
         color: mark.status === "done" ? GlassStyle.accent :
                mark.status === "error" ? GlassStyle.dangerFocused :
-               mark.status === "reset" ? "#2effffff" : "transparent"
+               mark.status === "reset" ? GlassStyle.fillActiveStrong : "transparent"
         border.width: mark.status === "pending" ? 2 * mark.unit : 0
-        border.color: "#52ffffff"
+        border.color: GlassStyle.lineMark
     }
 
     Image {

@@ -23,7 +23,7 @@ Item {
         visible: !cap.focused
         unit: cap.board.unit
         radius: 16
-        fill: cap.latched ? "#47ffffff" : "#1affffff"
+        fill: cap.latched ? GlassStyle.fillLatched : GlassStyle.fillRest
     }
 
     Text {

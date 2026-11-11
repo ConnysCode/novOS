@@ -28,7 +28,7 @@ Rectangle {
     width: thickness * unit
     height: thickness * unit
     radius: thickness / 2 * unit
-    opacity: disabled ? 0.5 : 1
+    opacity: disabled ? GlassStyle.disabledOpacity : 1
     color: focused ? GlassStyle.trackFocused : GlassStyle.trackFill
 
     Rectangle {

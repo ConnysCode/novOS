@@ -42,13 +42,13 @@ Item {
         anchors.fill: parent
         radius: card.plateRadius * card.unit
         color: card.focused ? (card.ownFocus ? GlassStyle.focusFill : "#00ffffff")
-                            : (card.media ? "#00ffffff" : (card.selected ? "#29ffffff" : "#0fffffff"))
+                            : (card.media ? "#00ffffff" : (card.selected ? GlassStyle.fillActive : "#0fffffff"))
         Behavior on color {
             enabled: !card.ownFocus
             ColorAnimation { duration: GlassStyle.focusDuration }
         }
         border.width: card.selected && !card.focused && !card.media ? 2 * card.unit : 0
-        border.color: "#8cffffff"
+        border.color: GlassStyle.optionRing
         antialiasing: true
     }
 
@@ -70,7 +70,7 @@ Item {
         radius: 20 * card.unit
         color: "#00ffffff"
         border.width: Math.max(1, card.unit)
-        border.color: "#1affffff"
+        border.color: GlassStyle.lineSoft
         antialiasing: true
     }
 
@@ -113,7 +113,7 @@ Item {
         width: card.media ? parent.width - 2 * x : implicitWidth
         elide: Text.ElideRight
         text: card.subtitle
-        color: card.focused ? GlassStyle.focusSecondary : (card.media ? "#bdffffff" : "#c2ffffff")
+        color: card.focused ? GlassStyle.focusSecondary : (card.media ? GlassStyle.textCaptionMedia : GlassStyle.textCaption)
         font.family: GlassStyle.valueFont
         font.pixelSize: (card.media ? 17 : 19) * card.unit
         font.hintingPreference: Font.PreferNoHinting

@@ -14,7 +14,7 @@ Rectangle {
     width: 64 * unit
     height: 36 * unit
     radius: 18 * unit
-    opacity: disabled ? 0.5 : 1
+    opacity: disabled ? GlassStyle.disabledOpacity : 1
     color: on ? GlassStyle.accent : GlassStyle.switchOff
 
     Behavior on color {

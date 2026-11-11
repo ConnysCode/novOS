@@ -16,7 +16,7 @@ Item {
         radius: width / 2
         color: "transparent"
         border.width: spinner.lineWidth
-        border.color: spinner.dark ? "#240b0c10" : "#38ffffff"
+        border.color: spinner.dark ? GlassStyle.trackFocused : GlassStyle.spinnerTrack
     }
 
     Image {

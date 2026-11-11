@@ -22,7 +22,7 @@ Item {
     width: 224 * unit
     height: 184 * unit
     scale: focused ? GlassStyle.focusScale : 1
-    opacity: reachable ? 1 : 0.55
+    opacity: reachable ? 1 : GlassStyle.iconDimmed
 
     Behavior on scale {
         NumberAnimation { duration: GlassStyle.focusDuration; easing.type: Easing.Bezier; easing.bezierCurve: tile.standardCurve }
@@ -31,7 +31,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: 32 * tile.unit
-        color: tile.focused ? GlassStyle.focusFill : (tile.active ? "#33ffffff" : "#14ffffff")
+        color: tile.focused ? GlassStyle.focusFill : (tile.active ? GlassStyle.fillSelected : GlassStyle.fillSoft)
 
         Behavior on color { ColorAnimation { duration: 180 } }
     }
@@ -49,7 +49,7 @@ Item {
         y: 20 * tile.unit
         width: 36 * tile.unit
         height: 36 * tile.unit
-        opacity: tile.focused || tile.active ? 1 : 0.6
+        opacity: tile.focused || tile.active ? 1 : GlassStyle.iconQuiet
         source: Qt.resolvedUrl("icons/device-" + tile.kind + (tile.focused ? "-dark.png" : ".png"))
     }
 
@@ -83,7 +83,7 @@ Item {
             width: parent.width
             text: tile.stateLine
             elide: Text.ElideRight
-            color: tile.focused ? GlassStyle.focusSecondary : (tile.active ? GlassStyle.textSecondary : "#9effffff")
+            color: tile.focused ? GlassStyle.focusSecondary : (tile.active ? GlassStyle.textSecondary : GlassStyle.textFaint)
             font.family: tile.rowFamily
             font.pixelSize: 17 * tile.unit
             font.hintingPreference: Font.PreferNoHinting

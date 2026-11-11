@@ -74,7 +74,7 @@ Item {
         Image {
             x: glassRow.iconOnly ? (glassRow.width - glassRow.iconSize) / 2 : 20 * glassRow.unit
             y: (glassRow.height - glassRow.iconSize) / 2
-            opacity: ((index === 1) === glassRow.focused ? 1 : 0) * (glassRow.disabled ? 0.5 : 1)
+            opacity: ((index === 1) === glassRow.focused ? 1 : 0) * (glassRow.disabled ? GlassStyle.disabledOpacity : 1)
             source: Qt.resolvedUrl("icons/row-" + glassRow.iconPng + modelData + ".png")
             Behavior on opacity { NumberAnimation { duration: glassRow.colorDuration } }
         }
@@ -99,7 +99,7 @@ Item {
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
         text: glassRow.title
-        opacity: glassRow.disabled ? 0.5 : 1
+        opacity: glassRow.disabled ? GlassStyle.disabledOpacity : 1
         color: glassRow.danger ? (glassRow.focused ? GlassStyle.dangerFocused : GlassStyle.danger) : glassRow.mainColor
         font.family: glassRow.titleFont
         font.pixelSize: glassRow.titleSize * glassRow.unit
@@ -138,7 +138,7 @@ Item {
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
         text: glassRow.value
-        opacity: glassRow.disabled ? 0.5 : 1
+        opacity: glassRow.disabled ? GlassStyle.disabledOpacity : 1
         color: glassRow.sideColor
         font.family: glassRow.valueFont
         font.pixelSize: 18 * glassRow.unit
@@ -156,7 +156,7 @@ Item {
             y: (glassRow.height - 18 * glassRow.unit) / 2
             width: 18 * glassRow.unit
             height: width
-            opacity: ((index === 1) === glassRow.focused ? 1 : 0) * (glassRow.disabled ? 0.5 : 1)
+            opacity: ((index === 1) === glassRow.focused ? 1 : 0) * (glassRow.disabled ? GlassStyle.disabledOpacity : 1)
             // "down": the chevron turned, a choice that opens below its row.
             rotation: glassRow.mark === "down" ? 90 : 0
             source: Qt.resolvedUrl("icons/" + (glassRow.mark === "down" ? "chevron" : glassRow.mark) + "-18" +
@@ -239,7 +239,7 @@ Item {
             width: 40 * glassRow.unit
             height: width
             radius: width / 2
-            opacity: glassRow.disabled ? 0.5 : 1
+            opacity: glassRow.disabled ? GlassStyle.disabledOpacity : 1
             color: glassRow.focused ? GlassStyle.endCapFocused : GlassStyle.endCapFill
             Behavior on color { ColorAnimation { duration: glassRow.colorDuration } }
 

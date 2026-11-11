@@ -117,7 +117,7 @@ Item {
                         width: 32 * page.unit
                         height: width
                         radius: width / 2
-                        color: modelData.done ? GlassStyle.accent : "#29ffffff"
+                        color: modelData.done ? GlassStyle.accent : GlassStyle.fillActive
 
                         Image {
                             anchors.centerIn: parent
@@ -172,7 +172,7 @@ Item {
                               page.t("upload.progress_frames", { done: page.upload.done || 0, total: page.upload.frames }) :
                               page.t("upload.progress", { received: page.megabytes(page.upload.received || 0),
                                                           size: page.megabytes(page.upload.size || 0) })
-                        color: "#d1ffffff"
+                        color: GlassStyle.textRaised
                         font.family: GlassStyle.valueFont
                         font.pixelSize: 18 * page.unit
                     }
@@ -180,7 +180,7 @@ Item {
                     Text {
                         anchors.right: parent.right
                         text: Math.round(page.share * 100) + " %"
-                        color: "#d1ffffff"
+                        color: GlassStyle.textRaised
                         font.family: GlassStyle.titleFont
                         font.pixelSize: 18 * page.unit
                     }

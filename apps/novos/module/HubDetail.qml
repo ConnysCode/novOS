@@ -164,7 +164,7 @@ FocusScope {
                 Rectangle {
                     anchors.fill: parent
                     radius: width / 2
-                    color: "#24ffffff"
+                    color: GlassStyle.fillRaised
                 }
 
                 BorderImage {
@@ -208,7 +208,7 @@ FocusScope {
                     var line = HubModel.detailLine(detail.device, detail.tr);
                     return HubModel.remoteOff(detail.device) ? line + " · " + detail.tr("hint.remote_off") : line;
                 }
-                color: "#c7ffffff"
+                color: GlassStyle.textGlance
                 font.family: detail.rowFamily
                 font.pixelSize: 22 * detail.unit
                 font.hintingPreference: Font.PreferNoHinting
@@ -244,8 +244,8 @@ FocusScope {
                             Rectangle {
                                 anchors.fill: parent
                                 radius: (parent.box ? 40 : 36) * detail.unit
-                                color: parent.box ? (parent.focused ? GlassStyle.focusFill : "#24ffffff") :
-                                       (detail.nudged === modelData ? "#40ffffff" : "#1fffffff")
+                                color: parent.box ? (parent.focused ? GlassStyle.focusFill : GlassStyle.fillRaised) :
+                                       (detail.nudged === modelData ? GlassStyle.fillPressed : GlassStyle.fillControl)
 
                                 Behavior on color { ColorAnimation { duration: 160 } }
                             }
@@ -327,7 +327,7 @@ FocusScope {
                         Rectangle {
                             anchors.fill: parent
                             radius: height / 2
-                            color: parent.focused ? GlassStyle.focusFill : "#1fffffff"
+                            color: parent.focused ? GlassStyle.focusFill : GlassStyle.fillControl
 
                             Behavior on color { ColorAnimation { duration: 180 } }
                         }

@@ -958,7 +958,7 @@ StarfishSystemUIWindow {
             Text {
                 anchors.right: parent.right
                 text: launcher.dateLabel(launcher.now)
-                color: "#c7ffffff"
+                color: GlassStyle.textGlance
                 font.family: GlassStyle.valueFont
                 font.pixelSize: 18 * launcher.unit
                 font.hintingPreference: Font.PreferNoHinting
@@ -988,7 +988,7 @@ StarfishSystemUIWindow {
             Rectangle {
                 anchors.fill: parent
                 radius: height / 2
-                color: launcher.profileMenuOpen ? "#3dffffff" : GlassStyle.focusFill
+                color: launcher.profileMenuOpen ? GlassStyle.fillStrong : GlassStyle.focusFill
                 opacity: profileChip.open ? 1 : 0
                 scale: launcher.chipFocused && !launcher.profileMenuOpen ? GlassStyle.focusScale : 1
                 antialiasing: true
@@ -1100,7 +1100,7 @@ StarfishSystemUIWindow {
                     text: launcher.shownHero.detail
                     opacity: launcher.heroAlpha(2)
                     transform: Translate { x: launcher.heroShiftX(2); y: launcher.heroShiftY(2) }
-                    color: "#d1ffffff"
+                    color: GlassStyle.textRaised
                     font.family: GlassStyle.valueFont
                     font.pixelSize: 26 * launcher.unit
                     font.hintingPreference: Font.PreferNoHinting
@@ -1120,7 +1120,7 @@ StarfishSystemUIWindow {
                         radius: 9 * launcher.unit
                         color: "transparent"
                         border.width: 1.5 * launcher.unit
-                        border.color: "#8cffffff"
+                        border.color: GlassStyle.optionRing
 
                         Text {
                             id: okLabel
@@ -1136,7 +1136,7 @@ StarfishSystemUIWindow {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: launcher.shownHero.action
-                        color: "#d1ffffff"
+                        color: GlassStyle.textRaised
                         font.family: GlassStyle.rowFont
                         font.pixelSize: 20 * launcher.unit
                         font.hintingPreference: Font.PreferNoHinting
@@ -1150,7 +1150,7 @@ StarfishSystemUIWindow {
             anchors.rightMargin: 96 * launcher.unit
             y: (launcher.appsOpen ? 634 : 684) * launcher.unit
             text: I18n.t("launcher", "label.image_credit", { credit: launcher.backgroundCredit(launcher.backgroundIndex) })
-            color: "#9effffff"
+            color: GlassStyle.textFaint
             font.family: GlassStyle.rowFont
             font.pixelSize: 16 * launcher.unit
             font.hintingPreference: Font.PreferNoHinting
@@ -1261,7 +1261,7 @@ StarfishSystemUIWindow {
                         height: 56 * launcher.unit
                         unit: launcher.unit
                         radius: 28
-                        fill: "#1affffff"
+                        fill: GlassStyle.fillRest
 
                         Row {
                             id: chipRow
@@ -1275,7 +1275,7 @@ StarfishSystemUIWindow {
                                 height: 28 * launcher.unit
                                 smooth: true
                                 visible: modelData.isApp !== true
-                                opacity: modelData.off === true ? 0.55 : 1
+                                opacity: modelData.off === true ? GlassStyle.iconDimmed : 1
                                 source: modelData.isApp ? "" : Qt.resolvedUrl("module/icons/" + modelData.icon + ".png")
                             }
 
@@ -1338,7 +1338,7 @@ StarfishSystemUIWindow {
                     width: 18 * launcher.unit
                     height: 18 * launcher.unit
                     rotation: 90
-                    opacity: 0.6
+                    opacity: GlassStyle.iconQuiet
                     smooth: true
                     source: Qt.resolvedUrl("module/icons/chevron-18.png")
                 }

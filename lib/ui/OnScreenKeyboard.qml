@@ -332,7 +332,7 @@ Item {
             height: (3 * keyboard.t9KeyHeight + 2 * keyboard.t9Pitch) * keyboard.unit
             unit: keyboard.unit
             radius: 20
-            fill: "#14ffffff"
+            fill: GlassStyle.fillSoft
 
             Column {
                 x: 16 * keyboard.unit
@@ -386,14 +386,14 @@ Item {
                                 width: 34 * keyboard.unit
                                 height: 44 * keyboard.unit
                                 radius: 12 * keyboard.unit
-                                color: chosen ? "#ffffff" : "#14ffffff"
+                                color: chosen ? "#ffffff" : GlassStyle.fillSoft
                                 antialiasing: true
 
                                 Text {
                                     anchors.centerIn: parent
                                     visible: modelData !== " "
                                     text: modelData
-                                    color: parent.chosen ? GlassStyle.focusText : "#d1ffffff"
+                                    color: parent.chosen ? GlassStyle.focusText : GlassStyle.textRaised
                                     font.family: keyboard.keyFont
                                     font.pixelSize: 22 * keyboard.unit
                                     font.hintingPreference: Font.PreferNoHinting
@@ -414,13 +414,13 @@ Item {
                         width: parent.width
                         height: 4 * keyboard.unit
                         radius: 2 * keyboard.unit
-                        color: "#29ffffff"
+                        color: GlassStyle.fillActive
 
                         Rectangle {
                             width: parent.width * keyboard.pendingProgress
                             height: parent.height
                             radius: parent.radius
-                            color: "#d9ffffff"
+                            color: GlassStyle.textHigh
                         }
                     }
                 }

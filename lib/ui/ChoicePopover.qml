@@ -344,7 +344,7 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                     text: popover.pad((spin.value + modelData.offset * spin.step + spin.range) % spin.range)
-                    color: "#80ffffff"
+                    color: GlassStyle.textHalf
                     font.family: popover.rowFont
                     font.pixelSize: 24 * popover.unit
                     font.hintingPreference: Font.PreferNoHinting

@@ -8,7 +8,7 @@ Item {
 
     property real unit: 1
     property int radius: 26
-    property color fill: "#1fffffff"
+    property color fill: GlassStyle.fillControl
     property string edge: "edge-" + radius
 
     Rectangle {

@@ -1058,7 +1058,7 @@ StarfishSystemUIWindow {
                             width: 4 * picker.unit
                             height: width
                             radius: width / 2
-                            color: "#8cffffff"
+                            color: GlassStyle.optionRing
                         }
 
                         Text {

@@ -14,9 +14,9 @@ Item {
         anchors.fill: parent
         gradient: Gradient {
             orientation: Gradient.Horizontal
-            GradientStop { position: 0; color: GlassStyle.scrim(0.62) }
-            GradientStop { position: 0.55; color: GlassStyle.scrim(0.30) }
-            GradientStop { position: 1; color: GlassStyle.scrim(0.20) }
+            GradientStop { position: 0; color: GlassStyle.scrim(GlassStyle.launcherScrimLeft[0]) }
+            GradientStop { position: 0.55; color: GlassStyle.scrim(GlassStyle.launcherScrimLeft[1]) }
+            GradientStop { position: 1; color: GlassStyle.scrim(GlassStyle.launcherScrimLeft[2]) }
         }
     }
 
@@ -24,7 +24,7 @@ Item {
         width: parent.width
         height: 220 * scrims.unit
         gradient: Gradient {
-            GradientStop { position: 0; color: GlassStyle.scrim(0.45) }
+            GradientStop { position: 0; color: GlassStyle.scrim(GlassStyle.launcherScrimTop) }
             GradientStop { position: 1; color: GlassStyle.scrim(0) }
         }
     }

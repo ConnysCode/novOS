@@ -52,6 +52,6 @@ Item {
         radius: icon.cornerRadius
         color: "transparent"
         border.width: 1
-        border.color: icon.focused ? "#240b0c10" : "#24ffffff"
+        border.color: icon.focused ? GlassStyle.trackFocused : GlassStyle.divider
     }
 }

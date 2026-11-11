@@ -204,7 +204,7 @@ Item {
             radius: parent.radius
             color: "#00ffffff"
             border.width: Math.max(1, page.unit)
-            border.color: "#1fffffff"
+            border.color: GlassStyle.lineQuiet
         }
     }
 
@@ -247,7 +247,7 @@ Item {
             radius: 18 * page.unit
             color: "#00ffffff"
             border.width: 4 * page.unit
-            border.color: page.focusedItem === "strip" ? "#ffffff" : "#80ffffff"
+            border.color: page.focusedItem === "strip" ? "#ffffff" : GlassStyle.lineHalf
 
             Behavior on x { NumberAnimation { duration: GlassStyle.focusDuration; easing.type: Easing.Bezier; easing.bezierCurve: GlassStyle.curve } }
             Behavior on width { NumberAnimation { duration: GlassStyle.focusDuration; easing.type: Easing.Bezier; easing.bezierCurve: GlassStyle.curve } }
