@@ -220,6 +220,12 @@ Item {
         color: GlassStyle.focusFill
         antialiasing: true
 
+        FocusRing {
+            anchors.fill: parent
+            unit: popover.unit
+            radius: parent.radius
+        }
+
         Behavior on x {
             NumberAnimation { duration: 160; easing.type: Easing.Bezier; easing.bezierCurve: popover.curve }
         }

@@ -248,6 +248,13 @@ FocusScope {
                                        (detail.nudged === modelData ? GlassStyle.fillPressed : GlassStyle.fillControl)
 
                                 Behavior on color { ColorAnimation { duration: 160 } }
+
+                                FocusRing {
+                                    anchors.fill: parent
+                                    unit: detail.unit
+                                    radius: parent.radius
+                                    shown: parent.parent.box && parent.parent.focused
+                                }
                             }
 
                             BorderImage {
@@ -330,6 +337,13 @@ FocusScope {
                             color: parent.focused ? GlassStyle.focusFill : GlassStyle.fillControl
 
                             Behavior on color { ColorAnimation { duration: 180 } }
+
+                            FocusRing {
+                                anchors.fill: parent
+                                unit: detail.unit
+                                radius: parent.radius
+                                shown: parent.parent.focused
+                            }
                         }
 
                         BorderImage {

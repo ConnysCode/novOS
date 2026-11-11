@@ -5,6 +5,7 @@ import "."
 // the focused element (docs/design-system.md, "Fokus und Bedienung"). The owner sets x, y,
 // width and height in px and the radius in logical px; the surface brings the motion, the
 // colour and the shadow. pressScale gives the short pulse of a key press (0.93 for 40 ms).
+// With "Kontrast für Fokus" it carries FocusRing.
 Item {
     id: surface
 
@@ -48,5 +49,12 @@ Item {
         radius: surface.radius * surface.unit
         color: GlassStyle.focusFill
         antialiasing: true
+    }
+
+    // "Kontrast für Fokus": the ring around the plate.
+    FocusRing {
+        anchors.fill: parent
+        unit: surface.unit
+        radius: surface.radius * surface.unit
     }
 }

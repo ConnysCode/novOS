@@ -992,6 +992,14 @@ StarfishSystemUIWindow {
                 opacity: profileChip.open ? 1 : 0
                 scale: launcher.chipFocused && !launcher.profileMenuOpen ? GlassStyle.focusScale : 1
                 antialiasing: true
+
+                // "Kontrast für Fokus".
+                FocusRing {
+                    anchors.fill: parent
+                    unit: launcher.unit
+                    radius: parent.radius
+                    shown: launcher.chipFocused && !launcher.profileMenuOpen
+                }
                 Behavior on opacity { NumberAnimation { duration: GlassStyle.colorDuration } }
                 Behavior on color { ColorAnimation { duration: GlassStyle.colorDuration } }
             }
@@ -1215,6 +1223,12 @@ StarfishSystemUIWindow {
                         antialiasing: true
                         opacity: launcher.chipFocused ? 0 : 1
 
+                        FocusRing {
+                            anchors.fill: parent
+                            unit: launcher.unit
+                            radius: parent.radius
+                        }
+
                         Behavior on opacity { NumberAnimation { duration: GlassStyle.colorDuration } }
 
                         Behavior on x {
@@ -1386,6 +1400,13 @@ StarfishSystemUIWindow {
                         color: GlassStyle.focusFill
                         antialiasing: true
                         rotation: launcher.wiggle
+
+                        // Turns and grows with the tile while it moves.
+                        FocusRing {
+                            anchors.fill: parent
+                            unit: launcher.unit
+                            radius: parent.radius
+                        }
                         scale: launcher.moving ? 1.06 : 1
 
                         Behavior on scale { NumberAnimation { duration: 160 } }

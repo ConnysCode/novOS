@@ -563,6 +563,13 @@ FocusScope {
                         color: parent.focused ? GlassStyle.focusFill : (parent.selected ? GlassStyle.fillSelected : GlassStyle.fillRest)
 
                         Behavior on color { ColorAnimation { duration: 180 } }
+
+                        FocusRing {
+                            anchors.fill: parent
+                            unit: hub.unit
+                            radius: parent.radius
+                            shown: parent.parent.focused
+                        }
                     }
 
                     BorderImage {

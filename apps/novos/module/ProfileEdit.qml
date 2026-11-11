@@ -82,6 +82,12 @@ Item {
             opacity: nameRow.focused ? 1 : 0
             scale: nameRow.focused ? GlassStyle.focusScale : 1
             Behavior on opacity { NumberAnimation { duration: GlassStyle.colorDuration } }
+
+            FocusRing {
+                anchors.fill: parent
+                unit: page.unit
+                radius: parent.radius
+            }
         }
 
         GlassRow {
@@ -131,8 +137,16 @@ Item {
                     color: "transparent"
                     border.width: 3 * page.unit
                     border.color: GlassStyle.focusFill
-                    opacity: parent.focused ? 1 : 0
+                    // With "Kontrast für Fokus" this ring becomes FocusRing.
+                    opacity: parent.focused && !GlassStyle.focusEmphasis ? 1 : 0
                     Behavior on opacity { NumberAnimation { duration: GlassStyle.colorDuration } }
+                }
+
+                FocusRing {
+                    anchors.fill: parent
+                    unit: page.unit
+                    radius: width / 2
+                    shown: parent.focused
                 }
 
                 Rectangle {
@@ -196,6 +210,12 @@ Item {
                             radius: height / 2
                             color: GlassStyle.focusFill
                             anchors.verticalCenter: parent.verticalCenter
+
+                            FocusRing {
+                                anchors.fill: parent
+                                unit: page.unit
+                                radius: parent.radius
+                            }
 
                             ProfileAvatar {
                                 x: 8 * page.unit

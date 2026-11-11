@@ -123,6 +123,12 @@ Item {
                         radius: height / 2
                         color: GlassStyle.focusFill
                         antialiasing: true
+
+                        FocusRing {
+                            anchors.fill: parent
+                            unit: bar.unit
+                            radius: parent.radius
+                        }
                     }
 
                     Text {

@@ -19,14 +19,21 @@ QtObject {
     // picture); its grade only takes the stronger content dimming as a veil (contentVeil).
     // Settable, so that previews can show it.
     property bool highContrast: false
+    // LG's option.focusEmphasis ("Kontrast für Fokus", QS-2): every focus plate carries
+    // FocusRing, read the same way.
+    property bool focusEmphasis: false
     property var contrastReader: Service {
         appId: UiConfig.serviceAppId
         Component.onCompleted: call("luna://com.webos.settingsservice", "/getSystemSettings",
-                                    JSON.stringify({ category: "option", keys: ["highContrast"], subscribe: true }))
+                                    JSON.stringify({ category: "option", keys: ["highContrast", "focusEmphasis"],
+                                                    subscribe: true }))
         onResponse: {
             var response = JSON.parse(payload);
             if (response.settings && response.settings.highContrast !== undefined) {
                 style.highContrast = response.settings.highContrast === "on";
+            }
+            if (response.settings && response.settings.focusEmphasis !== undefined) {
+                style.focusEmphasis = response.settings.focusEmphasis === "on";
             }
         }
     }
@@ -44,6 +51,12 @@ QtObject {
     readonly property color focusText: highContrast ? "#050608" : "#0b0c10"
     readonly property color focusSecondary: highContrast ? "#363940" : "#5b5e66"  // contrast 11.6:1 on white
     readonly property real focusScale: 1.03
+    // The ring of "Kontrast für Fokus" (FocusRing): dark at the plate's edge, white outside;
+    // 6 px outside the plate in all.
+    readonly property color focusRingColor: "#ffffff"
+    readonly property color focusRingInner: "#e6040608"
+    readonly property real focusRingWidth: 3
+    readonly property real focusRingGap: 0
     readonly property real pressScale: 0.93                // one short pulse per key press
     // Controls.
     readonly property color accent: highContrast ? "#2b7bef" : "#4c9dff"           // switch on, markers
@@ -95,6 +108,7 @@ QtObject {
     readonly property color fillPressed: highContrast ? "#66ffffff" : "#40ffffff"  // 25 %
     readonly property color fillLatched: highContrast ? "#66ffffff" : "#47ffffff"  // 28 %
     readonly property color fillLatchedStrong: highContrast ? "#66ffffff" : "#4dffffff" // 30 %
+    readonly property color fillGhost: highContrast ? "#1fffffff" : "#0fffffff"    // 6 %, a card at rest
     readonly property color fillOnFocus: highContrast ? "#290b0c10" : "#140b0c10"  // a plate on the focus surface
     // Lines and rings.
     readonly property color lineSoft: highContrast ? "#4dffffff" : "#1affffff"     // a hairline around a card

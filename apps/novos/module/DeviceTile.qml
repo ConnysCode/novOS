@@ -34,6 +34,13 @@ Item {
         color: tile.focused ? GlassStyle.focusFill : (tile.active ? GlassStyle.fillSelected : GlassStyle.fillSoft)
 
         Behavior on color { ColorAnimation { duration: 180 } }
+
+        FocusRing {
+            anchors.fill: parent
+            unit: tile.unit
+            radius: parent.radius
+            shown: tile.focused
+        }
     }
 
     BorderImage {

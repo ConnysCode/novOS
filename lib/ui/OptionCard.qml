@@ -42,7 +42,15 @@ Item {
         anchors.fill: parent
         radius: card.plateRadius * card.unit
         color: card.focused ? (card.ownFocus ? GlassStyle.focusFill : "#00ffffff")
-                            : (card.media ? "#00ffffff" : (card.selected ? GlassStyle.fillActive : "#0fffffff"))
+                            : (card.media ? "#00ffffff" : (card.selected ? GlassStyle.fillActive : GlassStyle.fillGhost))
+        // Its own focus carries the ring; a chosen card keeps its light ring below.
+        FocusRing {
+            anchors.fill: parent
+            unit: card.unit
+            radius: parent.radius
+            shown: card.ownFocus && card.focused
+        }
+
         Behavior on color {
             enabled: !card.ownFocus
             ColorAnimation { duration: GlassStyle.focusDuration }
