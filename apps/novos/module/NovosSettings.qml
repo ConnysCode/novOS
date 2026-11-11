@@ -9,6 +9,7 @@ QtObject {
 
     property alias hideInputBanner: values.hideInputBanner
     property alias demoDevices: values.demoDevices
+    property alias demoProfiles: values.demoProfiles
     property alias shutdownScreen: values.shutdownScreen
     property alias shutdownSound: values.shutdownSound
 
@@ -28,6 +29,9 @@ QtObject {
         fileName: "/tmp/novos-debug.ini"
         property bool hideInputBanner: true
         property bool demoDevices: false     // the smart home hub's made-up home
+        // Two made-up profiles beside the real one; switching, editing, signing out and
+        // removing them stay in memory. For trying the profile pages with one account.
+        property bool demoProfiles: false
         // An id of ShutdownScreens.js. The overlay of LG's MasterBrand.qml reads the line
         // "shutdownScreen=<id>" from this file at power off.
         property string shutdownScreen: "lg"

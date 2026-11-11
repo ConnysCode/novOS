@@ -33,7 +33,12 @@ Item {
     property string iconPng: ""
     property bool iconOnly: false
     readonly property bool hasIcon: iconPng !== ""
-    property real leftInset: hasIcon ? 66 : 20
+    // A profile's avatar instead of the icon: { initial, tint }. 32 px leaves the text where
+    // an icon leaves it, a larger one moves it right by the difference.
+    property var avatar: null
+    property real avatarSize: 32
+    readonly property bool hasAvatar: avatar !== null && avatar !== undefined
+    property real leftInset: hasAvatar ? 34 + avatarSize : (hasIcon ? 66 : 20)
     readonly property real iconSize: 30 * unit
 
     readonly property real logicalHeight: height / unit
@@ -59,6 +64,16 @@ Item {
             source: Qt.resolvedUrl("icons/row-" + glassRow.iconPng + modelData + ".png")
             Behavior on opacity { NumberAnimation { duration: glassRow.colorDuration } }
         }
+    }
+
+    ProfileAvatar {
+        x: 20 * glassRow.unit
+        y: (glassRow.height - height) / 2
+        visible: glassRow.hasAvatar
+        unit: glassRow.unit
+        size: glassRow.avatarSize
+        initial: glassRow.hasAvatar ? glassRow.avatar.initial : ""
+        tint: glassRow.hasAvatar ? glassRow.avatar.tint : GlassStyle.profileColors[0]
     }
 
     Text {

@@ -53,6 +53,7 @@ Item {
     signal networkChanged()              // the panel should read the state again
     signal textSaved(string value)       // the name entry was confirmed
     signal deviceNameSaved(string value) // the name of an input was confirmed
+    signal profileNameSaved(string value) // the name of a profile was confirmed
     signal dialogConfirmed(string action)   // the page runs it, then closeFlow() or showError()
 
     readonly property int maxNetworks: 32
@@ -60,9 +61,10 @@ Item {
     readonly property var messageScreens: ["open", "connecting", "connected", "failed", "forget", "error", "dialog", "dialogBusy"]
     readonly property bool isMessage: messageScreens.indexOf(screen) >= 0
     // TV and device names: the entry screens with a name, a counter and Save.
-    readonly property bool isOwnName: screen === "tvName" || screen === "deviceName"
+    readonly property bool isOwnName: screen === "tvName" || screen === "deviceName" || screen === "profileName"
     readonly property bool isNameEntry: screen === "customName" || isOwnName
-    readonly property int nameLimit: screen === "deviceName" ? 30 : 32   // LG's limits
+    // LG's limits; a profile's name as long as LG's account app shows one.
+    readonly property int nameLimit: screen === "deviceName" ? 30 : (screen === "profileName" ? 20 : 32)
     readonly property bool isEntry: screen === "password" || isNameEntry ||
                                     screen === "customPassword"
     readonly property bool isPasswordEntry: screen === "password" || screen === "customPassword"
@@ -130,6 +132,7 @@ Item {
     function isValidName(value) {
         var bytes = unescape(encodeURIComponent(value)).length;
         if (screen === "deviceName") return value.trim().length >= 1 && value.length <= 30;
+        if (screen === "profileName") return value.trim().length >= 1 && value.length <= 20;
         return bytes >= 1 && bytes <= 32;
     }
 
@@ -265,6 +268,14 @@ Item {
         startKeyboard("tvName");
     }
 
+    // The name of a profile (K3-Profil-Einst-Bearbeiten): up to 20 characters.
+    function openProfileName(current) {
+        active = true;
+        entryValue = current.substring(0, 20);
+        entryError = "";
+        startKeyboard("profileName");
+    }
+
     // The name of an input, as in LG's input editor: up to 30 characters.
     function openDeviceName(current) {
         active = true;
@@ -394,6 +405,9 @@ Item {
             closeFlow();
         } else if (screen === "deviceName") {
             deviceNameSaved(entryValue.trim());
+            closeFlow();
+        } else if (screen === "profileName") {
+            profileNameSaved(entryValue.trim());
             closeFlow();
         } else if (screen === "customName") {
             customName = entryValue;
@@ -1674,6 +1688,7 @@ Item {
     readonly property string headerTitle: {
         if (screen === "tvName") return I18n.t("wifi", "title.tv_name");
         if (screen === "deviceName") return I18n.t("wifi", "title.device_name");
+        if (screen === "profileName") return I18n.t("wifi", "title.profile_name");
         if (screen === "customName" || screen === "customSecurity") return I18n.t("wifi", "title.add_other");
         if (screen === "password" || screen === "customPassword") {
             return I18n.t("wifi", "title.password", { name: quoted(target ? target.name : "") });
@@ -1683,6 +1698,7 @@ Item {
     readonly property string headerSubtitle: {
         if (screen === "tvName") return I18n.t("wifi", "subtitle.tv_name");
         if (screen === "deviceName") return I18n.t("wifi", "subtitle.device_name");
+        if (screen === "profileName") return I18n.t("wifi", "subtitle.profile_name");
         if (screen === "customName") return I18n.t("wifi", "subtitle.custom_name");
         if (screen === "customSecurity") return I18n.t("wifi", "subtitle.custom_security");
         if (screen === "customPassword") return I18n.t("wifi", "subtitle.custom_password");
@@ -1837,6 +1853,7 @@ Item {
         if (entryError !== "") return entryErrorText;
         if (screen === "tvName") return I18n.t("wifi", "hint.name_length", { count: typedValue.length });
         if (screen === "deviceName") return I18n.t("wifi", "hint.device_name_length", { count: typedValue.length });
+        if (screen === "profileName") return I18n.t("wifi", "hint.profile_name_length", { count: typedValue.length });
         if (screen === "customName") return I18n.t("wifi", "hint.case_sensitive");
         return typedValue.length >= 8 ? I18n.t("wifi", "hint.password_count", { count: typedValue.length })
                                       : I18n.t("wifi", "hint.password_length");

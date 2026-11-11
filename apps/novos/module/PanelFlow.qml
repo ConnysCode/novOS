@@ -25,5 +25,6 @@ WifiSetup {
     onDialogConfirmed: host.runDialogAction(action)
     onTextSaved: host.saveTvName(value)
     onDeviceNameSaved: host.saveDeviceName(value)
+    onProfileNameSaved: host.saveProfileName(value)
     onNetworkChanged: host.flowNetworkChanged()
 }

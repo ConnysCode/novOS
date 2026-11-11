@@ -28,6 +28,8 @@ While it runs it
 - starts bin/novos-upload.py when the settings left a command in
   /tmp/novos-upload/command.ini: "open" for the page "Vom Handy oder Computer", "delete"
   and "edit" for an own power-off video. The service ends by itself.
+- starts bin/novos-login.py the same way for /tmp/novos-login/command.ini: "code" for the
+  page "Profil hinzufügen", which signs an LG account in with a code from LG.
 - removes the way back of the last update (rollback.json, the kept release and the copy
   of its user data, see novos-setupd.py) once its 14 days are over, and leaves a version
   just rolled back from (state/update-skip) to the night.
@@ -58,6 +60,7 @@ STABLE = "/tmp/novos-stable"
 EARLY_RELEASE = STATE + "/early-release"
 UPDATE = "/tmp/novos-update"
 UPLOAD = "/tmp/novos-upload"
+LOGIN = "/tmp/novos-login"
 UPDATE_CHECKED = STATE + "/update-checked"
 UPDATE_ANNOUNCED = STATE + "/update-announced"     # the version "ist da" was shown for
 UPDATE_SHOWN = UPDATE + "/shown.json"               # progress, ready and installed, per command
@@ -424,25 +427,31 @@ class Updater:
             return True
 
 
-class Uploader:
-    """Starts bin/novos-upload.py for a command of the settings: the page "Vom Handy oder
-    Computer" opened, or an own power-off video to delete or to store as edited."""
+class ServiceStarter:
+    """Starts a service of bin/ for a command the settings left in <folder>/command.ini and
+    lets it answer in <folder>/state.json: novos-upload.py for the page "Vom Handy oder
+    Computer" ("open") and an own power-off video ("delete", "edit"), novos-login.py for
+    "Profil hinzufügen" ("code"). Windows run inside surface-manager and cannot start it."""
 
-    def __init__(self):
+    def __init__(self, folder, script, commands, name):
+        self.folder = folder
+        self.script = script
+        self.commands = commands
+        self.name = name
         self.process = None
         self.started = 0.0
-        os.makedirs(UPLOAD, exist_ok=True)
+        os.makedirs(folder, exist_ok=True)
 
     def check(self):
-        waiting = read_ini(UPLOAD + "/command.ini")
-        if waiting.get("command") not in ("open", "delete", "edit") or not waiting.get("serial"):
+        waiting = read_ini(self.folder + "/command.ini")
+        if waiting.get("command") not in self.commands or not waiting.get("serial"):
             return
         if self.process is not None and self.process.poll() is None:
             return
         if time.time() - self.started < UPDATER_RETRY:
             return
         try:
-            with open(UPLOAD + "/state.json") as file:
+            with open(self.folder + "/state.json") as file:
                 state = json.load(file)
             # An answered command of a service that ended needs nothing more.
             if state.get("id") == waiting.get("serial") and not state.get("serving"):
@@ -453,11 +462,11 @@ class Uploader:
         except (OSError, ValueError, TypeError):
             pass
         self.started = time.time()
-        self.process = subprocess.Popen(["python3", PANEL + "/bin/novos-upload.py", "serve"],
+        self.process = subprocess.Popen(["python3", PANEL + "/bin/" + self.script, "serve"],
                                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                         stderr=subprocess.DEVNULL, start_new_session=True)
-        log("upload service started for %s %s, pid %d" % (waiting.get("command"), waiting.get("serial"),
-                                                            self.process.pid))
+        log("%s service started for %s %s, pid %d" % (self.name, waiting.get("command"), waiting.get("serial"),
+                                                        self.process.pid))
 
     def stop(self):
         if self.process is not None and self.process.poll() is None:
@@ -523,7 +532,8 @@ def run():
     files = targets()
     relay = Relay()
     updater = Updater()
-    uploader = Uploader()
+    uploader = ServiceStarter(UPLOAD, "novos-upload.py", ("open", "delete", "edit"), "upload")
+    login = ServiceStarter(LOGIN, "novos-login.py", ("code",), "login")
     pid = surface_manager()
     since = time.time()
     restarts = []
@@ -581,14 +591,16 @@ def run():
                     expire_rollback()
                 except OSError as error:
                     log("way back: %s" % error)
-            try:
-                uploader.check()
-            except OSError as error:
-                log("upload service: %s" % error)
+            for starter in (uploader, login):
+                try:
+                    starter.check()
+                except OSError as error:
+                    log("%s service: %s" % (starter.name, error))
             time.sleep(1)
     finally:
         relay.stop()
         uploader.stop()
+        login.stop()
 
 
 def main():

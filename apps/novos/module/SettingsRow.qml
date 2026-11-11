@@ -313,6 +313,10 @@ Item {
                      (cell.row.number - cell.row.min) / (cell.row.max - cell.row.min) : -1
         danger: cell.row.danger === true
         disabled: cell.row.disabled === true
+        // Entries of a host list may bring a profile's avatar or a row icon.
+        avatar: cell.row.item && cell.row.item.avatar ? cell.row.item.avatar : null
+        avatarSize: cell.row.item && cell.row.item.avatarSize ? cell.row.item.avatarSize : 32
+        iconPng: cell.row.item && cell.row.item.png ? cell.row.item.png : ""
 
         MouseArea {
             anchors.fill: parent

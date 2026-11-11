@@ -14,5 +14,5 @@ var serviceAppId = "com.webos.app.quicksettings";
 // anew and should not wait for them.
 var lazyTexts = {
     settings: ["picture", "sound", "sources", "games", "network", "interface",
-               "energy", "accessibility", "parental", "privacy", "system", "info"]
+               "energy", "accessibility", "parental", "privacy", "profile", "system", "info"]
 };

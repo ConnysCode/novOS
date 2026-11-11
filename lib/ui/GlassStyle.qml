@@ -38,6 +38,15 @@ QtObject {
     readonly property color cardFill: "#14ffffff"          // white 8 %
     readonly property color circleFill: "#29ffffff"        // white 16 %
     readonly property color dangerCircle: "#38ff9a90"      // danger 22 %
+    // Profiles: LG's ten profile colours (/etc/accountmanager.d/profile.json), in LG's order.
+    // The initial is dark on the two light ones, white on the rest.
+    readonly property var profileColors: ["#7360E7", "#D84C75", "#9532E9", "#3DA287", "#355BD4",
+                                          "#FCB214", "#00A2B8", "#F27121", "#ED45F4", "#339BDD"]
+    readonly property var profileLightColors: ["#FCB214", "#F27121"]
+    readonly property color profileInkDark: "#0b0c10"
+    readonly property color profileInkLight: "#ffffff"
+    readonly property real profileInitialShare: 0.44       // initial size per avatar size
+    readonly property color profileRing: "#47ffffff"       // inner light at the top, white 28 %
     // Motion.
     readonly property var curve: [0.2, 0.8, 0.2, 1, 1, 1]
     readonly property int focusDuration: 220               // the focus surface and lists glide

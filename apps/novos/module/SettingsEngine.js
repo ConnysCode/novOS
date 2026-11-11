@@ -9,6 +9,7 @@
 .import "SettingsAreaAccessibility.js" as Accessibility
 .import "SettingsAreaParental.js" as Parental
 .import "SettingsAreaPrivacy.js" as Privacy
+.import "SettingsAreaProfile.js" as Profile
 .import "SettingsAreaSystem.js" as System
 .import "SettingsAreaInfo.js" as Info
 
@@ -19,7 +20,7 @@
 // catalogs is in docs/settings-catalog.md.
 
 var areas = [Picture.area, Sound.area, Sources.area, Games.area, Network.area, Interface.area,
-             Energy.area, Accessibility.area, Parental.area, Privacy.area, System.area, Info.area];
+             Energy.area, Accessibility.area, Parental.area, Privacy.area, Profile.area, System.area, Info.area];
 
 var maxRowsPerList = 64;
 
@@ -266,6 +267,7 @@ function rowVisible(row, ctx, depth) {
 function pageHasRows(area, pageId, ctx, depth) {
     var page = pageOf(area, pageId);
     if (!page) return false;
+    if (page.custom) return true;          // a page with its own content, as the profile's
     for (var s = 0; s < page.sections.length; s++) {
         var rows = page.sections[s].rows;
         for (var r = 0; r < rows.length; r++) {
@@ -472,7 +474,7 @@ function listRows(row, ctx) {
             subtitle: item.subtitle || "",
             value: item.value || "",
             disabled: item.disabled === true,
-            focusable: true,
+            focusable: item.focusable !== false,
             selected: item.selected === true,
             external: item.external === true,
             thumb: item.thumb || "",
@@ -514,7 +516,10 @@ function resolvePage(store, i18n, areaId, pageId, param) {
         // heading: a large title of its own with a text at the right, as "Neu in 1.0" and its date.
         var heading = typeof section.heading === "function" ? section.heading(ctx) :
                       (section.heading ? { title: ctx.t(section.heading), aside: "" } : null);
-        sections.push({ title: section.title ? ctx.t(section.title) : "", rows: rows,
+        // A title may depend on the TV, as the active profile's name.
+        var sectionTitle = typeof section.title === "function" ? section.title(ctx) :
+                           (section.title ? ctx.t(section.title) : "");
+        sections.push({ title: sectionTitle, rows: rows,
                         note: section.note ? ctx.t(call(section.note, ctx)) : "",
                         columns: section.columns || 0, keys: keys, heading: heading });
         all = all.concat(rows);

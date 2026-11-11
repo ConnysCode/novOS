@@ -23,7 +23,9 @@ Item {
         deleteConnectionHistory: true, deepColorChanged: true, toggleInputLock: true,
         checkUpdates: true, installUpdate: true, cancelUpdate: true, tonightUpdate: true,
         rollbackVersion: true, openNetwork: true, blockUpdates: true, lgAutoUpdate: true,
-        lgUpdateCheck: true, lgUpdateInstall: true, lgUpdateCancel: true
+        lgUpdateCheck: true, lgUpdateInstall: true, lgUpdateCancel: true,
+        profileSwitch: true, profileSignOut: true, profileRemove: true, profileAutoSignIn: true,
+        profileRename: true, profileColour: true
     })
     property var bluetoothFeatures: []
 
@@ -581,6 +583,10 @@ Item {
     }
 
     function run(name, params, ctx) {
+        if (name.indexOf("profile") === 0) {
+            runProfile(name, params || {});
+            return;
+        }
         var updateState = settings.store.state;
         if (name === "checkUpdates") {
             sendUpdate("check");
@@ -730,6 +736,80 @@ Item {
         }
         setList("inputs", items);
         setState("hasArc", response.arcDevice === true);
+    }
+
+    // ---- Profiles (area "Profile", SettingsAreaProfile.js) -------------------------------
+    // The TV's profiles as lists and state for the catalog. Switching closes the settings:
+    // LG's apps and services follow the new profile behind the switch screen.
+    ProfileStore {
+        id: profileStore
+        onActiveChanged: tvData.publishProfiles()
+        onOthersChanged: tvData.publishProfiles()
+        onKnownChanged: tvData.publishProfiles()
+        onNotice: tvData.profileNotice(kind, profile)
+        // The panel draws the switch screen over the settings.
+        onSwitchingChanged: tvData.settings.hostAction("profileSwitching",
+                                                       { profile: switching, started: switchStarted })
+    }
+
+    readonly property var profiles: profileStore
+
+    function countryName(code) {
+        if (!code) return "";
+        var language = String(I18n.qtLocale).split(/[_-]/)[0];
+        var locale = Qt.locale(language + "_" + code);
+        return locale.name.split("_")[1] === code && locale.nativeCountryName ? locale.nativeCountryName : code;
+    }
+
+    function profileType(profile) {
+        var type = profile.accountType === "LGE" ? "type.lge" : (profile.accountType === "GGL" ? "type.ggl" : "type.other");
+        return I18n.t("profile", type);
+    }
+
+    function publishProfiles() {
+        var current = profileStore.active;
+        settings.store.state.profileKnown = profileStore.known;
+        settings.store.state.profileActive = current ? {
+            userNo: current.userNo, nick: current.nick, initial: current.initial, tint: current.tint,
+            voiceId: current.voiceId, autoSignIn: current.autoSignIn } : null;
+        settings.store.lists.profileActive = current ? [{
+            id: current.userNo, title: current.nick, focusable: false, avatarSize: 56,
+            avatar: { initial: current.initial, tint: current.tint },
+            subtitle: current.country !== "" ?
+                      I18n.t("profile", "detail.active_country", { type: profileType(current), country: countryName(current.country) }) :
+                      I18n.t("profile", "detail.active", { type: profileType(current) }) }] : [];
+        settings.store.lists.profiles = profileStore.all.map(function (profile) {
+            return { id: profile.userNo, title: profile.nick, avatarSize: 40,
+                     avatar: { initial: profile.initial, tint: profile.tint },
+                     value: profile.active ? I18n.t("profile", "value.active") :
+                            (profile.expired === true ? I18n.t("profile", "value.sign_in_again") : ""),
+                     action: profile.active ? "" : "profileSwitch", params: { userNo: profile.userNo } };
+        });
+        settings.changed();
+    }
+
+    function profileNotice(kind, profile) {
+        if (kind === "switched") settings.hostAction("profileSwitched", {});
+        else if (kind === "failed") settings.hostAction("toast", { text: I18n.t("profile", "notice.failed") });
+        else if (kind === "signedOut" || kind === "removed") {
+            settings.hostAction("toast", { text: I18n.t("profile", "notice." + (kind === "removed" ? "removed" : "signed_out"),
+                                                        { name: profile.nick }) });
+        }
+    }
+
+    function runProfile(name, params) {
+        if (name === "profileSwitch") profileStore.switchTo(String(params.userNo || ""));
+        else if (name === "profileSignOut") profileStore.signOut(String(params.userNo || ""));
+        else if (name === "profileRemove") profileStore.remove(String(params.userNo || ""));
+        else if (name === "profileRename" || name === "profileColour") {
+            var target = profileStore.byNumber(String(params.userNo || ""));
+            if (!target) return;
+            profileStore.update(target.userNo, params.nick !== undefined ? String(params.nick) : target.nick,
+                                params.tint !== undefined ? String(params.tint) : target.tint);
+        }
+        else if (name === "profileAutoSignIn" && profileStore.active) {
+            profileStore.setAutoSignIn(profileStore.active.userNo, !profileStore.active.autoSignIn);
+        }
     }
 
     function activateItem(row, ctx) {

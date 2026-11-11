@@ -4,7 +4,9 @@ import "."
 // Glass popover left of the panel: a list of values or the time of a timer. It sits
 // outside the panel, so the panel keeps its backdrop crop wide enough to serve both.
 // An owner elsewhere sets x, y and width itself; the rows follow the width. An option
-// may carry a second line (detail), for example the genres of the game bar.
+// may carry a second line (detail), for example the genres of the game bar, a profile's
+// avatar ({ initial, tint }) or a row icon (png: icons/row-<png>.png) at its left, and a
+// line above it (separatorBefore), as the launcher's "Profil wechseln" (K3-Profil-Launcher-Wechseln).
 Item {
     id: popover
 
@@ -23,7 +25,7 @@ Item {
     property bool shown: false
     property string kind: "list"             // list or time
     property string title: ""
-    property var options: []                 // [{ label, value, detail (optional) }]
+    property var options: []                 // [{ label, value, detail, avatar, png, separatorBefore }]
     property string selected: ""
     property string focusId: ""
     property int hour: 0
@@ -35,7 +37,21 @@ Item {
 
     readonly property int minuteStep: 5
     readonly property real boxHeight: (kind === "time" ? 448 :
-                                       10 + 42 + options.length * 64 - 4 + 10) * unit
+                                       10 + 42 + options.length * 64 - 4 + 10 + separatorsBefore(options.length) * separatorRoom) * unit
+    readonly property int separatorRoom: 13
+
+    // Lines above options 0 … index (an option's own line counts for it).
+    function separatorsBefore(index) {
+        var count = 0;
+        for (var i = 0; i < options.length && i <= index; i++) {
+            if (options[i].separatorBefore === true) count++;
+        }
+        return count;
+    }
+
+    function optionTop(index) {
+        return 52 + index * 64 + separatorsBefore(index) * separatorRoom;
+    }
     readonly property rect focusRect: rectOf(focusId)
     readonly property real focusRadius: (focusId === "confirm" || focusId === "off" ? 32 :
                                          (kind === "time" ? 26 : 18)) * unit
@@ -71,7 +87,7 @@ Item {
     function rectOf(id) {
         var u = unit;
         if (id.indexOf("option-") === 0) {
-            return Qt.rect(10 * u, (52 + Number(id.substring(7)) * 64) * u, width - 20 * u, 60 * u);
+            return Qt.rect(10 * u, optionTop(Number(id.substring(7))) * u, width - 20 * u, 60 * u);
         }
         if (id === "hour") return Qt.rect(49 * u, 130 * u, 132 * u, 104 * u);
         if (id === "minute") return Qt.rect(219 * u, 130 * u, 132 * u, 104 * u);
@@ -223,14 +239,43 @@ Item {
         model: popover.kind === "list" ? popover.options : []
 
         Item {
+            id: option
             readonly property bool focused: popover.focusId === "option-" + index
+            readonly property bool hasAvatar: modelData.avatar !== undefined && modelData.avatar !== null
+            readonly property bool hasIcon: modelData.png !== undefined && modelData.png !== ""
             x: 10 * popover.unit
-            y: (52 + index * 64) * popover.unit
+            y: popover.optionTop(index) * popover.unit
             width: popover.width - 20 * popover.unit
             height: 60 * popover.unit
 
-            Column {
+            Rectangle {
                 x: 18 * popover.unit
+                y: -(popover.separatorRoom / 2 + 2) * popover.unit
+                width: parent.width - 36 * popover.unit
+                height: Math.max(1, popover.unit)
+                visible: modelData.separatorBefore === true
+                color: GlassStyle.divider
+            }
+
+            ProfileAvatar {
+                x: 12 * popover.unit
+                anchors.verticalCenter: parent.verticalCenter
+                visible: option.hasAvatar
+                unit: popover.unit
+                size: 40
+                initial: option.hasAvatar ? modelData.avatar.initial : ""
+                tint: option.hasAvatar ? modelData.avatar.tint : GlassStyle.profileColors[0]
+            }
+
+            Image {
+                x: 17 * popover.unit
+                anchors.verticalCenter: parent.verticalCenter
+                visible: option.hasIcon
+                source: option.hasIcon ? Qt.resolvedUrl("icons/row-" + modelData.png + (option.focused ? "-dark" : "") + ".png") : ""
+            }
+
+            Column {
+                x: (option.hasAvatar || option.hasIcon ? 66 : 18) * popover.unit
                 anchors.verticalCenter: parent.verticalCenter
 
                 Text {

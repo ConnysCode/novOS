@@ -146,6 +146,11 @@ StarfishSystemUIWindow {
         }
         onMovingChanged: if (!moving) wiggle = 0
         property int row: 0
+        // The profile chip left of the clock (K3-Profil-Launcher): Up from the sources reaches
+        // it, OK opens "Profil wechseln" below it (K3-Profil-Launcher-Wechseln).
+        property bool chipFocused: false
+        readonly property bool profileMenuOpen: profileMenu.shown
+        readonly property real stepBack: profileMenuOpen ? GlassStyle.dimmedOpacity : 1
         property int sourceIndex: 0
         property int appIndex: 0
         property int sourceScroll: 0
@@ -421,6 +426,42 @@ StarfishSystemUIWindow {
             refreshHero();
         }
 
+        // "Profil wechseln": every profile of the TV, the active one ticked, then adding one
+        // and the settings' area. Without a profile OK goes straight to signing in.
+        function openProfileMenu() {
+            if (!profileStore.active) {
+                openProfileSettings("signIn");
+                return;
+            }
+            var options = profileStore.all.map(function (profile) {
+                return { label: profile.nick, value: "profile:" + profile.userNo,
+                         avatar: { initial: profile.initial, tint: profile.tint } };
+            });
+            options.push({ label: I18n.t("profile", "row.add"), value: "add", png: "add", separatorBefore: true });
+            options.push({ label: I18n.t("profile", "row.manage"), value: "manage", png: "allSettings" });
+            profileMenu.openList(I18n.t("profile", "title.switch"), options, "profile:" + profileStore.active.userNo, 0);
+            // The first other profile has the focus, as switching is what the menu is for.
+            if (profileStore.others.length > 0) profileMenu.focusId = "option-1";
+        }
+
+        function profileChosen(value) {
+            profileMenu.close();
+            if (value === "add") openProfileSettings("signIn");
+            else if (value === "manage") openProfileSettings("");
+            else if (value.indexOf("profile:") === 0) {
+                var userNo = value.substring(8);
+                if (profileStore.active && userNo === profileStore.active.userNo) return;
+                profileStore.switchTo(userNo);
+            }
+        }
+
+        // The settings modal, area "Profile", over the launcher.
+        function openProfileSettings(page) {
+            service.call("luna://com.webos.service.systemUIManager", "/launch",
+                         JSON.stringify({ appId: "com.webos.app.quicksettings",
+                                          params: { page: "settings:profile" + (page !== "" ? ":" + page : "") } }));
+        }
+
         function isOkKey(key) {
             return Remote.isOk(key);
         }
@@ -583,6 +624,32 @@ StarfishSystemUIWindow {
 
         // On an app OK acts on release, a hold picks the app up instead.
         Keys.onPressed: {
+            if (profileStore.switching) {
+                event.accepted = true;
+                return;
+            }
+            if (profileMenu.shown) {
+                if (!isBackKey(event.key)) profileMenu.handleKey(event.key, event.isAutoRepeat);
+                event.accepted = true;
+                return;
+            }
+            if (chipFocused) {
+                if (isOkKey(event.key)) {
+                    if (!event.isAutoRepeat) openProfileMenu();
+                } else if (event.key === Qt.Key_Down) {
+                    chipFocused = false;
+                } else if (!isBackKey(event.key) && event.key !== Qt.Key_Left && event.key !== Qt.Key_Right &&
+                           event.key !== Qt.Key_Up) {
+                    return;
+                }
+                event.accepted = true;
+                return;
+            }
+            if (event.key === Qt.Key_Up && row === 0 && !moving && profileStore.known) {
+                chipFocused = true;
+                event.accepted = true;
+                return;
+            }
             if (isOkKey(event.key)) {
                 if (!event.isAutoRepeat && !okDown) {
                     okDown = true;
@@ -603,6 +670,18 @@ StarfishSystemUIWindow {
         }
 
         Keys.onReleased: {
+            if (profileStore.switching) {
+                event.accepted = true;
+                return;
+            }
+            if (profileMenu.shown || chipFocused) {
+                if (isBackKey(event.key)) {
+                    if (profileMenu.shown) profileMenu.close();
+                    else chipFocused = false;
+                }
+                event.accepted = true;
+                return;
+            }
             if (isOkKey(event.key)) {
                 if (!event.isAutoRepeat) {
                     okDown = false;
@@ -858,10 +937,14 @@ StarfishSystemUIWindow {
         }
 
         Column {
+            id: clock
             anchors.right: parent.right
             anchors.rightMargin: 96 * launcher.unit
             y: 64 * launcher.unit
             spacing: 2 * launcher.unit
+            opacity: launcher.stepBack
+
+            Behavior on opacity { NumberAnimation { duration: GlassStyle.popoverDuration } }
 
             Text {
                 anchors.right: parent.right
@@ -882,8 +965,91 @@ StarfishSystemUIWindow {
             }
         }
 
+        // The active profile left of the clock: the avatar alone at rest, a white pill with
+        // the name in the focus, a glass pill while "Profil wechseln" is open.
+        Item {
+            id: profileChip
+            readonly property bool open: launcher.chipFocused || launcher.profileMenuOpen
+            readonly property var profile: profileStore.active
+            anchors.right: clock.left
+            anchors.rightMargin: 22 * launcher.unit
+            anchors.verticalCenter: clock.verticalCenter
+            width: (open ? 10 + 44 + 12 + chipName.implicitWidth / launcher.unit + 22 : 44) * launcher.unit
+            height: (open ? 64 : 44) * launcher.unit
+            visible: profileStore.known
+
+            Behavior on width {
+                NumberAnimation { duration: GlassStyle.focusDuration; easing.type: Easing.Bezier; easing.bezierCurve: launcher.standardCurve }
+            }
+            Behavior on height {
+                NumberAnimation { duration: GlassStyle.focusDuration; easing.type: Easing.Bezier; easing.bezierCurve: launcher.standardCurve }
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                radius: height / 2
+                color: launcher.profileMenuOpen ? "#3dffffff" : GlassStyle.focusFill
+                opacity: profileChip.open ? 1 : 0
+                scale: launcher.chipFocused && !launcher.profileMenuOpen ? GlassStyle.focusScale : 1
+                antialiasing: true
+                Behavior on opacity { NumberAnimation { duration: GlassStyle.colorDuration } }
+                Behavior on color { ColorAnimation { duration: GlassStyle.colorDuration } }
+            }
+
+            ProfileAvatar {
+                x: (profileChip.open ? 10 : 0) * launcher.unit
+                anchors.verticalCenter: parent.verticalCenter
+                unit: launcher.unit
+                size: 44
+                visible: profileChip.profile !== null
+                initial: profileChip.profile ? profileChip.profile.initial : ""
+                tint: profileChip.profile ? profileChip.profile.tint : GlassStyle.profileColors[0]
+                Behavior on x { NumberAnimation { duration: GlassStyle.focusDuration } }
+            }
+
+            // Without a profile: a person in a glass circle, "Anmelden" in the focus.
+            Rectangle {
+                x: (profileChip.open ? 10 : 0) * launcher.unit
+                anchors.verticalCenter: parent.verticalCenter
+                width: 44 * launcher.unit
+                height: width
+                radius: width / 2
+                visible: profileChip.profile === null
+                color: GlassStyle.circleFill
+
+                Image {
+                    anchors.centerIn: parent
+                    source: Qt.resolvedUrl("module/icons/settings-profile.png")
+                }
+            }
+
+            Text {
+                id: chipName
+                x: (10 + 44 + 12) * launcher.unit
+                height: parent.height
+                verticalAlignment: Text.AlignVCenter
+                opacity: profileChip.open ? 1 : 0
+                visible: opacity > 0
+                text: profileChip.profile ? profileChip.profile.nick : I18n.t("profile", "button.sign_in")
+                color: launcher.profileMenuOpen ? GlassStyle.textPrimary : GlassStyle.focusText
+                font.family: GlassStyle.rowFont
+                font.pixelSize: 20 * launcher.unit
+                font.hintingPreference: Font.PreferNoHinting
+                Behavior on opacity { NumberAnimation { duration: GlassStyle.colorDuration } }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: {
+                    launcher.chipFocused = true;
+                    launcher.openProfileMenu();
+                }
+            }
+        }
+
         Item {
             x: 96 * launcher.unit
+            opacity: launcher.stepBack
             width: (launcher.appsOpen ? 1400 : 980) * launcher.unit
             height: (launcher.appsOpen ? 680 : 730) * launcher.unit
 
@@ -992,6 +1158,7 @@ StarfishSystemUIWindow {
 
         GlassCard {
             id: nav
+            opacity: launcher.stepBack
             x: 56 * launcher.unit
             y: launcher.height - height - 56 * launcher.unit
             width: 1808 * launcher.unit
@@ -1046,6 +1213,9 @@ StarfishSystemUIWindow {
                         scale: GlassStyle.focusScale
                         color: GlassStyle.focusFill
                         antialiasing: true
+                        opacity: launcher.chipFocused ? 0 : 1
+
+                        Behavior on opacity { NumberAnimation { duration: GlassStyle.colorDuration } }
 
                         Behavior on x {
                             NumberAnimation {
@@ -1067,7 +1237,7 @@ StarfishSystemUIWindow {
                             titleFont: GlassStyle.titleFont
                             valueFont: GlassStyle.valueFont
                             source: modelData
-                            focused: index === launcher.sourceIndex
+                            focused: index === launcher.sourceIndex && !launcher.chipFocused
                         }
                     }
                 }
@@ -1307,6 +1477,57 @@ StarfishSystemUIWindow {
         roundness: launcher.morph
         onFrameReady: launcher.startOpening()
         transform: Translate { x: launcher.morph < 1 ? 0 : launcher.heroShiftX(4); y: launcher.morph < 1 ? 0 : launcher.heroShiftY(4) }
+
+        // Steps back with everything else while "Profil wechseln" is open. The preview is a
+        // hole the running video shows through, so it fades only under a dark layer.
+        Rectangle {
+            anchors.fill: parent
+            radius: 28 * launcher.unit * launcher.morph
+            color: GlassStyle.scrimColor
+            opacity: 1 - launcher.stepBack
+            visible: opacity > 0
+            antialiasing: true
+            Behavior on opacity { NumberAnimation { duration: GlassStyle.popoverDuration } }
+        }
+    }
+
+    // "Profil wechseln" below the profile chip, and the black screen while a switch runs.
+    ProfileStore {
+        id: profileStore
+        onNotice: {
+            if (kind === "switched") launcher.chipFocused = false;
+        }
+    }
+
+    ImageGlass {
+        id: profileGlass
+        sourceItem: backdrop
+        unit: launcher.unit
+        area: Qt.rect(profileMenu.x, profileMenu.y, profileMenu.width, Math.max(profileMenu.height, 1))
+        visible: false
+    }
+
+    ChoicePopover {
+        id: profileMenu
+        unit: launcher.unit
+        titleFont: GlassStyle.titleFont
+        rowFont: GlassStyle.rowFont
+        backdrop: profileGlass.texture
+        glassShader: GlassStyle.glassShader
+        backdropMargin: profileGlass.margin
+        backdropArea: profileGlass.area
+        hasBackdrop: 1
+        x: launcher.width - (96 + 420) * launcher.unit
+        y: 148 * launcher.unit
+        width: 420 * launcher.unit
+        onChosen: launcher.profileChosen(value)
+    }
+
+    ProfileSwitchScreen {
+        anchors.fill: parent
+        unit: launcher.unit
+        profile: profileStore.switching
+        started: profileStore.switchStarted
     }
 
     // Above everything: the hub is opaque, and the preview's hole must not show.

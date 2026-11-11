@@ -28,7 +28,8 @@ StarfishSystemUIWindow {
                 rootWindow.exit();
             } else if (rootWindow.opened && payload && payload.params && String(payload.params.page || "").indexOf("settings") === 0) {
                 // A long press of the gear key, or LG's settings app handing over: open the modal.
-                panel.openSettings(String(payload.params.page).split(":")[1] || "picture", "");
+                var wanted = String(payload.params.page).split(":");
+                panel.openSettings(wanted[1] || "picture", wanted[2] || "");
             } else if (rootWindow.opened) {
                 panel.close();
             } else {
@@ -159,6 +160,9 @@ StarfishSystemUIWindow {
         property var pendingSettings: null   // the modal was asked for and is still being built
         property var pendingFlow: []          // work for the flow, which is still being built
         property bool flowWaiting: false      // a flow the user asked for is still being built
+        property var modalSwitching: null       // a profile the settings switch to, for the switch screen
+        property real modalSwitchStarted: 0
+        property string profileNameFor: ""      // the profile whose name the name entry edits
         property string settingsConfirm: ""     // action a confirmation of the modal runs
         property var settingsConfirmParams: ({})
         property bool modalBackdrop: false  // the glass samples the screen centre
@@ -186,7 +190,8 @@ StarfishSystemUIWindow {
             { key: "sound", png: "sound", title: settingsStore.areaTitle("sound"), y: 192 },
             { key: "sources", png: "sources", title: settingsStore.areaTitle("sources"), y: 262 },
             { key: "network", png: "network", title: settingsStore.areaTitle("network"), y: 351 },
-            { key: "accounts", png: "accounts", title: I18n.t("panel", "row.accounts"), y: 421 },
+            // The active profile's avatar instead of the icon, its name as the value.
+            { key: "profiles", png: "accounts", title: I18n.t("profile", "row.profiles"), y: 421 },
             { key: "apps", png: "apps", title: I18n.t("panel", "row.apps"), y: 491 },
             { key: "smartHome", png: "smartHome", title: I18n.t("panel", "row.smart_home"), y: 561 },
             { key: "accessibility", png: "accessibility", title: settingsStore.areaTitle("accessibility"), y: 650 },
@@ -285,7 +290,9 @@ StarfishSystemUIWindow {
             { key: "hideInputBanner", title: I18n.t("panel", "row.hide_lg_banner"), y: 316, h: 80, plain: true,
               sublabel: I18n.t("panel", "detail.hide_lg_banner"), toggle: NovosSettings.hideInputBanner },
             { key: "demoDevices", title: I18n.t("panel", "row.demo_devices"), y: 446, h: 80, plain: true,
-              sublabel: I18n.t("panel", "detail.demo_devices"), toggle: NovosSettings.demoDevices }
+              sublabel: I18n.t("panel", "detail.demo_devices"), toggle: NovosSettings.demoDevices },
+            { key: "demoProfiles", title: I18n.t("panel", "row.demo_profiles"), y: 530, h: 80, plain: true,
+              sublabel: I18n.t("panel", "detail.demo_profiles"), toggle: NovosSettings.demoProfiles }
         ]
         readonly property var systemRows: [
             { key: "tvName", title: settingsStore.text("network", "row.tv_name"), y: 226, h: 68 },
@@ -452,6 +459,50 @@ StarfishSystemUIWindow {
             return result;
         }
 
+        // ---- Profiles (K3-Profil-Panel-Seite) -----------------------------------------
+        // The active profile in a card, then the other profiles signed in on this TV (OK
+        // switches at once), "Profil hinzufügen", and two ways into the settings' area.
+        readonly property int profileListTop: 310
+        readonly property int profileLimit: 4      // more live in the settings' area
+        readonly property var profileRows: buildProfileRows(profileStore.others, profileStore.active)
+        readonly property var profileLabels: {
+            var others = Math.min(profileStore.others.length, profileLimit);
+            var labels = [{ text: I18n.t("profile", "section.switch_to"), y: 280 }];
+            if (profileStore.active) {
+                labels.push({ text: profileStore.active.nick, y: profileListTop + (others + 1) * 72 + 30 });
+            }
+            return labels;
+        }
+
+        function buildProfileRows(others, current) {
+            var result = [];
+            var y = profileListTop;
+            for (var i = 0; i < others.length && i < profileLimit; i++) {
+                result.push({ key: "profileSwitch", userNo: others[i].userNo, title: others[i].nick, y: y, h: 68,
+                              avatar: { initial: others[i].initial, tint: others[i].tint }, avatarSize: 40,
+                              plain: true });
+                y += 72;
+            }
+            result.push({ key: "profileAdd", title: I18n.t("profile", "row.add"), png: "add", y: y, h: 68, plain: true });
+            if (!current) return result;
+            y += 72 + 60;
+            result.push({ key: "profileEdit", title: I18n.t("profile", "row.edit"), y: y, h: 68 });
+            result.push({ key: "profileAll", title: I18n.t("profile", "row.all_settings"), y: y + 72, h: 68 });
+            return result;
+        }
+
+        function profileType(profile) {
+            if (!profile) return "";
+            var type = profile.accountType === "LGE" ? "type.lge" :
+                       (profile.accountType === "GGL" ? "type.ggl" : "type.other");
+            return I18n.t("profile", type);
+        }
+
+        // OK on a profile switches at once; the black switch screen covers the change.
+        function switchProfile(userNo) {
+            profileStore.switchTo(userNo);
+        }
+
         readonly property var sleepMinutes: settingsStore.sleepChoices
 
         function clockText(hour, minute) {
@@ -505,6 +556,7 @@ StarfishSystemUIWindow {
         }
 
         function labelsOf(entry) {
+            if (entry.key === "profiles") return profileLabels;
             if (entry.key === "access") {
                 var offset = audioGuidance === "on" ? 0 : 12;
                 return [{ text: I18n.t("panel", "section.speech"), y: 134 },
@@ -828,6 +880,13 @@ StarfishSystemUIWindow {
                                  JSON.stringify({ settings: { localeInfo: next } }));
         }
 
+        // The name entry is the panel's; the settings own the profile store that writes it.
+        function saveProfileName(name) {
+            if (settingsLoader.item && profileNameFor !== "") {
+                settingsLoader.item.confirmed("profileRename", { userNo: profileNameFor, nick: name });
+            }
+        }
+
         function saveTvName(name) {
             tvName = name;
             settingsStore.set("network.deviceName", "[LG] " + name);
@@ -933,6 +992,11 @@ StarfishSystemUIWindow {
                 return networkState === "none" ? I18n.t("panel", "status.not_connected") : "";
             }
             if (key === "tvName") return tvName;
+            if (key === "profiles") {
+                if (!profileStore.known) return "";
+                return profileStore.active ? profileStore.active.nick : I18n.t("profile", "value.not_signed_in");
+            }
+            if (key === "profileEdit") return I18n.t("profile", "value.edit");
             if (key === "deviceName") return detailDevice ? SourceList.deviceName(detailDevice) : "";
             if (key === "deviceIcon") return detailDevice ? typeName(SourceList.iconChoice(detailDevice)) : "";
             if (key === "debugBlur") return Math.round(GlassStyle.blur) + " px";
@@ -1068,6 +1132,7 @@ StarfishSystemUIWindow {
               labels: [{ text: I18n.t("panel", "section.connection"), y: 278 },
                        { text: I18n.t("panel", "section.wifi"), y: 516 }] },
             { key: "apps", title: I18n.t("panel", "row.apps") },
+            { key: "profiles", title: I18n.t("profile", "title.profiles") },
             { key: "energy", title: settingsStore.areaTitle("energy") },
             { key: "access", title: settingsStore.areaTitle("accessibility") },
             { key: "debug", title: I18n.t("panel", "row.debug"),
@@ -1093,6 +1158,7 @@ StarfishSystemUIWindow {
             if (name === "picture") return pictureRows;
             if (name === "sound") return soundRows;
             if (name === "network") return networkRows;
+            if (name === "profiles") return profileRows;
             if (name === "apps") return [appFocusRow];
             if (name === "appDetail") return appRows;
             if (name === "sourceDetail") return sourceDetailRows;
@@ -1329,7 +1395,7 @@ StarfishSystemUIWindow {
         function opensPage(row) {
             return row.key === "sources" || row.key === "picture" || row.key === "sound" ||
                    row.key === "network" || row.key === "apps" || row.key === "energy" || row.key === "system" ||
-                   row.key === "accessibility" || row.key === "debug";
+                   row.key === "accessibility" || row.key === "debug" || row.key === "profiles";
         }
 
         function sourceRowOf(id) {
@@ -1349,9 +1415,7 @@ StarfishSystemUIWindow {
         }
 
         // Rows without an own page lead into LG's interface.
-        readonly property var linkTargets: ({
-            accounts: { id: "com.webos.app.membership", params: {} },
-        })
+        readonly property var linkTargets: ({})
 
         function openLink(link) {
             backdropService.call("luna://com.webos.applicationManager", "/launch", JSON.stringify(link));
@@ -1394,12 +1458,17 @@ StarfishSystemUIWindow {
         function activateFocusedRow() {
             if (focusedRow.key === "allSettings") openSettings(settingsAreaOf(page), "");
             else if (focusedRow.icon) openPopover(focusedRow.key);
+            else if (focusedRow.key === "profiles" && profileStore.known && !profileStore.active) openSettings("profile", "signIn");
             else if (opensPage(focusedRow)) openPage(focusedRow.key);
             else if (focusedRow.key === "device" && focusedRow.deviceId) openSourceDetail(focusedRow.deviceId);
             else if (focusedRow.key === "device") switchTo(focusedRow);
             else if (focusedRow.key === "deviceSwitch") switchTo({ appId: detailDevice.appId });
             else if (focusedRow.key === "deviceName") withFlow(function (flow) { flow.openDeviceName(SourceList.deviceName(detailDevice)); });
             else if (focusedRow.key === "mode") selectPictureMode(focusedRow.value);
+            else if (focusedRow.key === "profileSwitch") switchProfile(focusedRow.userNo);
+            else if (focusedRow.key === "profileAdd") openSettings("profile", "signIn");
+            else if (focusedRow.key === "profileEdit") openSettings("profile", "edit");
+            else if (focusedRow.key === "profileAll") openSettings("profile", "");
             else if (linkTargets[focusedRow.key]) openLink(linkTargets[focusedRow.key]);
             else if (focusedRow.key === "soundOutput") selectSound("soundOutput", focusedRow.value);
             else if (focusedRow.key === "soundMode") selectSound("soundMode", focusedRow.value);
@@ -1421,6 +1490,7 @@ StarfishSystemUIWindow {
             else if (focusedRow.key === "powerSound") togglePowerSound();
             else if (focusedRow.key === "hideInputBanner") NovosSettings.hideInputBanner = !NovosSettings.hideInputBanner;
             else if (focusedRow.key === "demoDevices") NovosSettings.demoDevices = !NovosSettings.demoDevices;
+            else if (focusedRow.key === "demoProfiles") NovosSettings.demoProfiles = !NovosSettings.demoProfiles;
             else if (focusedRow.key === "appStart") switchTo({ appId: selectedApp.id });
             else if (focusedRow.key === "appRemove") askRemoveApp();
             else if (focusedRow.key === "wifiForget") withFlow(function (flow) { flow.openForget(wifiProfile, networkName); });
@@ -1526,7 +1596,7 @@ StarfishSystemUIWindow {
         function settingsAreaOf(name) {
             var areas = { picture: "picture", sound: "sound", sources: "sources", sourceDetail: "sources",
                           network: "network", energy: "energy", access: "accessibility", system: "system",
-                          languages: "system" };
+                          languages: "system", profiles: "profile" };
             return areas[name] || "picture";
         }
 
@@ -1575,6 +1645,16 @@ StarfishSystemUIWindow {
                 withFlow(function (flow) { flow.openForget(wifiProfile, networkName); });
             } else if (name === "closePanel") {
                 close();
+            } else if (name === "profileSwitching") {
+                modalSwitching = params.profile || null;
+                modalSwitchStarted = params.started || 0;
+            } else if (name === "profileSwitched") {
+                close();
+            } else if (name === "profileName") {
+                profileNameFor = params.userNo || "";
+                withFlow(function (flow) { flow.openProfileName(params.current || ""); });
+            } else if (name === "toast") {
+                showToast(params.text || "");
             } else if (name === "switchInput" && params.input) {
                 switchTo({ appId: params.input.appId });
             } else if (name === "deviceDetails" && params.input) {
@@ -1820,6 +1900,18 @@ StarfishSystemUIWindow {
             onRevisionChanged: panel.applyStore()
         }
 
+        // The TV's profiles (module/ProfileStore.qml); the row, the page and the switch screen.
+        ProfileStore {
+            id: profileStore
+            onNotice: {
+                if (kind === "switched") panel.close();
+                else if (kind === "failed") panel.showToast(I18n.t("profile", "notice.failed"));
+                else if (kind === "signedIn") panel.showToast(I18n.t("profile", "notice.signed_in", { name: profile.nick }));
+                else if (kind === "signedOut") panel.showToast(I18n.t("profile", "notice.signed_out", { name: profile.nick }));
+                else if (kind === "removed") panel.showToast(I18n.t("profile", "notice.removed", { name: profile.nick }));
+            }
+        }
+
         Service {
             id: backdropService
             appId: "com.webos.app.quicksettings"
@@ -1948,6 +2040,7 @@ StarfishSystemUIWindow {
 
         // Keys of the remote, and the steps of the performance probe (PerfMeter).
         function pressKey(key, autoRepeat) {
+            if (profileStore.switching || modalSwitching) return true;     // the switch screen takes no keys
             var started = PerfProbe.now();
             var handled = handlePress(key, autoRepeat);
             PerfProbe.cost("key.press", started, modalActive ? "flow" : (settingsActive ? "settings" : page));
@@ -1955,6 +2048,7 @@ StarfishSystemUIWindow {
         }
 
         function releaseKey(key) {
+            if (profileStore.switching || modalSwitching) return true;
             var started = PerfProbe.now();
             var handled = handleRelease(key);
             PerfProbe.cost("key.release", started, modalActive ? "flow" : (settingsActive ? "settings" : page));
@@ -2584,6 +2678,59 @@ StarfishSystemUIWindow {
                                         }
                                     }
 
+                                    // The active profile in the head of the profiles page.
+                                            Item {
+                                                anchors.fill: parent
+                                                visible: modelData.key === "profiles" && profileStore.active !== null
+
+                                                GlassControl {
+                                                    x: 28 * panel.unit
+                                                    y: 136 * panel.unit
+                                                    width: 544 * panel.unit
+                                                    height: 112 * panel.unit
+                                                    unit: panel.unit
+                                                    radius: 26
+                                                    fill: "#1affffff"
+
+                                                    ProfileAvatar {
+                                                        x: 20 * panel.unit
+                                                        y: 24 * panel.unit
+                                                        unit: panel.unit
+                                                        size: 64
+                                                        initial: profileStore.active ? profileStore.active.initial : ""
+                                                        tint: profileStore.active ? profileStore.active.tint : GlassStyle.profileColors[0]
+                                                    }
+
+                                                    Text {
+                                                        x: 102 * panel.unit
+                                                        y: 25 * panel.unit
+                                                        width: parent.width - x - 20 * panel.unit
+                                                        height: 30 * panel.unit
+                                                        verticalAlignment: Text.AlignVCenter
+                                                        elide: Text.ElideRight
+                                                        text: profileStore.active ? profileStore.active.nick : ""
+                                                        color: panel.textPrimary
+                                                        font.family: GlassStyle.rowFont
+                                                        font.pixelSize: 24 * panel.unit
+                                                        font.hintingPreference: Font.PreferNoHinting
+                                                    }
+
+                                                    Text {
+                                                        x: 102 * panel.unit
+                                                        y: 57 * panel.unit
+                                                        width: parent.width - x - 20 * panel.unit
+                                                        height: 23 * panel.unit
+                                                        verticalAlignment: Text.AlignVCenter
+                                                        elide: Text.ElideRight
+                                                        text: I18n.t("profile", "detail.active", { type: panel.profileType(profileStore.active) })
+                                                        color: panel.textSecondary
+                                                        font.family: GlassStyle.valueFont
+                                                        font.pixelSize: 18 * panel.unit
+                                                        font.hintingPreference: Font.PreferNoHinting
+                                                    }
+                                                }
+                                            }
+
                                     // Status and connection values of the network page.
                                             Item {
                                                 anchors.fill: parent
@@ -2722,6 +2869,10 @@ StarfishSystemUIWindow {
                                                           modelData.key === "soundOutput" || modelData.key === "soundMode"
                         readonly property real textTop: (height - 49 * panel.unit) / 2
                         readonly property bool isIcon: modelData.icon === true
+                        // The overview's profile row shows the active profile's avatar.
+                        readonly property var profileAvatar: modelData.avatar ? modelData.avatar :
+                            (modelData.key === "profiles" && profileStore.active ?
+                             { initial: profileStore.active.initial, tint: profileStore.active.tint } : null)
                         readonly property bool pageActive: parent !== null && parent.isActive === true
                         readonly property real iconSize: 30 * panel.unit
 
@@ -2764,9 +2915,12 @@ StarfishSystemUIWindow {
                                 twoLines: row.isTwoLine
                                 titleSize: row.rowData.key === "device" ? 21 : 22
                                 subtitleSize: row.rowData.key === "device" ? 16 : 17
-                                iconPng: row.rowData.png || ""
+                                iconPng: row.profileAvatar ? "" : (row.rowData.png || "")
                                 iconOnly: row.isIcon
-                                leftInset: row.rowData.png !== undefined ? 66 : 20
+                                avatar: row.profileAvatar
+                                avatarSize: row.rowData.avatarSize || 32
+                                leftInset: row.profileAvatar ? 34 + (row.rowData.avatarSize || 32) :
+                                           (row.rowData.png !== undefined ? 66 : 20)
                                 value: !row.isIcon && !row.isChoice ? panel.rowValue(row.rowData.key) : ""
                                 mark: row.isIcon || row.rowData.danger === true || row.rowData.plain === true ? "" :
                                       (row.isChoice ? (row.rowData.active === true ? "choice" : "") : "chevron")
@@ -2944,6 +3098,16 @@ StarfishSystemUIWindow {
             }
             z: 19
             asynchronous: true
+        }
+
+        // Black while a profile switch runs (K3-Profil-Wechsel); the panel closes once LG
+        // reports the new profile.
+        ProfileSwitchScreen {
+            anchors.fill: parent
+            z: 30
+            unit: panel.unit
+            profile: profileStore.switching || panel.modalSwitching
+            started: profileStore.switching ? profileStore.switchStarted : panel.modalSwitchStarted
         }
 
         // Short confirmation inside the panel, for example after renaming the TV.

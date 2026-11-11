@@ -223,6 +223,9 @@ ICONS = [
     ("volume-soundbar-30", 30, 1.7, SOUNDBAR, LIGHT_ONLY),
     ("volume-headphones-30", 30, 1.7, HEADPHONES, LIGHT_ONLY),
     ("row-allSettings", 30, 1.6, dict(SETTINGS_AREAS)["system"], BOTH),
+    # Profiles: "Profil hinzufügen" in lists, the area "Profile" of the settings modal.
+    ("row-add", 30, 1.6, strokes(["M12 5v14M5 12h14"]), BOTH),
+    ("settings-profile", 28, 1.7, '<circle cx="12" cy="8.5" r="3.5"/>' + path("M5 19.5a7 7 0 0 1 14 0"), BOTH),
     # The preview pill of the shutdown videos.
     ("play-18", 18, 1.8, PLAY, LIGHT_ONLY),
     # Novelties in "Neu in novOS" (K3-Neu-*), 28 px in a 56 px circle; -dark on the focus.

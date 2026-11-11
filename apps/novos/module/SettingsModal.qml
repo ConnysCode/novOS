@@ -1138,7 +1138,27 @@ Item {
                     width: parent.width
                     height: settings.listHeight * settings.unit
                     active: !!settings.page.custom     // choice pages have none at all
-                    sourceComponent: settings.page.custom === "shutdownEdit" ? shutdownEditPage : shutdownUploadPage
+                    sourceComponent: settings.page.custom === "shutdownEdit" ? shutdownEditPage :
+                                     settings.page.custom === "profileEdit" ? profileEditPage :
+                                     settings.page.custom === "profileSignIn" ? profileSignInPage : shutdownUploadPage
+                }
+
+                Component {
+                    id: profileEditPage
+                    ProfileEdit {
+                        unit: settings.unit
+                        owner: settings
+                        host: tvData
+                    }
+                }
+
+                Component {
+                    id: profileSignInPage
+                    ProfileSignIn {
+                        unit: settings.unit
+                        owner: settings
+                        host: tvData
+                    }
                 }
 
                 Component {
