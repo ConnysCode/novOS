@@ -440,7 +440,8 @@ Item {
         focused: cell.focused
         title: cell.row.title || ""
         subtitle: cell.row.subtitle || ""
-        iconPng: cell.row.icon || ""
+        // A row names its icon itself; entries of a host list may bring one (item.png).
+        iconPng: cell.row.icon || (cell.row.item && cell.row.item.png ? cell.row.item.png : "")
         value: cell.row.type === "toggle" ? "" : (cell.row.value || "")
         // A list entry may name its mark itself: a found device has none.
         mark: cell.row.mark !== undefined && cell.row.mark !== null ? cell.row.mark :
@@ -453,10 +454,9 @@ Item {
         sliderEnds: cell.slider ? cell.row.ends || null : null
         danger: cell.row.danger === true
         disabled: cell.row.disabled === true
-        // Entries of a host list may bring a profile's avatar or a row icon.
+        // Entries of a host list may bring a profile's avatar.
         avatar: cell.row.item && cell.row.item.avatar ? cell.row.item.avatar : null
         avatarSize: cell.row.item && cell.row.item.avatarSize ? cell.row.item.avatarSize : 32
-        iconPng: cell.row.item && cell.row.item.png ? cell.row.item.png : ""
         busy: cell.row.busy === true
         iconBusy: cell.row.iconBusy === true
         tone: cell.row.tone || ""
