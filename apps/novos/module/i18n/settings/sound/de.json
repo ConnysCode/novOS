@@ -24,6 +24,8 @@
     "reason.auracast_output": "Nur mit Fernsehlautsprecher, HDMI (ARC), optischem Ausgang oder Kopfhörer",
     "reason.bypass_on": "Gesperrt, solange Bypass an ist",
     "reason.digital_output_only": "Nur bei digitaler Ausgabe über HDMI (ARC) oder optisch",
+    "reason.equalizer_bluetooth_tv": "Nicht mit Bluetooth + TV-Lautsprecher",
+    "reason.equalizer_output": "Nicht bei dieser Audioausgabe",
     "reason.equalizer_standard_only": "Nur im Klangmodus Standard",
     "reason.not_available_now": "Gerade nicht verfügbar",
     "reason.not_for_arc": "Nicht bei Ausgabe über HDMI (ARC)",

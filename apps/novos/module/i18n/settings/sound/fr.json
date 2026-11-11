@@ -24,6 +24,8 @@
     "reason.auracast_output": "Uniquement avec haut-parleur TV, HDMI (ARC), sortie optique ou casque",
     "reason.bypass_on": "Verrouillé tant que le contournement est activé",
     "reason.digital_output_only": "Uniquement avec une sortie numérique HDMI (ARC) ou optique",
+    "reason.equalizer_bluetooth_tv": "Pas avec Bluetooth + haut-parleur du TV",
+    "reason.equalizer_output": "Pas avec cette sortie audio",
     "reason.equalizer_standard_only": "Uniquement en mode son Standard",
     "reason.not_available_now": "Indisponible pour le moment",
     "reason.not_for_arc": "Pas avec une sortie via HDMI (ARC)",

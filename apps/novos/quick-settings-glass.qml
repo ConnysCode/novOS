@@ -174,8 +174,12 @@ StarfishSystemUIWindow {
             var sheet = settingsLoader.item;
             var total = settingsLaunch || mode === "game" ? 0 : GlassStyle.modalScrim;
             if (settingsBackdrop && sheet !== null) total = GlassStyle.stackScrims(total, sheet.backdropVeil);
-            return GlassStyle.veilBeyondContent(total);
+            return GlassStyle.veilBeyondContent(total) * (1 - settingsPicture);
         }
+        // The settings modal's band editor stands over the bare picture (module/BandEditor.qml):
+        // 0 to 1 while the modal's card steps aside, the dimming goes with it.
+        readonly property real settingsPicture: settingsBackdrop && settingsLoader.item !== null ?
+                                                settingsLoader.item.pictureShare : 0
         property real panelFade: panelHidden ? 0 : 1
         Behavior on panelFade { NumberAnimation { duration: panel.modalFadeDuration } }
 
@@ -2187,7 +2191,8 @@ StarfishSystemUIWindow {
         Rectangle {
             anchors.fill: parent
             color: GlassStyle.scrimColor
-            opacity: (GlassStyle.contentScrim + (GlassStyle.modalScrim - GlassStyle.contentScrim) * modalDim) * glass.opacity
+            opacity: (GlassStyle.contentScrim + (GlassStyle.modalScrim - GlassStyle.contentScrim) * modalDim *
+                      (1 - panel.settingsPicture)) * glass.opacity
             property real modalDim: panel.panelHidden ? 1 : 0
             Behavior on modalDim { NumberAnimation { duration: panel.modalFadeDuration } }
         }

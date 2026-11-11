@@ -57,6 +57,13 @@ function soundModeGame(ctx) {
     return ctx.val("sound.soundMode") === "game";
 }
 
+// LG's rule for the game equalizer (Cb() in its bundle): the AI game sound must be possible and
+// off. The bands also need the switch on.
+var equalizerDisabled = withOptimizer([
+    { when: function (ctx) { return !soundModeGame(ctx); }, reason: "reason.sound_mode_game" },
+    { when: function (ctx) { return ctx.val("sound.aigamesound") === "on"; }, reason: "reason.ai_game_sound_on" }
+]);
+
 // Outputs for which the Game Optimizer offers Dolby Atmos.
 var atmosOutputs = ["tv_speaker", "tv_external_speaker", "tv_speaker_external_arc", "tv_speaker_headphone",
                     "tv_speaker_bluetooth", "tv_speaker_optical_arc", "external_arc"];
@@ -75,7 +82,7 @@ var area = {
     icon: "games",
     title: "area.games",
     perSource: true,
-    configs: ["tv.model.soundModeType"],
+    configs: ["tv.model.soundModeType", "audio.supportPSW"],
     watch: ["other.gameMode", "sound.soundMode", "sound.soundOutput", "picture.eyeComfortMode"],
 
     page: {
@@ -215,21 +222,28 @@ var area = {
                       subtitle: "detail.ai_game_sound",
                       disabled: withOptimizer([{ when: function (ctx) { return !soundModeGame(ctx); },
                                                  reason: "reason.sound_mode_game" }]) },
-                    { id: "equalizerOn", type: "toggle", key: "sound.gameTVEqualizer", title: "row.game_equalizer",
-                      disabled: withOptimizer([{ when: function (ctx) { return !soundModeGame(ctx); },
-                                                 reason: "reason.sound_mode_game" }]) },
-                    // The ten bands are one array (sound.gameTVEqualizer10band); LG's app edits them.
-                    { id: "equalizerBands", type: "lgApp", title: "row.game_equalizer_bands",
-                      app: { id: "com.webos.app.gameoptimizer", params: {} },
-                      requires: function (ctx) { return ctx.has("sound.gameTVEqualizer"); },
-                      disabled: withOptimizer([{ when: function (ctx) {
-                          return !soundModeGame(ctx) || ctx.val("sound.gameTVEqualizer") !== "on";
-                      }, reason: "reason.equalizer_off" }]) },
                     { id: "atmos", type: "toggle", key: "sound.supportATMOS", title: "row.dolby_atmos",
                       requires: function (ctx) { return ctx.cfg("tv.model.soundModeType") === "Dolby Atmos"; },
                       disabled: withOptimizer([{ when: function (ctx) {
                           return atmosOutputs.indexOf(ctx.val("sound.soundOutput") || "") < 0;
                       }, reason: "reason.atmos_output" }]) }
+                ] },
+                { title: "section.equalizer", rows: [
+                    // LG marks the sound mode as changed only on models with personalised sound.
+                    { id: "equalizerOn", type: "toggle", key: "sound.gameTVEqualizer", title: "row.game_equalizer",
+                      alsoWrite: function (ctx) {
+                          var psw = ctx.cfg("audio.supportPSW");
+                          return psw && psw !== "false" ? { soundModeModified: "true" } : {};
+                      },
+                      disabled: equalizerDisabled },
+                    // Ten bands over the picture (BandEditor), one array per input like LG's app.
+                    { id: "equalizerBands", type: "bands", key: "sound.gameTVEqualizer10band",
+                      title: "row.game_equalizer_bands", editorTitle: "row.game_equalizer", icon: "equalizer",
+                      bands: ["32 Hz", "64 Hz", "125 Hz", "250 Hz", "500 Hz", "1 kHz", "2 kHz", "4 kHz", "8 kHz", "16 kHz"],
+                      requires: function (ctx) { return ctx.has("sound.gameTVEqualizer"); },
+                      disabled: equalizerDisabled.concat([{ when: function (ctx) {
+                          return ctx.val("sound.gameTVEqualizer") !== "on";
+                      }, reason: "reason.equalizer_off" }]) }
                 ] }
             ]
         },

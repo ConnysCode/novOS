@@ -60,7 +60,7 @@ Item {
         Image {
             x: glassRow.iconOnly ? (glassRow.width - glassRow.iconSize) / 2 : 20 * glassRow.unit
             y: (glassRow.height - glassRow.iconSize) / 2
-            opacity: (index === 1) === glassRow.focused ? 1 : 0
+            opacity: ((index === 1) === glassRow.focused ? 1 : 0) * (glassRow.disabled ? 0.5 : 1)
             source: Qt.resolvedUrl("icons/row-" + glassRow.iconPng + modelData + ".png")
             Behavior on opacity { NumberAnimation { duration: glassRow.colorDuration } }
         }

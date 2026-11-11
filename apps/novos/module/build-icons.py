@@ -226,6 +226,10 @@ ICONS = [
     # Profiles: "Profil hinzufügen" in lists, the area "Profile" of the settings modal.
     ("row-add", 30, 1.6, strokes(["M12 5v14M5 12h14"]), BOTH),
     ("settings-profile", 28, 1.7, '<circle cx="12" cy="8.5" r="3.5"/>' + path("M5 19.5a7 7 0 0 1 14 0"), BOTH),
+    # The equalizer rows of the settings modal (K3-Einst-Equalizer): three sliders.
+    ("row-equalizer", 30, 1.6, strokes(["M6 4v16M12 4v16M18 4v16"]) +
+     '<circle cx="6" cy="14" r="2" fill="currentColor"/><circle cx="12" cy="8" r="2" fill="currentColor"/>'
+     '<circle cx="18" cy="15" r="2" fill="currentColor"/>', BOTH),
     # The preview pill of the shutdown videos.
     ("play-18", 18, 1.8, PLAY, LIGHT_ONLY),
     # Novelties in "Neu in novOS" (K3-Neu-*), 28 px in a 56 px circle; -dark on the focus.

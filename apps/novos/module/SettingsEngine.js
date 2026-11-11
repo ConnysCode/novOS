@@ -56,11 +56,15 @@ function rowKey(row, ctx) {
 }
 
 // Some values are objects: LG keeps the video range per colour system, for example.
-// A row with member reads and writes only its part.
+// A row with member reads and writes only its part. Others are arrays, as the bands of an
+// equalizer: a row with index reads and writes one entry.
 function rowRawValue(row, ctx) {
     var value = ctx.val(rowKey(row, ctx));
     if (typeof row.field === "string") {
         return value && typeof value === "object" ? value[row.field] : undefined;
+    }
+    if (row.index !== undefined) {
+        return Array.isArray(value) ? value[call(row.index, ctx)] : undefined;
     }
     if (typeof row.member === "function") {
         var member = row.member(ctx);
@@ -353,6 +357,7 @@ function formatNumber(row, value, ctx) {
 // The text at the right of a row.
 function rowValue(row, ctx) {
     if (row.value !== undefined) return call(row.value, ctx) || "";
+    if (row.type === "bands") return bandsText(row, ctx);
     if (row.type === "choice" && typeof row.options === "function") {
         var options = choiceOptions(row, ctx);
         for (var i = 0; i < options.length; i++) {
@@ -420,6 +425,7 @@ function resolveRow(row, ctx) {
     var reason = disabledReason(row, ctx);
     var subtitle = reason;
     if (subtitle === "" && row.type === "page" && row.summary) subtitle = summaryText(row, ctx);
+    if (subtitle === "" && row.type === "bands" && !row.subtitle) subtitle = bandsText(row, ctx);
     if (subtitle === "" && typeof row.subtitle === "function") subtitle = row.subtitle(ctx) || "";
     else if (subtitle === "" && row.subtitle) subtitle = ctx.t(row.subtitle);
     var resolved = {
@@ -434,6 +440,7 @@ function resolveRow(row, ctx) {
         danger: row.danger === true,
         thumb: row.thumb || "",
         preview: row.preview || null,
+        icon: row.icon || "",
         row: row
     };
     // A card with the state of a task and its buttons, and a block of release notes.
@@ -449,6 +456,8 @@ function resolveRow(row, ctx) {
         resolved.option = row.option;
         resolved.selected = String(rowRawValue(row, ctx)) === String(row.option);
         resolved.value = row.value !== undefined ? call(row.value, ctx) || "" : "";
+    } else if (row.type === "bands") {
+        resolved.value = "";       // "Flach" or "Angepasst" is its second line
     } else if (row.type === "slider") {
         var range = sliderRange(row, ctx);
         resolved.min = range.min;
@@ -584,9 +593,17 @@ function writeRequest(store, row, value, ctx) {
         var mask = numberOf(whole);
         mask = value ? (mask | (1 << row.bit)) : (mask & ~(1 << row.bit));
         settings[parts.name] = typeof whole === "string" ? String(mask) : mask;
+    } else if (row.index !== undefined) {
+        // One entry of an array; the others stay. A missing entry counts as 0, as LG shows it.
+        var position = call(row.index, ctx);
+        var items = Array.isArray(whole) ? whole.slice() : [];
+        while (items.length < position) items.push(0);
+        items[position] = value;
+        settings[parts.name] = items;
     } else if (typeof row.member === "function") {
-        var copy = {};
-        if (whole && typeof whole === "object") {
+        // An array stays an array: copying it into an object would write {"0": …} back.
+        var copy = Array.isArray(whole) ? whole.slice() : {};
+        if (!Array.isArray(whole) && whole && typeof whole === "object") {
             for (var part in whole) copy[part] = whole[part];
         }
         copy[row.member(ctx)] = value;
@@ -626,6 +643,49 @@ function sliderStep(row, ctx, direction) {
     var range = sliderRange(row, ctx);
     var current = numberOf(rowRawValue(row, ctx));
     return Math.max(range.min, Math.min(range.max, current + direction * range.step));
+}
+
+// ---- Bands: a row whose value is an array of numbers, edited in BandEditor.qml ----
+// bands: the labels, one per entry ("100 Hz"); the range comes from the descriptor as for a
+// slider. Each band writes as a row with index, the button "Flach" writes the whole array;
+// alsoWrite goes along both times.
+
+function bandValues(row, ctx) {
+    var value = ctx.val(rowKey(row, ctx));
+    var labels = row.bands || [];
+    var values = [];
+    for (var i = 0; i < labels.length; i++) {
+        values.push(Array.isArray(value) && value[i] !== undefined ? numberOf(value[i]) : 0);
+    }
+    return values;
+}
+
+function bandsFlat(values) {
+    for (var i = 0; i < values.length; i++) {
+        if (values[i] !== 0) return false;
+    }
+    return true;
+}
+
+// "Flach" or "Angepasst", the second line of the row.
+function bandsText(row, ctx) {
+    return ctx.t(bandsFlat(bandValues(row, ctx)) ? "value.flat" : "value.adjusted");
+}
+
+// The one band a key changes, as a row of its own.
+function bandRow(row, index) {
+    return { id: row.id + ":" + index, type: "band", key: row.key, keyOf: row.keyOf, index: index,
+             alsoWrite: row.alsoWrite, extra: row.extra };
+}
+
+// What the editor shows: title, labels, values and range.
+function resolveBands(store, i18n, areaId, row, param) {
+    var ctx = context(store, areaId, i18n);
+    ctx.area = areaById(areaId);
+    ctx.param = param;
+    var range = sliderRange(row, ctx);
+    return { title: ctx.t(row.editorTitle || row.title), labels: row.bands || [], values: bandValues(row, ctx),
+             min: range.min, max: range.max, step: range.step };
 }
 
 // Search over every row this TV shows: names, own search terms and LG's terms.

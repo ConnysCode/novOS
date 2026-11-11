@@ -30,6 +30,8 @@ QtObject {
     readonly property color switchOff: "#5c787880"         // keeps its grey on the focus surface
     readonly property color trackFill: "#3dffffff"         // slider track on glass
     readonly property color trackFocused: "#240b0c10"      // slider track on the focus surface
+    readonly property color zeroLine: "#8cffffff"          // the 0 of a slider filled from its middle: white 55 %
+    readonly property color zeroLineFocused: "#660b0c10"   // on the focus surface: 40 %
     readonly property color separator: "#1fffffff"        // white 12 %
     readonly property color danger: "#ff9a90"
     readonly property color keyRed: "#e5484d"              // the red key of the remote in key hints
@@ -87,6 +89,11 @@ QtObject {
     readonly property int statSize: 34                     // a live value, for example of the game bar
     readonly property int statUnitSize: 15                 // its unit beside it
     readonly property int chipValueSize: 26                // the value of a chip, for example the genre
+    readonly property int barTitleSize: 30                 // title of a bar over the picture (BandEditor)
+    readonly property int bandValueSize: 24                // the value above a vertical slider, "+3"
+    readonly property int bandLabelSize: 19                // the band below it, "1 kHz"
+    // A bar over the picture at the bottom edge (K3-Einst-Equalizer), in logical px.
+    readonly property real bottomBarInset: 56
     // A bar along the top edge (K3-Spiel-A-HUD), in logical px.
     readonly property real topBarInset: 48
     readonly property real topBarRadius: 44

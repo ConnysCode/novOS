@@ -7,6 +7,10 @@
 // Outputs in which the TV speaker plays, as LG groups them for the sound mode and AV sync.
 var tvSpeakerOutputs = ["tv_speaker", "tv_speaker_headphone", "tv_external_speaker",
                         "tv_speaker_external_arc", "tv_speaker_wow_cast", "tv_speaker_bluetooth"];
+// Outputs for which LG offers the five-band equalizer (i6() in LG's main.js); with
+// Bluetooth and the TV speaker together it stays greyed out.
+var equalizerOutputs = ["tv_speaker", "tv_external_speaker", "tv_speaker_external_arc", "tv_speaker_headphone",
+                        "tv_speaker_bluetooth", "tv_speaker_wow_cast", "tv_speaker_optical_arc", "external_arc"];
 // Outputs with a digital stream, as LG's "Digital Sound Output" lists them.
 var digitalOutputs = ["external_arc", "external_optical", "tv_speaker_external_arc", "wow_cast",
                       "tv_speaker_wow_cast"];
@@ -220,18 +224,30 @@ var area = {
             title: "page.tone",
             sections: [
                 { rows: [
+                    // Five bands over the picture (BandEditor, K3-Einst-Equalizer). LG writes the
+                    // whole array and marks the sound mode as changed with every step.
+                    { id: "equalizer", type: "bands", key: "sound.userEqualizerValues", title: "row.equalizer",
+                      icon: "equalizer", search: "search.equalizer",
+                      bands: ["100 Hz", "300 Hz", "1 kHz", "3 kHz", "10 kHz"],
+                      alsoWrite: { soundModeModified: "true" },
+                      requires: function (ctx) { return ctx.has("sound.userEqualizer"); },
+                      // LG: standard mode, userEqualizer active, an output of equalizerOutputs but not
+                      // Bluetooth with the TV speaker. LG Harmony and the sound recommendation are
+                      // not known here; LG reports them through userEqualizer as well.
+                      disabled: [{ when: function (ctx) { return ctx.val("sound.soundMode") !== "standard"; },
+                                   reason: "reason.equalizer_standard_only" },
+                                 { when: function (ctx) { return output(ctx) === "tv_speaker_bluetooth"; },
+                                   reason: "reason.equalizer_bluetooth_tv" },
+                                 { when: function (ctx) { return !outputIs(ctx, equalizerOutputs); },
+                                   reason: "reason.equalizer_output" },
+                                 { when: function (ctx) {
+                                     var desc = ctx.desc("sound.userEqualizer");
+                                     return desc && desc.ui && desc.ui.active === false;
+                                 }, reason: "reason.not_available_now" }] },
                     { id: "balance", type: "slider", key: "sound.audioBalance", title: "row.balance",
                       format: "signed", search: "search.balance",
                       disabled: [{ when: function (ctx) { return output(ctx) === "external_arc"; },
                                    reason: "reason.not_for_arc" }] },
-                    // LG keeps the five bands (sound.userEqualizerValues, an array) in an overlay of its
-                    // own menu. Until an array editor exists, the row opens that menu.
-                    { id: "equalizer", type: "lgApp", title: "row.equalizer", search: "search.equalizer",
-                      app: { id: "com.palm.app.settings", params: { target: "AdditionalSound" } },
-                      requires: function (ctx) { return ctx.has("sound.userEqualizer"); },
-                      disabled: [{ when: soundModeLocked, reason: "reason.tv_speaker_only" },
-                                 { when: function (ctx) { return ctx.val("sound.soundMode") !== "standard"; },
-                                   reason: "reason.equalizer_standard_only" }] },
                     { id: "autoVolume", type: "toggle", key: "sound.autoVolume", title: "row.auto_volume",
                       subtitle: "detail.auto_volume", search: "search.auto_volume" },
                     { id: "ac4", type: "toggle", key: "sound.ac4DialogueEnhancer", title: "row.ac4",

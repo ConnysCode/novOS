@@ -95,11 +95,29 @@ Item {
     readonly property var focusedRow: zone === "content" && page.rows.length > 0 ?
                                       page.rows[Math.min(focusIndex, page.rows.length - 1)] : null
 
+    // A row of type "bands" (the equalizers) opens BandEditor over the picture: the card steps
+    // aside, the dimming goes back to the picture's own, and the bar stands at the bottom.
+    property var bandsRow: null               // the catalog row being edited, null when closed
+    readonly property bool bandsOpen: bandsRow !== null
+    // 0 the card, 1 the bar over the picture. The card fades out in the first half, the bar in
+    // in the second, so that glass never stands over glass. The panel lifts its scrim and the
+    // glass's veil along (quick-settings-glass.qml).
+    property real pictureShare: bandsOpen ? 1 : 0
+    Behavior on pictureShare { NumberAnimation { duration: 2 * GlassStyle.popoverDuration } }
+    readonly property var bands: bandsOpen ? resolveBands(revision, bandsRow) : null
+    property var bandsShown: null             // the last bands, kept while the bar fades out
+    onBandsChanged: if (bands) bandsShown = bands
+    readonly property var bandEditor: bandLoader.item
+
     function resolveCurrent() {
         var started = PerfProbe.now();
         var resolved = resolveLevel();
         PerfProbe.cost("modal.resolve", started, resolved.rows.length + " rows");
         return resolved;
+    }
+
+    function resolveBands() {
+        return Engine.resolveBands(store, I18n, area.id, bandsRow, paramOf(stack.length));
     }
 
     function resolveLevel() {
@@ -148,6 +166,7 @@ Item {
     function reset() {
         stack = [];
         zone = "sidebar";
+        bandsRow = null;
     }
 
     function requestData() {
@@ -425,6 +444,32 @@ Item {
         settingsStore.flushWrite();
     }
 
+    // ---- Bands over the picture ------------------------------------------------
+
+    function openBands(row) {
+        bandsRow = row;
+        if (bandEditor) bandEditor.open();
+    }
+
+    function closeBands() {
+        flushWrite();
+        bandsRow = null;
+    }
+
+    // One band: the array with this entry changed, and what the row writes along.
+    function writeBand(index, value) {
+        var context = ctx();
+        commit(Engine.writeRequest(store, Engine.bandRow(bandsRow, index), value, context), bandsRow, context);
+    }
+
+    // "Flach": every band to 0 at once, without asking; it is in view and changes back as easily.
+    function flattenBands() {
+        var context = ctx();
+        var zeros = [];
+        for (var i = 0; i < bands.values.length; i++) zeros.push(0);
+        commit(Engine.writeRequest(store, bandsRow, zeros, context), bandsRow, context);
+    }
+
     // ---- Actions -------------------------------------------------------------
 
     // Actions the modal runs itself. The rest go to the panel through hostAction.
@@ -506,6 +551,10 @@ Item {
         if (shutdownPreview.shown) {
             // Any key ends the preview; Back is taken by back() on its release.
             if (!Remote.isBack(key)) endPreview();
+            return;
+        }
+        if (bandsOpen) {
+            if (bandEditor) bandEditor.handleKey(key, autoRepeat);
             return;
         }
         if (zone === "sidebar") sidebarKey(key, autoRepeat);
@@ -683,7 +732,7 @@ Item {
             }
         } else if (key === Qt.Key_Left) {
             toSidebar();
-        } else if ((key === Qt.Key_Right && row && (row.type === "page" || row.type === "choice")) ||
+        } else if ((key === Qt.Key_Right && row && (row.type === "page" || row.type === "choice" || row.type === "bands")) ||
                    isOk(key)) {
             if (!autoRepeat && row) activate(row);
         }
@@ -713,6 +762,8 @@ Item {
             if (row.row.onOpen) runAction(row.row.onOpen, {});
         } else if (row.type === "choice") {
             push({ kind: "choice", row: row.row, rowId: row.id, focus: focusIndex });
+        } else if (row.type === "bands") {
+            openBands(row.row);
         } else if (row.type === "option" && row.action) {
             runAction(row.action, row.params || {});
         } else if (row.type === "option" && row.write) {
@@ -792,6 +843,10 @@ Item {
             endPreview();
             return;
         }
+        if (bandsOpen) {
+            closeBands();
+            return;
+        }
         if (zone === "sidebar") {
             close();
             return;
@@ -839,6 +894,22 @@ Item {
     // Preview only: keys the modal presses by itself, one every 450 ms ("down", "ok", "back",
     // "left", "right", "up", "red" or a digit). The TV takes no injected keys.
     property var testKeys: []
+    // Preview only: "<area>/<page>/<row id>" opens the band editor of that catalog row once the
+    // modal stands, also where this TV greys it out or hides it.
+    property string testBands: ""
+
+    onShownChanged: {
+        if (!shown || testBands === "") return;
+        var parts = testBands.split("/");
+        var found = Engine.pageOf(Engine.areaById(parts[0]), parts[1]);
+        for (var s = 0; found && s < found.sections.length; s++) {
+            var rows = found.sections[s].rows;
+            for (var r = 0; r < rows.length; r++) {
+                if (rows[r].id === parts[2]) openBands(rows[r]);
+            }
+        }
+        testBands = "";
+    }
 
     Timer {
         id: testKeyTimer
@@ -861,6 +932,15 @@ Item {
 
     readonly property var speech: {
         if (!active) return null;
+        if (bandsOpen && bandEditor) {
+            var onBand = bandEditor.focusIndex < bands.labels.length;
+            var valueText = onBand ? bandEditor.signed(bands.values[bandEditor.focusIndex]) : "";
+            return { context: "settings", layer: "bands", subject: "band-" + bandEditor.focusIndex,
+                     layerIntro: bands.title,
+                     text: onBand ? bands.labels[bandEditor.focusIndex] + ", " + valueText
+                                  : I18n.t("settings", "editor.flat"),
+                     change: valueText };
+        }
         if (zone === "sidebar") {
             var label = sideIndex === 0 ? I18n.t("settings", "row.search") : I18n.t("settings_" + area.id, area.title);
             return { context: "settings", layer: "sidebar", subject: "side-" + sideIndex,
@@ -907,10 +987,11 @@ Item {
         }
 
         // The picture behind the modal steps back by 38 %. The host passes it to the glass.
+        // Under the band editor it comes back.
         Rectangle {
             anchors.fill: parent
             color: GlassStyle.scrimColor
-            opacity: settings.backdropVeil
+            opacity: settings.backdropVeil * (1 - settings.pictureShare)
         }
 
         MouseArea {
@@ -931,6 +1012,8 @@ Item {
             backdropArea: settings.backdropArea
             hasBackdrop: settings.hasBackdrop
             glideCurve: settings.focusCurve
+            opacity: Math.max(0, 1 - 2 * settings.pictureShare)
+            visible: opacity > 0
 
             MouseArea {
                 anchors.fill: parent
@@ -1209,6 +1292,42 @@ Item {
                             }
                         }
                     }
+                }
+            }
+        }
+
+        // The band editor over the picture, built only while it is open or fading out.
+        Loader {
+            id: bandLoader
+            anchors.fill: parent
+            active: settings.bandsOpen || settings.pictureShare > 0
+            opacity: Math.max(0, 2 * settings.pictureShare - 1)
+            visible: opacity > 0
+            sourceComponent: Component {
+                BandEditor {
+                    readonly property var shownBands: settings.bandsShown || ({ labels: [], values: [] })
+                    unit: settings.unit
+                    titleFont: settings.titleFont
+                    rowFont: settings.rowFont
+                    valueFont: settings.valueFont
+                    backdrop: settings.backdrop
+                    glassShader: settings.glassShader
+                    backdropMargin: settings.backdropMargin
+                    backdropArea: settings.backdropArea
+                    hasBackdrop: settings.hasBackdrop
+                    title: shownBands.title || ""
+                    labels: shownBands.labels
+                    values: shownBands.values
+                    minimum: shownBands.min !== undefined ? shownBands.min : -10
+                    maximum: shownBands.max !== undefined ? shownBands.max : 10
+                    step: shownBands.step || 1
+                    flatLabel: I18n.t("settings", "editor.flat")
+                    keys: [{ key: I18n.t("settings", "editor.key_left_right"), action: I18n.t("settings", "editor.band") },
+                           { key: I18n.t("settings", "editor.key_up_down"), action: I18n.t("settings", "editor.value") },
+                           { key: I18n.t("settings", "editor.key_back"), action: I18n.t("settings", "editor.done") }]
+                    onBandChanged: settings.writeBand(index, value)
+                    onFlatten: settings.flattenBands()
+                    onFinished: settings.closeBands()
                 }
             }
         }

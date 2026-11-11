@@ -19,7 +19,7 @@ Item {
     readonly property bool twoLines: row.subtitle !== "" && row.subtitle !== undefined
     readonly property bool slider: row.type === "slider"
     readonly property real logicalHeight: entry.h || 30
-    readonly property bool hasChevron: row.type === "page" || row.type === "choice" ||
+    readonly property bool hasChevron: row.type === "page" || row.type === "choice" || row.type === "bands" ||
                                        (row.type === "listItem" && row.selected !== true && row.external !== true)
     readonly property string titleFont: owner ? owner.rowFont : ""
     readonly property string valueFont: owner ? owner.valueFont : ""
@@ -305,6 +305,7 @@ Item {
         focused: cell.focused
         title: cell.row.title || ""
         subtitle: cell.row.subtitle || ""
+        iconPng: cell.row.icon || ""
         value: cell.row.type === "toggle" ? "" : (cell.row.value || "")
         mark: cell.row.external === true ? "external" :
               (cell.row.selected === true ? "check" : (cell.hasChevron ? "chevron" : ""))

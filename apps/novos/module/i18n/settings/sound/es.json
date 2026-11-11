@@ -24,6 +24,8 @@
     "reason.auracast_output": "Solo con altavoz del TV, HDMI (ARC), salida óptica o auriculares",
     "reason.bypass_on": "Bloqueado mientras Omitir esté activado",
     "reason.digital_output_only": "Solo con salida digital por HDMI (ARC) u óptica",
+    "reason.equalizer_bluetooth_tv": "No con Bluetooth + altavoz del TV",
+    "reason.equalizer_output": "No con esta salida de audio",
     "reason.equalizer_standard_only": "Solo en el modo de sonido Estándar",
     "reason.not_available_now": "No disponible ahora",
     "reason.not_for_arc": "No con salida por HDMI (ARC)",
