@@ -698,6 +698,8 @@ StarfishSystemUIWindow {
             noSignalLeft = -1;
             backToNoSignal = false;
             pickNoSignalPicture();
+            // A screen still standing from before must take this case's actions and focus.
+            noSignalScreen.actions = [];
             service.call("luna://com.webos.settingsservice", "/getSystemSettings",
                          JSON.stringify({ category: "time", keys: ["autoOff15Min", "noSignalAutoOff"] }));
             noSignalOpen = true;
