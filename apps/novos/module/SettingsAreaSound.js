@@ -251,7 +251,7 @@ var area = {
               "com.webos.service.wowplay.supportWowCast", "com.webos.service.arccontroller.supportEARC",
               "com.palm.app.settings.enableMagicSoundTuning"],
     // Read only for requires/disabled, no row of their own.
-    watch: ["sound.blegattSoundbar", "sound.auracast", "sound.userEqualizer", "sound.hearingAid"],
+    watch: ["sound.blegattSoundbar", "sound.userEqualizer", "sound.hearingAid"],
 
     page: {
         id: "sound",
@@ -416,14 +416,8 @@ var area = {
                       disabled: [{ when: function (ctx) { return ctx.state.wisaDongle !== true; },
                                    reason: "reason.no_wisa_dongle" }] },
                     { id: "wowcast", type: "page", page: "wowcast", title: "row.wowcast", search: "search.wowcast",
-                      requires: hasWowCast },
-                    { id: "auracast", type: "lgApp", title: "row.auracast",
-                      app: { id: "com.webos.app.leaudio", params: {} },
-                      requires: function (ctx) { return ctx.has("sound.auracast"); },
-                      disabled: [{ when: function (ctx) {
-                          var desc = ctx.desc("sound.auracast");
-                          return desc && desc.ui && desc.ui.active === false;
-                      }, reason: "reason.auracast_output" }] }
+                      requires: hasWowCast }
+                    // Auracast is left out (decision of 11 November 2026).
                 ] }
             ]
         },

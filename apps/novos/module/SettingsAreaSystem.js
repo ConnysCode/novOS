@@ -120,7 +120,7 @@ var area = {
     id: "system",
     icon: "system",
     title: "area.system",
-    keys: ["time.timeZone", "support.automaticUpdate", "option.storeMode"],
+    keys: ["time.timeZone", "support.automaticUpdate"],
     page: {
         id: "system",
         title: "area.system",
@@ -161,16 +161,7 @@ var area = {
             {
                 title: "section.reset",
                 rows: [
-                    // LG's own Zuhause-/Demo-Modus page: store mode needs LG's warning and
-                    // starts LG's demo app.
-                    { id: "storeMode", type: "lgApp",
-                      app: { id: "com.palm.app.settings", params: { target: "HomeStoreMode" } },
-                      title: "row.store_mode", search: "search.store_mode",
-                      subtitle: function (ctx) {
-                          var mode = ctx.val("option.storeMode");
-                          return mode ? ctx.label("option.storeMode", mode) : "";
-                      },
-                      requires: function (ctx) { return ctx.has("option.storeMode"); } },
+                    // LG's Zuhause-/Demo-Modus is left out (decision of 11 November 2026).
                     // Destructive and not reversible: LG's own System page with the focus on
                     // its reset entry. LG asks there and explains what is deleted.
                     { id: "factoryReset", type: "lgApp",
@@ -206,10 +197,8 @@ var area = {
                         { id: "location", type: "lgApp",
                           app: { id: "com.palm.app.settings", params: { target: "Location" } },
                           title: "row.location", search: "search.location",
-                          subtitle: function (ctx) { return ctx.state.country || ""; } },
-                        { id: "weather", type: "lgApp",
-                          app: { id: "com.webos.app.weatherlocation", params: {} },
-                          title: "row.weather_location", search: "search.weather_location" }
+                          subtitle: function (ctx) { return ctx.state.country || ""; } }
+                        // The weather location is left out: novOS shows no weather.
                     ]
                 }
             ]
