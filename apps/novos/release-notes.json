@@ -1,4 +1,99 @@
 {
+  "0.10.0-beta.2": {
+    "date": "2026-11-13",
+    "level": "minor",
+    "topics": {
+      "de": "Profile, Bluetooth und Barrierefreiheit",
+      "en": "Profiles, Bluetooth and accessibility",
+      "es": "Perfiles, Bluetooth y accesibilidad",
+      "fr": "Profils, Bluetooth et accessibilité"
+    },
+    "items": [
+      {
+        "kind": "feature",
+        "icon": "profile",
+        "open": "settings:profile",
+        "title": {
+          "de": "Profile in novOS",
+          "en": "Profiles in novOS",
+          "es": "Perfiles en novOS",
+          "fr": "Profils dans novOS"
+        },
+        "text": {
+          "de": "Profile wechselst, bearbeitest und meldest du jetzt im Schnellmenü, im Launcher und in den Einstellungen an, ohne LGs Konto-App.",
+          "en": "Switch, edit and sign in profiles in the quick menu, the launcher and the settings, without LG’s account app.",
+          "es": "Cambia, edita e inicia sesión en perfiles desde el menú rápido, el lanzador y los ajustes, sin la app de cuentas de LG.",
+          "fr": "Changez, modifiez et connectez des profils depuis le menu rapide, le lanceur et les réglages, sans l’app de compte LG."
+        }
+      },
+      {
+        "kind": "feature",
+        "icon": "sound",
+        "open": "settings:sound",
+        "title": {
+          "de": "Bluetooth und Klang",
+          "en": "Bluetooth and sound",
+          "es": "Bluetooth y sonido",
+          "fr": "Bluetooth et son"
+        },
+        "text": {
+          "de": "Kopfhörer, Lautsprecher, Gamepads und Tastaturen koppelst du in novOS. Dazu Bluetooth mit Fernsehlautsprecher, WiSA, WOWCAST und der Equalizer über dem Bild.",
+          "en": "Pair headphones, speakers, gamepads and keyboards in novOS, plus Bluetooth with the TV speaker, WiSA, WOWCAST and the equalizer over the picture.",
+          "es": "Empareja auriculares, altavoces, mandos y teclados en novOS, además de Bluetooth con los altavoces del TV, WiSA, WOWCAST y el ecualizador sobre la imagen.",
+          "fr": "Associez casques, enceintes, manettes et claviers dans novOS, ainsi que Bluetooth avec les haut-parleurs du TV, WiSA, WOWCAST et l’égaliseur sur l’image."
+        }
+      },
+      {
+        "kind": "feature",
+        "icon": "access",
+        "open": "settings:accessibility",
+        "title": {
+          "de": "Barrierefreiheit für alle Menüs",
+          "en": "Accessibility in every menu",
+          "es": "Accesibilidad en todos los menús",
+          "fr": "Accessibilité dans tous les menus"
+        },
+        "text": {
+          "de": "Kontrast für Text und Fokus wirken jetzt auch in novOS. Neu sind Hörgerät gleichzeitig und Fernbedienung erlernen.",
+          "en": "High contrast text and focus now apply to novOS too. New: hearing aid at the same time and learn the remote.",
+          "es": "El alto contraste de texto y foco ahora también se aplica a novOS. Nuevo: audífono simultáneo y aprender el mando.",
+          "fr": "Le contraste élevé du texte et du focus s’applique désormais aussi à novOS. Nouveau : aide auditive simultanée et apprendre la télécommande."
+        }
+      },
+      {
+        "kind": "feature",
+        "icon": "picture",
+        "open": "settings:picture:whiteBalance",
+        "title": {
+          "de": "Weißabgleich mit 10 und 20 Punkten",
+          "en": "White balance with 10 and 20 points",
+          "es": "Balance de blancos de 10 y 20 puntos",
+          "fr": "Balance des blancs à 10 et 20 points"
+        },
+        "text": {
+          "de": "Stufen und Farben stellst du in einer Leiste über dem laufenden Bild ein, jede Änderung gilt sofort.",
+          "en": "Set levels and colours in a bar over the running picture; every change applies at once.",
+          "es": "Ajusta niveles y colores en una barra sobre la imagen; cada cambio se aplica al instante.",
+          "fr": "Réglez niveaux et couleurs dans une barre sur l’image ; chaque changement s’applique aussitôt."
+        }
+      },
+      {
+        "kind": "fix",
+        "title": {
+          "de": "Audioausgabe",
+          "en": "Sound output",
+          "es": "Salida de audio",
+          "fr": "Sortie audio"
+        },
+        "text": {
+          "de": "„HDMI (ARC)-Gerät und Fernsehlautsprecher“ erscheint nur noch mit einem Sender für Hörgeräte, wie bei LG.",
+          "en": "“HDMI (ARC) device and TV speaker” now only appears with a hearing aid transmitter, as on LG.",
+          "es": "«Dispositivo HDMI (ARC) y altavoces del TV» solo aparece con un transmisor para audífonos, como en LG.",
+          "fr": "« Appareil HDMI (ARC) et haut-parleurs du TV » n’apparaît plus qu’avec un émetteur pour aide auditive, comme chez LG."
+        }
+      }
+    ]
+  },
   "0.10.0-beta.1": {
     "date": "2026-11-10",
     "level": "minor",

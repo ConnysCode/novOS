@@ -307,6 +307,11 @@ ICONS = [
     ("feature-sparkle-28", 28, 1.7, path("M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9-1.9 5.1-1.9-5.1-5.1-1.9 5.1-1.9z") +
      path("M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"), BOTH),
     ("feature-update-28", 28, 1.7, path("M20 12a8 8 0 1 1-2.4-5.7") + path("M20 4v4.5h-4.5"), BOTH),
+    # 0.10.0-beta.2: the settings areas' own symbols.
+    ("feature-profile-28", 28, 1.7, '<circle cx="12" cy="8.5" r="3.5"/>' + path("M5 19.5a7 7 0 0 1 14 0"), BOTH),
+    ("feature-sound-28", 28, 1.7, dict(SETTINGS_AREAS)["sound"], BOTH),
+    ("feature-access-28", 28, 1.7, dict(SETTINGS_AREAS)["accessibility"], BOTH),
+    ("feature-picture-28", 28, 1.7, dict(SETTINGS_AREAS)["picture"], BOTH),
     # The game bar (K3-Spiel-A-HUD): the genre chip, then the four actions.
     ("game-genre", 30, 1.8, '<circle cx="12" cy="12" r="7"/>' + path("M12 2.5v5M12 16.5v5M2.5 12h5M16.5 12h5"), BOTH),
     ("game-dark-room", 24, 1.8, path("M19.5 14.2A8 8 0 1 1 9.8 4.5a6.4 6.4 0 0 0 9.7 9.7z"), BOTH),
