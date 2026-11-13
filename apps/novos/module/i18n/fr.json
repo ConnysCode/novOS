@@ -331,7 +331,7 @@
     "row.hearing_volume": "Volume de l'aide auditive",
     "row.sender_volume": "Volume de l'émetteur",
     "reason.volume_on_hearing_aid": "Réglez le volume sur l'aide auditive",
-    "reason.only_arc_and_tv": "Uniquement avec la sortie appareil HDMI (ARC) et haut-parleurs du téléviseur",
+    "reason.only_arc_and_tv": "Seulement avec HDMI (ARC) et haut-parleurs",
     "modal.hearing_output_title": "Désactiver l'aide auditive simultanée ?",
     "modal.hearing_output_text": "Le son passe alors par « {output} ». Le réglage se trouve sous Accessibilité › Audition.",
     "modal.hearing_output_bt_text": "Le son passe alors par « {output} ». Les appareils Bluetooth associés jusqu'ici sont supprimés. Le réglage se trouve sous Accessibilité › Audition.",

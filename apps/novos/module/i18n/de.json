@@ -331,7 +331,7 @@
     "row.hearing_volume": "Lautstärke Hörgerät",
     "row.sender_volume": "Lautstärke Sender",
     "reason.volume_on_hearing_aid": "Lautstärke am Hörgerät einstellen",
-    "reason.only_arc_and_tv": "Nur bei Ausgabe HDMI (ARC)-Gerät und Fernsehlautsprecher",
+    "reason.only_arc_and_tv": "Nur bei HDMI (ARC) und Fernsehlautsprecher",
     "modal.hearing_output_title": "Hörgerät gleichzeitig ausschalten?",
     "modal.hearing_output_text": "Der Ton kommt dann über „{output}“. Die Einstellung steht unter Barrierefreiheit › Hören.",
     "modal.hearing_output_bt_text": "Der Ton kommt dann über „{output}“. Bisher gekoppelte Bluetooth-Geräte werden entfernt. Die Einstellung steht unter Barrierefreiheit › Hören.",

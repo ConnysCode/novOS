@@ -243,6 +243,33 @@ StarfishSystemUIWindow {
             }
             return bottom + 32;
         }
+        // The sound page scrolls with the focus once the hearing aid makes it longer than the
+        // panel (ListScroll, as the apps): rows, titles and the focus surface move together, what
+        // leaves the view between soundTop and soundBottom fades out.
+        readonly property real soundTop: 118
+        readonly property real soundBottom: 940
+        readonly property real soundScroll: {
+            if (page !== "sound" || soundRows.length === 0) return 0;
+            var last = soundRows[soundRows.length - 1];
+            var row = soundRows[Math.min(focusIndex, soundRows.length - 1)];
+            return ListScroll.centred(row.y - soundTop, row.h, soundBottom - soundTop, last.y + last.h + 28 - soundTop);
+        }
+        property real soundScrollShown: soundScroll
+        Behavior on soundScrollShown {
+            NumberAnimation { duration: GlassStyle.focusDuration; easing.type: Easing.Bezier; easing.bezierCurve: GlassStyle.curve }
+        }
+
+        function scrollOf(entry) {
+            return entry && entry.page === "sound" ? soundScrollShown : 0;
+        }
+
+        // 1 inside the sound page's view, fading to 0 within one row outside it.
+        function inView(entry, height) {
+            if (!entry || entry.page !== "sound") return 1;
+            var top = entry.y - soundScrollShown;
+            return Math.max(0, Math.min(1, (top - soundTop + 34) / 34, (soundBottom - top - height + 20) / 20));
+        }
+
         // The title "Hörgerät" above its volume, 32 px below the outputs.
         readonly property real hearingLabelY: {
             for (var i = 0; i < soundRows.length; i++) {
@@ -424,7 +451,7 @@ StarfishSystemUIWindow {
                     below = wisaCount === 1 ? I18n.t("panel", "detail.speaker_one")
                                             : I18n.t("panel", "detail.speakers", { count: wisaCount });
                 var row = {
-                    key: "soundOutput", value: outputs[i], h: below !== "" ? 80 : 68, y: y,
+                    key: "soundOutput", value: outputs[i], h: below !== "" ? 80 : 68, y: y, page: "sound",
                     title: device ? bluetooth.name : settingsStore.label("sound.soundOutput", outputs[i]),
                     active: outputs[i] === output
                 };
@@ -446,7 +473,7 @@ StarfishSystemUIWindow {
                 var mode = modes[i];
                 if (!mode.visible || !mode.active) continue;
                 result.push({
-                    key: "soundMode", value: mode.value, h: 68,
+                    key: "soundMode", value: mode.value, h: 68, page: "sound",
                     y: top, title: settingsStore.label("sound.soundMode", mode.value),
                     active: mode.value === current
                 });
@@ -456,7 +483,7 @@ StarfishSystemUIWindow {
         }
 
         function buildHearingRow(hearing, output, bluetooth, btVolume, arcVolume) {
-            var row = { key: "hearingVolume", plain: true, min: 0, max: 100, step: 1 };
+            var row = { key: "hearingVolume", plain: true, min: 0, max: 100, step: 1, page: "sound" };
             if (hearing === "bluetooth") {
                 row.title = bluetooth ? I18n.t("panel", "row.device_volume", { name: bluetooth.name })
                                       : I18n.t("panel", "row.hearing_volume");
@@ -1251,11 +1278,11 @@ StarfishSystemUIWindow {
             { key: "picture", title: I18n.t("panel", "title.picture_mode") },
             { key: "sound", title: settingsStore.areaTitle("sound"),
               labels: hearingLabelY < 0 ?
-                      [{ text: I18n.t("panel", "section.sound_output"), y: 132 },
-                       { text: I18n.t("panel", "section.sound_mode"), y: soundModeLabelY }] :
-                      [{ text: I18n.t("panel", "section.sound_output"), y: 132 },
-                       { text: I18n.t("panel", "section.hearing_aid"), y: hearingLabelY },
-                       { text: I18n.t("panel", "section.sound_mode"), y: soundModeLabelY }] },
+                      [{ text: I18n.t("panel", "section.sound_output"), y: 132, page: "sound" },
+                       { text: I18n.t("panel", "section.sound_mode"), y: soundModeLabelY, page: "sound" }] :
+                      [{ text: I18n.t("panel", "section.sound_output"), y: 132, page: "sound" },
+                       { text: I18n.t("panel", "section.hearing_aid"), y: hearingLabelY, page: "sound" },
+                       { text: I18n.t("panel", "section.sound_mode"), y: soundModeLabelY, page: "sound" }] },
             { key: "network", title: settingsStore.areaTitle("network"),
               labels: [{ text: I18n.t("panel", "section.connection"), y: 278 },
                        { text: I18n.t("panel", "section.wifi"), y: 516 }] },
@@ -2425,7 +2452,7 @@ StarfishSystemUIWindow {
                 FocusSurface {
                     id: focusSurface
                     x: panel.rowXOf(panel.focusedRow) * panel.unit
-                    y: panel.focusedRow.y * panel.unit
+                    y: (panel.focusedRow.y - panel.scrollOf(panel.focusedRow)) * panel.unit
                     width: panel.rowWidthOf(panel.focusedRow) * panel.unit
                     height: panel.rowHeightOf(panel.focusedRow) * panel.unit
                     unit: panel.unit
@@ -2598,7 +2625,8 @@ StarfishSystemUIWindow {
                                                 model: panel.labelsOf(modelData)
                                                 SectionTitle {
                                                     x: panel.leftEdge
-                                                    y: modelData.y * panel.unit
+                                                    y: (modelData.y - panel.scrollOf(modelData)) * panel.unit
+                                                    opacity: panel.inView(modelData, 24)
                                                     height: 24 * panel.unit
                                                     unit: panel.unit
                                                     text: modelData.text
@@ -3016,7 +3044,8 @@ StarfishSystemUIWindow {
                         width: panel.rowWidthOf(modelData) * panel.unit
                         height: panel.rowHeightOf(modelData) * panel.unit
                         // The row that opened a popover stays as it is, the rest steps back.
-                        opacity: focused ? 1 : panel.stepBack
+                        opacity: (focused ? 1 : panel.stepBack) * panel.inView(modelData, height / panel.unit)
+                        transform: Translate { y: -panel.scrollOf(modelData) * panel.unit }
 
                         readonly property var rowData: modelData
                         readonly property bool isTwoLine: modelData.sublabel !== undefined
@@ -3035,7 +3064,7 @@ StarfishSystemUIWindow {
                         // Colours follow the surface itself, not the key press.
                         readonly property bool focused: pageActive &&
                             Math.abs(focusSurface.x - x) < width / 2 &&
-                            Math.abs(focusSurface.y - y) < height / 2
+                            Math.abs(focusSurface.y - (y - panel.scrollOf(modelData) * panel.unit)) < height / 2
 
                         Rectangle {
                             anchors.fill: parent
