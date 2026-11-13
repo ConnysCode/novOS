@@ -99,7 +99,8 @@ function wbCodes(ctx) {
     var all = ctx.list(tenPoint(ctx) ? "whiteBalanceCodes10" : "whiteBalanceCodes");
     var codes = all ? all[ctx.val("other.masterLuminanceLevel")] : null;
     var entries = [];
-    for (var i = 0; Array.isArray(codes) && i < codes.length; i++) entries.push({ value: i, label: String(codes[i]) });
+    // The position as LG keeps it, a string ("21").
+    for (var i = 0; Array.isArray(codes) && i < codes.length; i++) entries.push({ value: String(i), label: String(codes[i]) });
     return entries;
 }
 

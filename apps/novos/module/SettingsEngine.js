@@ -625,7 +625,8 @@ function resolveChoice(store, i18n, areaId, row, param) {
                     action: options[i].action, params: options[i].params, row: row });
     }
     return { id: "choice:" + row.id, title: ctx.t(row.title), subtitle: "",
-             sections: [{ title: "", rows: rows, note: row.note ? ctx.t(row.note) : "" }], rows: rows,
+             // The note stands once, below the values.
+             sections: [{ title: "", rows: rows, note: "" }], rows: rows,
              note: row.note ? ctx.t(row.note) : "" };
 }
 
