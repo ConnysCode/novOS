@@ -404,15 +404,15 @@ Item {
                 }
             }
 
+            // The actions: the central FooterButton in its glass variant. Its glass fades while
+            // the single focus surface glides beneath, as in every other dialog.
             Repeater {
                 model: screen.shownActions
 
                 Item {
                     id: actionPill
                     readonly property bool focused: index === screen.shownFocus
-                    readonly property bool hasIcon: (modelData.icon || "") !== ""
-                    readonly property real lead: (hasIcon ? 28 : 34) * screen.unit
-                    width: actionRow.width + lead + 34 * screen.unit
+                    width: button.width
                     height: row.height
                     opacity: screen.actionsShown ? 1 : 0
                     visible: opacity > 0
@@ -435,57 +435,27 @@ Item {
                         opacity: actionPill.focused ? 0 : 1
                         visible: opacity > 0
 
-                        Behavior on opacity { NumberAnimation { duration: GlassStyle.colorDuration } }
+                        Behavior on opacity {
+                            NumberAnimation { duration: GlassStyle.focusDuration; easing.type: Easing.Bezier; easing.bezierCurve: GlassStyle.curve }
+                        }
                     }
 
-                    GlassCard {
-                        anchors.fill: parent
+                    FooterButton {
+                        id: button
                         unit: screen.unit
-                        cornerRadius: 44 * screen.unit
-                        backdrop: rowGlass.texture
+                        size: 88
+                        textSize: GlassStyle.rowSize
+                        sidePadding: 31
+                        fontFamily: screen.titleFont
+                        label: modelData.label || ""
+                        icon: (modelData.icon || "") !== "" ? modelData.icon + "-26" : ""
+                        focused: actionPill.focused && screen.actionsShown
                         glassShader: GlassStyle.glassShader
+                        backdrop: rowGlass.texture
                         backdropMargin: rowGlass.margin
                         backdropArea: Qt.rect(rowGlass.area.x - strip.x - actionPill.x, rowGlass.area.y - strip.y,
                                               rowGlass.area.width, rowGlass.area.height)
                         hasBackdrop: 1
-                        shadow: ""
-                        opacity: actionPill.focused ? 0 : 1
-                        visible: opacity > 0
-
-                        Behavior on opacity { NumberAnimation { duration: GlassStyle.colorDuration } }
-                    }
-
-                    Row {
-                        id: actionRow
-                        x: actionPill.lead
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 12 * screen.unit
-                        z: 2
-
-                        Image {
-                            anchors.verticalCenter: parent.verticalCenter
-                            visible: actionPill.hasIcon
-                            width: 26 * screen.unit
-                            height: 26 * screen.unit
-                            smooth: true
-                            source: actionPill.hasIcon ? Qt.resolvedUrl("icons/" + modelData.icon + "-26" +
-                                                                        (actionPill.focused ? "-dark" : "") + ".png") : ""
-                        }
-
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: modelData.label || ""
-                            color: actionPill.focused ? GlassStyle.focusText : GlassStyle.textPrimary
-                            font.family: screen.titleFont
-                            font.pixelSize: GlassStyle.rowSize * screen.unit
-                            font.hintingPreference: Font.PreferNoHinting
-
-                            Behavior on color { ColorAnimation { duration: GlassStyle.colorDuration } }
-                        }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
                         onClicked: {
                             screen.wake();
                             if (screen.counting) {

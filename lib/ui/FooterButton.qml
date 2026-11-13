@@ -4,6 +4,9 @@ import QtQuick 2.12
 // The owner usually draws the focus surface behind a focused button; ownFocus lets the
 // button draw its own white plate at 103 %, for screens without a moving focus.
 // danger colours the label (red on glass, darker red on white), disabled dims to 40 %.
+// Over a picture rather than over a glass card, the button is a glass pill of its own: give
+// glassShader and the backdrop of an ImageGlass or LiveBackdrop (as NoticeBar takes them).
+// It fades like the plain fill, so the owner's surface still glides beneath it.
 Item {
     id: button
 
@@ -20,9 +23,17 @@ Item {
     readonly property real plateScale: GlassStyle.focusScale
     property bool danger: false
     property bool disabled: false
+    property real textSize: GlassStyle.pillTextSize
+    property real sidePadding: 28            // logical px left and right of the label
+    property string glassShader: ""
+    property variant backdrop
+    property real backdropMargin: 0
+    property rect backdropArea: Qt.rect(0, 0, 0, 0)    // around this button's parent, as GlassCard
+    property real hasBackdrop: 0
+    readonly property bool glass: glassShader !== ""
     signal clicked()
 
-    width: content.width + 56 * unit
+    width: content.width + 2 * sidePadding * unit
     height: size * unit
     opacity: disabled ? GlassStyle.dimmedOpacity : 1
     scale: ownFocus && focused ? GlassStyle.focusScale : 1
@@ -39,9 +50,29 @@ Item {
     GlassControl {
         anchors.fill: parent
         opacity: button.focused ? 0 : 1
-        visible: opacity > 0
+        visible: !button.glass && opacity > 0
         unit: button.unit
         radius: button.plateRadius
+
+        Behavior on opacity {
+            NumberAnimation { duration: GlassStyle.focusDuration; easing.type: Easing.Bezier; easing.bezierCurve: GlassStyle.curve }
+        }
+    }
+
+    // The glass variant: it samples the picture behind it, in the parent's frame.
+    GlassCard {
+        anchors.fill: parent
+        opacity: button.focused ? 0 : 1
+        visible: button.glass && opacity > 0
+        unit: button.unit
+        cornerRadius: button.plateRadius * button.unit
+        backdrop: button.backdrop
+        glassShader: button.glassShader
+        backdropMargin: button.backdropMargin
+        backdropArea: Qt.rect(button.backdropArea.x - button.x, button.backdropArea.y - button.y,
+                              button.backdropArea.width, button.backdropArea.height)
+        hasBackdrop: button.hasBackdrop
+        shadow: ""
 
         Behavior on opacity {
             NumberAnimation { duration: GlassStyle.focusDuration; easing.type: Easing.Bezier; easing.bezierCurve: GlassStyle.curve }
@@ -78,7 +109,7 @@ Item {
             color: button.danger ? (button.focused ? GlassStyle.dangerFocused : GlassStyle.danger)
                                  : (button.focused ? GlassStyle.focusText : "#ffffff")
             font.family: button.fontFamily
-            font.pixelSize: 20 * button.unit
+            font.pixelSize: button.textSize * button.unit
             font.hintingPreference: Font.PreferNoHinting
             Behavior on color { ColorAnimation { duration: GlassStyle.colorDuration } }
         }
