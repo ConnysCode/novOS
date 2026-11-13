@@ -936,10 +936,11 @@ StarfishSystemUIWindow {
             unit: launcher.unit
         }
 
+        // The clock left of the profile chip; it slides aside while the chip opens to a pill.
         Column {
             id: clock
-            anchors.right: parent.right
-            anchors.rightMargin: 96 * launcher.unit
+            anchors.right: profileChip.visible ? profileChip.left : parent.right
+            anchors.rightMargin: (profileChip.visible ? 22 : 96) * launcher.unit
             y: 64 * launcher.unit
             spacing: 2 * launcher.unit
             opacity: launcher.stepBack
@@ -965,14 +966,15 @@ StarfishSystemUIWindow {
             }
         }
 
-        // The active profile left of the clock: the avatar alone at rest, a white pill with
-        // the name in the focus, a glass pill while "Profil wechseln" is open.
+        // The active profile at the right edge, right of the clock: the avatar alone at rest, a
+        // white pill with the name in the focus, a glass pill while "Profil wechseln" is open,
+        // which stands right below it.
         Item {
             id: profileChip
             readonly property bool open: launcher.chipFocused || launcher.profileMenuOpen
             readonly property var profile: profileStore.active
-            anchors.right: clock.left
-            anchors.rightMargin: 22 * launcher.unit
+            anchors.right: parent.right
+            anchors.rightMargin: 96 * launcher.unit
             anchors.verticalCenter: clock.verticalCenter
             width: (open ? 10 + 44 + 12 + chipName.implicitWidth / launcher.unit + 22 : 44) * launcher.unit
             height: (open ? 64 : 44) * launcher.unit
