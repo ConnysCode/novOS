@@ -1014,7 +1014,9 @@ StarfishSystemUIWindow {
                 visible: profileChip.profile !== null
                 initial: profileChip.profile ? profileChip.profile.initial : ""
                 tint: profileChip.profile ? profileChip.profile.tint : GlassStyle.profileColors[0]
-                Behavior on x { NumberAnimation { duration: GlassStyle.focusDuration } }
+                Behavior on x {
+                    NumberAnimation { duration: GlassStyle.focusDuration; easing.type: Easing.Bezier; easing.bezierCurve: launcher.standardCurve }
+                }
             }
 
             // Without a profile: a person in a glass circle, "Anmelden" in the focus.
