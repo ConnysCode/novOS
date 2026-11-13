@@ -106,7 +106,7 @@ chmod 755 "$OUT"/bin/*
 
 {
     # A CI release names its version; a local build takes the commit.
-    echo "version=${NOVOS_VERSION:-$(git -C "$HERE" describe --always --dirty 2>/dev/null || echo unknown)}"
+    echo "version=${NOVOS_VERSION:-$(git -C "$HERE" describe --always --dirty --match 'novos-v*' 2>/dev/null || echo unknown)}"
     echo "built=$(date '+%Y-%m-%d %H:%M:%S')"
     echo "panel=$PANEL"
     echo "state=$STATE"
