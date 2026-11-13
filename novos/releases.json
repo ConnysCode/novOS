@@ -3,6 +3,56 @@
   "app": "novos",
   "releases": [
     {
+      "version": "0.10.0-beta.3",
+      "channel": "beta",
+      "published": "2026-11-13T14:48:28Z",
+      "date": "2026-11-13",
+      "size": 18555136,
+      "restarts": 1,
+      "level": "minor",
+      "manifest": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.10.0-beta.3/novos-0.10.0-beta.3.manifest.json",
+      "signature": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.10.0-beta.3/novos-0.10.0-beta.3.manifest.json.sig",
+      "topics": {
+        "de": "Bildschirm ohne Signal",
+        "en": "No-signal screen",
+        "es": "Pantalla sin señal",
+        "fr": "Écran sans signal"
+      },
+      "items": [
+        {
+          "kind": "feature",
+          "icon": "sparkle",
+          "title": {
+            "de": "Eigener Bildschirm ohne Signal",
+            "en": "A screen of its own without a signal",
+            "es": "Pantalla propia sin señal",
+            "fr": "Un écran à part sans signal"
+          },
+          "text": {
+            "de": "Sendet die Quelle kein Bild, zeigt novOS ein Foto mit dem Grund und dem nächsten Schritt: Gerät einschalten, Quelle wechseln oder zum Start.",
+            "en": "When the source sends no picture, novOS shows a photo with the reason and the next step: turn the device on, change source or go to Home.",
+            "es": "Si la fuente no envía imagen, novOS muestra una foto con el motivo y el siguiente paso: encender el dispositivo, cambiar de fuente o ir al inicio.",
+            "fr": "Si la source n’envoie pas d’image, novOS affiche une photo avec la raison et l’étape suivante : allumer l’appareil, changer de source ou aller à l’accueil."
+          }
+        },
+        {
+          "kind": "fix",
+          "title": {
+            "de": "Profil im Launcher",
+            "en": "Profile in the launcher",
+            "es": "Perfil en el lanzador",
+            "fr": "Profil dans le lanceur"
+          },
+          "text": {
+            "de": "Das Profil steht links neben der Uhr. Zurück schließt erst das Profilmenü, dann den Launcher, statt beides auf einmal.",
+            "en": "The profile sits left of the clock. Back first closes the profile menu, then the launcher, instead of both at once.",
+            "es": "El perfil está a la izquierda del reloj. Atrás cierra primero el menú de perfil y después el lanzador, en lugar de ambos a la vez.",
+            "fr": "Le profil se trouve à gauche de l’horloge. Retour ferme d’abord le menu du profil, puis le lanceur, au lieu des deux à la fois."
+          }
+        }
+      ]
+    },
+    {
       "version": "0.10.0-beta.2",
       "channel": "beta",
       "published": "2026-11-13T12:57:31Z",
