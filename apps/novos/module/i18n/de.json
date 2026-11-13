@@ -626,5 +626,29 @@
     "voice.record_again": "Neu aufnehmen",
     "voice.record_detail": "Etwa eine Minute, fünf kurze Sätze",
     "voice.recorded": "{name}s Stimme ist aufgenommen"
+  },
+  "no_signal": {
+    "action.deep_color": "HDMI Deep Color einschalten",
+    "action.home": "Zum Start",
+    "action.stay_on": "Anlassen",
+    "action.switch_source": "Quelle wechseln",
+    "action.turn_back_on": "Wieder einschalten",
+    "action.turn_on": "Einschalten",
+    "action.turn_on_again": "Noch mal einschalten",
+    "action.tv_off": "Fernseher ausschalten",
+    "countdown.detail": "Mit jeder Taste bleibt er an",
+    "countdown.title": "Geht in {time} aus",
+    "detail.empty": "An {port} ist nichts angeschlossen",
+    "detail.format": "{device} sendet {format}",
+    "detail.lost": "{port} · kein Bild mehr",
+    "detail.starting": "{port} · Bild kommt gleich",
+    "detail.unresponsive": "{port} · kein Bild nach dem Einschalten",
+    "speech.countdown": "Fernseher geht in {minutes} Minuten aus. Mit jeder Taste bleibt er an.",
+    "title.empty": "Keine Quelle gefunden",
+    "title.format": "Format nicht unterstützt",
+    "title.off": "{device} ist aus",
+    "title.silent": "{device} sendet kein Bild",
+    "title.starting": "{device} startet",
+    "title.unresponsive": "{device} meldet sich nicht"
   }
 }

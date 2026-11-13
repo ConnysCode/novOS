@@ -219,6 +219,13 @@ ICONS = [
     ("notice-device", 34, 1.5, PC, LIGHT_ONLY),
     ("notice-moon", 34, 1.5, path("M19.5 14.2A8 8 0 1 1 9.8 4.5a6.4 6.4 0 0 0 9.7 9.7z"), LIGHT_ONLY),
     ("source-alert", 40, 1.5, '<circle cx="12" cy="12" r="8.5"/>' + path("M12 7.8v5M12 16.2v0.1"), BOTH),
+    # The screen without a picture (K3-KeinSignal-E): the format case and the action pills.
+    ("nosignal-picture", 40, 1.5, '<rect x="3.5" y="5" width="17" height="14" rx="2.5"/>' +
+     path("M3.5 16l5-5 4 4 2.5-2.5 5.5 5.5") + '<circle cx="15.5" cy="9" r="1.5"/>', LIGHT_ONLY),
+    ("nosignal-switch-26", 26, 2, '<rect x="3" y="5" width="18" height="14" rx="2.5"/>' +
+     path("M8 12h8M13 9l3 3-3 3"), BOTH),
+    ("nosignal-home-26", 26, 2, path("M4 11l8-6.5 8 6.5") + path("M6.5 9.5V19h11V9.5"), BOTH),
+    ("nosignal-power-26", 26, 2, strokes(["M12 3.5v7.5", "M7.2 6.4a7.5 7.5 0 1 0 9.6 0"]), BOTH),
     ("row-smartHome", 30, 1.6, HOME, BOTH),
     ("hub-home", 44, 1.5, HOME, LIGHT_ONLY),
     ("volume-0-30", 30, 1.7, SPEAKER, LIGHT_ONLY),

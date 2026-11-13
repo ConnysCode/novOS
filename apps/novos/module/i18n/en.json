@@ -626,5 +626,29 @@
     "voice.record_again": "Record again",
     "voice.record_detail": "About a minute, five short sentences",
     "voice.recorded": "{name}'s voice is recorded"
+  },
+  "no_signal": {
+    "action.deep_color": "Turn on HDMI Deep Color",
+    "action.home": "Go to Home",
+    "action.stay_on": "Keep on",
+    "action.switch_source": "Change source",
+    "action.turn_back_on": "Turn back on",
+    "action.turn_on": "Turn on",
+    "action.turn_on_again": "Turn on again",
+    "action.tv_off": "Turn off TV",
+    "countdown.detail": "Press any key to keep it on",
+    "countdown.title": "Turns off in {time}",
+    "detail.empty": "Nothing is connected to {port}",
+    "detail.format": "{device} sends {format}",
+    "detail.lost": "{port} · picture lost",
+    "detail.starting": "{port} · picture coming up",
+    "detail.unresponsive": "{port} · no picture after turning on",
+    "speech.countdown": "The TV turns off in {minutes} minutes. Press any key to keep it on.",
+    "title.empty": "No source found",
+    "title.format": "Format not supported",
+    "title.off": "{device} is off",
+    "title.silent": "{device} sends no picture",
+    "title.starting": "{device} is starting",
+    "title.unresponsive": "{device} doesn't respond"
   }
 }

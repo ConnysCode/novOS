@@ -25,6 +25,7 @@ StarfishSystemUIWindow {
             } else if (rootWindow.opened) {
                 // A switch started here already ends in its own confirmation.
                 if (params.banner) picker.openBanner(params.appId);
+                else if (params.noSignal) picker.showNoSignal(params.noSignal);
                 else if (params.attributes) picker.addAttribute(params.label);
                 else if (params.notice || params.alert) picker.addNotice(params);
                 else if (params.novosProgress) picker.openUpdatePill();
@@ -35,7 +36,7 @@ StarfishSystemUIWindow {
             } else if (params.alertClose !== undefined) {
                 rootWindow.exit();
             } else if (!params.banner && !params.attributes && !params.notice && !params.alert &&
-                       !params.novosProgress && !params.novosWhatsNew && picker.launcherOpen()) {
+                       !params.novosProgress && !params.novosWhatsNew && !params.noSignal && picker.launcherOpen()) {
                 // Our launcher shows the sources itself; the source key adds no second row.
                 rootWindow.exit();
             } else {
@@ -45,6 +46,7 @@ StarfishSystemUIWindow {
                 rootWindow.show();
                 rootWindow.opened = true;
                 if (params.banner) picker.openBanner(params.appId);
+                else if (params.noSignal) picker.showNoSignal(params.noSignal);
                 else if (params.attributes) picker.openAttributes(params.label);
                 else if (params.notice || params.alert) picker.openNotice(params);
                 else if (params.novosProgress) { picker.enterBanner(); picker.openUpdatePill(); }
@@ -140,6 +142,22 @@ StarfishSystemUIWindow {
         readonly property var updateInfo: updates.info || ({})
         property var noticeQueue: []
         property int noticeFocus: 0
+        // The screen while the source sends no picture (NoSignalScreen, K3-KeinSignal-E). It
+        // takes over from the pill "Kein Signal" and stays until a picture arrives.
+        property bool noSignalOpen: false
+        property string noSignalApp: ""
+        // empty, off, silent (on but no picture, or CEC says nothing), starting, unresponsive,
+        // lost (the picture went while watching) and format (it arrives, but does not fit).
+        property string noSignalCase: ""
+        property string noSignalFormat: ""     // what arrives in the format case, "4K mit 120 Hz"
+        property bool noSignalPreview: false   // opened by hand: no polling, a picture does not end it
+        property double noSignalSince: 0       // LG's auto off counts from here
+        property double wakeSince: 0           // "Einschalten" pressed
+        property int noSignalLeft: -1          // seconds until LG's auto off, -1 without countdown
+        property bool autoOff: false           // LG turns the TV off without a signal
+        property bool backToNoSignal: false    // the source bar opened over the screen returns to it
+        property url noSignalPicture
+        property string noSignalCredit: ""
 
         // ---- Audio-Guidance: what the focus says ----------------------------
         readonly property var focusSpeech: currentSpeech()
@@ -158,6 +176,7 @@ StarfishSystemUIWindow {
         // The banner reads the source once it is known and each new state of the
         // signal. The picture format arriving later is not read again.
         function bannerSpeech() {
+            if (noSignalOpen && !noticeOpen) return noSignalSpeech();
             if (noticeOpen) {
                 var button = notice.buttons[noticeFocus];
                 return { context: "banner", intro: "", layer: "notice:" + notice.timestamp + notice.title,
@@ -176,6 +195,20 @@ StarfishSystemUIWindow {
                      subject: bannerState, text: said, change: "" };
         }
 
+        // The case once, then the focused action; the countdown says how long is left.
+        function noSignalSpeech() {
+            if (noSignalScreen.counting) {
+                return { context: "nosignal", intro: "", layer: "nosignal:countdown",
+                         layerIntro: I18n.t("no_signal", "speech.countdown",
+                                            { minutes: Math.max(1, Math.ceil(noSignalLeft / 60)) }),
+                         subject: "stayOn", text: I18n.t("no_signal", "action.stay_on"), change: "" };
+            }
+            var action = noSignalScreen.actions[noSignalScreen.focusIndex];
+            return { context: "nosignal", intro: "", layer: "nosignal:" + noSignalApp + ":" + noSignalCase,
+                     layerIntro: guide.sentence([noSignalScreen.title, noSignalScreen.detail], ". "),
+                     subject: "action:" + noSignalScreen.focusIndex, text: action ? action.label : "", change: "" };
+        }
+
         function currentSpeech() {
             if (bannerMode) return bannerSpeech();
             var source = sources[focusIndex];
@@ -189,6 +222,8 @@ StarfishSystemUIWindow {
         function deviceIcon(device) { return SourceList.deviceIcon(device); }
 
         function open() {
+            // Over the screen without a picture the bar samples its photo, and back returns there.
+            backToNoSignal = noSignalOpen;
             bannerMode = false;
             bannerState = "";
             signalCheck.stop();
@@ -209,12 +244,15 @@ StarfishSystemUIWindow {
             openTimer.restart();
             service.call("luna://com.webos.applicationManager", "/getForegroundAppInfo", "{}");
             service.call("luna://com.webos.service.eim", "/getAllInputStatus", "{}");
-            if (liveGlass.pictureReady) startOpenAnimation();
+            if (liveGlass.pictureReady || backToNoSignal) startOpenAnimation();
         }
 
         // LG's input app calls this instead of showing its banner.
         function openBanner(appId) {
             bar.opacity = 0;
+            noSignalOpen = false;
+            backToNoSignal = false;
+            noSignalPreview = false;
             bannerMode = true;
             bannerApp = appId || "";
             bannerState = "";
@@ -403,7 +441,7 @@ StarfishSystemUIWindow {
         function closeWhenIdle() {
             if (!bannerMode) return;
             if (!pillTimer.running && !attributeTimer.running && !noticeOpen &&
-                    !signalCheck.running && !updatePillOpen && !whatsNewOpen) close();
+                    !signalCheck.running && !updatePillOpen && !whatsNewOpen && !noSignalOpen) close();
         }
 
         // ---- Neu in novOS ----------------------------------------------------------------
@@ -613,7 +651,8 @@ StarfishSystemUIWindow {
             };
             if ((state === "arrived" || state === "noSignal") && signalCheck.running) {
                 signalCheck.stop();
-                pillTimer.interval = state === "noSignal" ? 5000 : 2200;
+                // Without a picture the pill stands briefly, then the screen takes over.
+                pillTimer.interval = state === "noSignal" ? GlassStyle.noSignalHandover : 2200;
                 pillTimer.restart();
                 if (state === "arrived") {
                     service.call("luna://com.webos.service.videooutput", "/getStatus", "{}");
@@ -622,9 +661,199 @@ StarfishSystemUIWindow {
             if (liveGlass.pictureReady) pillShown = true;
         }
 
+        // ---- Kein Signal -------------------------------------------------------------------
+        // Concept E of K3-KeinSignal. The case comes from LG's input status: no cable (hotplug),
+        // CEC reports the device off, or it is plugged and sends nothing. "Einschalten"
+        // launches the input again, as a switch to a sleeping device does; without a picture
+        // after noSignalWakeLimit the device does not answer.
+
+        function deviceOf(appId) {
+            for (var i = 0; i < devices.length; i++) {
+                if (devices[i].appId === appId) return devices[i];
+            }
+            return null;
+        }
+
+        // By hand (params.noSignal: { appId, kind, format }), for a preview of each case.
+        function showNoSignal(info) {
+            enterBanner();
+            bannerApp = info.appId || "";
+            bannerState = "";
+            pillShown = false;
+            noSignalFormat = info.format || "";
+            openNoSignal(info.kind || "", true);
+            service.call("luna://com.webos.service.eim", "/getAllInputStatus", "{}");
+        }
+
+        function openNoSignal(kind, preview) {
+            stayOpen();
+            pillTimer.stop();
+            signalCheck.stop();
+            pillShown = false;
+            noSignalApp = bannerApp;
+            noSignalCase = kind;
+            noSignalPreview = preview === true;
+            noSignalSince = Date.now();
+            wakeSince = Date.now();
+            noSignalLeft = -1;
+            backToNoSignal = false;
+            pickNoSignalPicture();
+            service.call("luna://com.webos.settingsservice", "/getSystemSettings",
+                         JSON.stringify({ category: "time", keys: ["autoOff15Min", "noSignalAutoOff"] }));
+            noSignalOpen = true;
+            updateNoSignal();
+        }
+
+        // A picture of the launcher, the same for as long as the screen stands.
+        function pickNoSignalPicture() {
+            try {
+                var request = new XMLHttpRequest();
+                request.open("GET", Qt.resolvedUrl("launcher/backgrounds/index.json"), false);
+                request.send();
+                var list = JSON.parse(request.responseText);
+                var entry = list[Math.floor(Math.random() * list.length)];
+                noSignalPicture = Qt.resolvedUrl("launcher/backgrounds/" + entry.file);
+                noSignalCredit = entry.credit || "";
+            } catch (error) {
+                noSignalPicture = "";
+                noSignalCredit = "";
+            }
+        }
+
+        function updateNoSignal() {
+            if (!noSignalOpen) return;
+            var device = deviceOf(noSignalApp);
+            if (!device) {
+                // The first answer is still on its way; a source without a port has nothing to wait for.
+                if (devices.length > 0 && !noSignalPreview) closeNoSignal(false);
+                return;
+            }
+            if (device.hdmiSignalExist && noSignalCase !== "format" && !noSignalPreview) {
+                closeNoSignal(true);
+                return;
+            }
+            var kind = noSignalCase;
+            if (kind === "starting" && !noSignalPreview && Date.now() - wakeSince >= GlassStyle.noSignalWakeLimit) {
+                kind = "unresponsive";
+            }
+            if (kind === "" || kind === "empty" || kind === "off" || kind === "silent") {
+                kind = !device.hdmiPlugIn ? "empty" : deviceIsOff(device) ? "off" : "silent";
+            }
+            if (!device.hdmiPlugIn && !noSignalPreview) kind = "empty";
+            presentNoSignal(kind, device);
+        }
+
+        function presentNoSignal(kind, device) {
+            var port = "HDMI " + device.port;
+            var name = deviceName(device);
+            var tr = function (key, params) { return I18n.t("no_signal", key, params); };
+            var action = function (id, key, icon) { return { id: id, label: tr(key), icon: icon || "" }; };
+            var switchSource = action("switch", "action.switch_source", "nosignal-switch");
+            var home = action("home", "action.home", "nosignal-home");
+            var cases = {
+                empty: { icon: "source-hdmi", title: tr("title.empty"), detail: tr("detail.empty", { port: port }),
+                         actions: [switchSource, home] },
+                off: { icon: deviceIcon(device), title: tr("title.off", { device: name }), detail: port,
+                       actions: [action("turnOn", "action.turn_on", "nosignal-power"), switchSource] },
+                silent: { icon: deviceIcon(device), title: tr("title.silent", { device: name }), detail: port,
+                          actions: [switchSource, home] },
+                // Only the way out, and no focus on it: the picture comes by itself.
+                starting: { busy: true, title: tr("title.starting", { device: name }),
+                            detail: tr("detail.starting", { port: port }), actions: [switchSource], focus: -1 },
+                unresponsive: { icon: "source-alert", title: tr("title.unresponsive", { device: name }),
+                                detail: tr("detail.unresponsive", { port: port }),
+                                actions: [action("turnOn", "action.turn_on_again", "nosignal-power"), switchSource] },
+                lost: { icon: deviceIcon(device), title: tr("title.off", { device: name }),
+                        detail: tr("detail.lost", { port: port }),
+                        actions: [action("tvOff", "action.tv_off", "nosignal-power"),
+                                  action("turnOn", "action.turn_back_on")] },
+                format: { icon: "nosignal-picture", title: tr("title.format"),
+                          detail: noSignalFormat !== "" ? tr("detail.format", { device: name, format: noSignalFormat }) : port,
+                          actions: [action("deepColor", "action.deep_color")] }
+            };
+            var entry = cases[kind] || cases.silent;
+            var changed = kind !== noSignalCase || noSignalScreen.actions.length === 0;
+            noSignalCase = kind;
+            noSignalScreen.icon = entry.icon || "";
+            noSignalScreen.busy = entry.busy === true;
+            noSignalScreen.title = entry.title;
+            noSignalScreen.detail = entry.detail;
+            if (changed) {
+                noSignalScreen.actions = entry.actions;
+                noSignalScreen.focusIndex = entry.focus !== undefined ? entry.focus : 0;
+            }
+        }
+
+        function noSignalAction(id) {
+            if (id === "switch") {
+                open();
+            } else if (id === "home") {
+                // Our launcher, as the home key opens it while novOS runs.
+                service.call("luna://com.webos.service.systemUIManager", "/launch",
+                             JSON.stringify({ appId: "com.webos.app.store-streamer" }));
+                closeNoSignal(false);
+                close();
+            } else if (id === "turnOn") {
+                var device = deviceOf(noSignalApp);
+                if (!device) return;
+                wakeSince = Date.now();
+                presentNoSignal("starting", device);
+                service.call("luna://com.webos.applicationManager", "/launch", NovosSettings.launchRequest(noSignalApp));
+            } else if (id === "tvOff") {
+                // Untested on the TV: the method of LG's public "turn off" command.
+                service.call("luna://com.webos.service.tvpower/power", "/turnOffTV", "{}");
+            } else if (id === "deepColor") {
+                openSettingsPage("settings:sources");
+            }
+        }
+
+        // LG keeps its own count; a key here only restarts ours (see docs, untested on the TV).
+        function updateCountdown() {
+            if (!noSignalOpen || !autoOff) {
+                noSignalLeft = -1;
+                return;
+            }
+            var left = noSignalSince + GlassStyle.noSignalOffDelay - Date.now();
+            noSignalLeft = left <= GlassStyle.noSignalWarning ? Math.max(0, Math.ceil(left / 1000)) : -1;
+        }
+
+        // A picture arrived: the pill confirms it as after a switch.
+        function closeNoSignal(arrived) {
+            noSignalOpen = false;
+            backToNoSignal = false;
+            noSignalPreview = false;
+            noSignalLeft = -1;
+            if (arrived) {
+                bannerApp = noSignalApp;
+                signalChecks = 0;
+                signalCheck.restart();
+                updateBanner();
+                openTimer.restart();
+            } else {
+                closeWhenIdle();
+            }
+        }
+
+        // Back from the source bar that opened over the screen.
+        function returnToNoSignal() {
+            backToNoSignal = false;
+            bannerMode = true;
+            barShown = false;
+            barFade.restart();
+            forceActiveFocus();
+            noSignalScreen.wake();
+            service.call("luna://com.webos.service.eim", "/getAllInputStatus", "{}");
+        }
+
         function close() {
+            if (backToNoSignal && noSignalOpen && switchingApp === "") {
+                returnToNoSignal();
+                return;
+            }
             if (closing) return;
             closing = true;
+            noSignalOpen = false;
+            backToNoSignal = false;
             openTimer.stop();
             switchCheck.stop();
             signalCheck.stop();
@@ -690,10 +919,14 @@ StarfishSystemUIWindow {
                 service.call("luna://com.webos.service.systemUIManager", "/launch",
                              JSON.stringify({ appId: "com.webos.app.quicksettings",
                                               params: { page: "sources" } }));
+                backToNoSignal = false;
                 close();
             } else if (source.running) {
                 close();
             } else {
+                // Another source: the screen without a picture goes with the bar.
+                backToNoSignal = false;
+                noSignalOpen = false;
                 switchingApp = source.appId;
                 switched = source;
                 switchChecks = 0;
@@ -738,6 +971,18 @@ StarfishSystemUIWindow {
             }
             if (bannerMode && updateScreenShown) {
                 // Nothing to steer while novOS installs; the screen goes by itself.
+                event.accepted = true;
+                return;
+            }
+            // The screen without a picture takes every key; the source sends nothing anyway.
+            if (bannerMode && noSignalOpen) {
+                noSignalScreen.handleKey(event.key, event.isAutoRepeat);
+                event.accepted = true;
+                return;
+            }
+            // A key while the pill "Kein Signal" stands brings the screen at once.
+            if (bannerMode && bannerState === "noSignal" && pillTimer.running) {
+                openNoSignal("", false);
                 event.accepted = true;
                 return;
             }
@@ -789,8 +1034,15 @@ StarfishSystemUIWindow {
                 var response = JSON.parse(payload);
                 if (method === "/getAllInputStatus") {
                     picker.devices = response.devices || [];
-                    if (picker.bannerMode) picker.updateBanner();
+                    if (picker.noSignalOpen && picker.bannerMode) picker.updateNoSignal();
+                    else if (picker.bannerMode) picker.updateBanner();
                     else picker.placeFocus();
+                } else if (method === "/getSystemSettings") {
+                    // LG's switches for turning off without a signal; "off" in either ends the countdown.
+                    var times = response.settings || {};
+                    var values = [times.autoOff15Min, times.noSignalAutoOff];
+                    picker.autoOff = values.indexOf("on") >= 0 && values.indexOf("off") < 0;
+                    picker.updateCountdown();
                 } else if (method === "/getStatus") {
                     picker.updateFormat(response.video && response.video[0]);
                 } else if (method === "/getForegroundAppInfo") {
@@ -857,12 +1109,26 @@ StarfishSystemUIWindow {
             onTriggered: picker.showPill()
         }
 
+        // While the screen without a picture stands: LG's input status and the countdown.
+        Timer {
+            interval: GlassStyle.clockTick
+            repeat: true
+            running: picker.noSignalOpen && picker.bannerMode
+            onTriggered: {
+                picker.updateCountdown();
+                if (picker.noSignalPreview) return;
+                service.call("luna://com.webos.service.eim", "/getAllInputStatus", "{}");
+            }
+        }
+
         Timer {
             id: pillTimer
             interval: 2200
             onTriggered: {
                 if (!picker.bannerMode) {
                     picker.close();
+                } else if (picker.bannerState === "noSignal" && !picker.noSignalOpen) {
+                    picker.openNoSignal("", false);
                 } else {
                     picker.pillShown = false;
                     picker.closeWhenIdle();
@@ -903,6 +1169,38 @@ StarfishSystemUIWindow {
             onReady: if (rootWindow.opened) picker.startOpenAnimation()
         }
 
+        // The full screen while the source sends no picture; the pills and the bar lie above it.
+        NoSignalScreen {
+            id: noSignalScreen
+            anchors.fill: parent
+            unit: picker.unit
+            titleFont: picker.titleFamily
+            rowFont: picker.rowFamily
+            valueFont: picker.valueFamily
+            shown: picker.noSignalOpen
+            // The bar, or LG's notice at the same place at the bottom, takes the row's place.
+            covered: picker.barShown || picker.noticeShown
+            pictureSource: picker.noSignalPicture
+            pictureCredit: picker.noSignalCredit
+            countdown: picker.noSignalLeft
+            onActivated: picker.noSignalAction(id)
+            onStayOn: {
+                picker.noSignalSince = Date.now();
+                picker.updateCountdown();
+            }
+        }
+
+        // The source bar over that screen samples its photo, not the missing video.
+        readonly property bool barOnPhoto: noSignalScreen.visible && !bannerMode
+
+        ImageGlass {
+            id: barPhotoGlass
+            sourceItem: picker.barOnPhoto ? noSignalScreen.backdropItem : null
+            unit: picker.unit
+            area: picker.barArea
+            visible: false
+        }
+
         GlassCard {
             id: bar
             x: picker.barX
@@ -912,11 +1210,11 @@ StarfishSystemUIWindow {
             opacity: 0
             visible: opacity > 0
             unit: picker.unit
-            backdrop: liveGlass.texture
+            backdrop: picker.barOnPhoto ? barPhotoGlass.texture : liveGlass.texture
             glassShader: liveGlass.glassShader
-            backdropMargin: liveGlass.margin
+            backdropMargin: picker.barOnPhoto ? barPhotoGlass.margin : liveGlass.margin
             backdropArea: picker.barArea
-            hasBackdrop: liveGlass.hasFrame ? 1 : 0
+            hasBackdrop: picker.barOnPhoto || liveGlass.hasFrame ? 1 : 0
             shadow: "shadow-panel"
             transform: Translate { id: barOffset }
 

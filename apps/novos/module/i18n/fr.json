@@ -626,5 +626,29 @@
     "voice.record_again": "Réenregistrer",
     "voice.record_detail": "Environ une minute, cinq phrases courtes",
     "voice.recorded": "La voix de {name} est enregistrée"
+  },
+  "no_signal": {
+    "action.deep_color": "Activer HDMI Deep Color",
+    "action.home": "Aller à l'accueil",
+    "action.stay_on": "Laisser allumé",
+    "action.switch_source": "Changer de source",
+    "action.turn_back_on": "Rallumer",
+    "action.turn_on": "Allumer",
+    "action.turn_on_again": "Rallumer",
+    "action.tv_off": "Éteindre le téléviseur",
+    "countdown.detail": "Appuyez sur une touche pour le garder allumé",
+    "countdown.title": "S'éteint dans {time}",
+    "detail.empty": "Rien n'est branché sur {port}",
+    "detail.format": "{device} envoie {format}",
+    "detail.lost": "{port} · plus d'image",
+    "detail.starting": "{port} · l'image arrive",
+    "detail.unresponsive": "{port} · pas d'image après l'allumage",
+    "speech.countdown": "Le téléviseur s'éteint dans {minutes} minutes. Appuyez sur une touche pour le garder allumé.",
+    "title.empty": "Aucune source trouvée",
+    "title.format": "Format non pris en charge",
+    "title.off": "{device} est éteint",
+    "title.silent": "{device} n'envoie pas d'image",
+    "title.starting": "{device} démarre",
+    "title.unresponsive": "{device} ne répond pas"
   }
 }

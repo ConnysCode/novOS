@@ -168,6 +168,18 @@ QtObject {
     readonly property real bootPulseLow: 0.85              // its opacity at the low point
     readonly property real bootPulseSwell: 1.04            // its size at the high point
     readonly property int updateScreenLimit: 300000        // an install screen goes after this at the latest
+    // The screen without a picture (K3-KeinSignal-E): a photo with a row of pills at the bottom.
+    readonly property int noSignalHandover: 3000           // the switch pill stands, then the screen takes over
+    readonly property int noSignalQuietDelay: 60000        // without a key the actions go and the photo dims
+    readonly property int noSignalWakeLimit: 30000         // "Einschalten" without a picture by then: no answer
+    readonly property int noSignalOffDelay: 900000         // LG's auto off without a signal, 15 minutes
+    readonly property int noSignalWarning: 120000          // the countdown stands in the last two minutes
+    readonly property int clockTick: 1000                  // a clock or a countdown on screen moves on
+    readonly property real quietScrim: 0.28                // the photo dims further while the screen is quiet
+    readonly property real floorScrim: highContrast ? 0.5 : 0.36   // gradient under a row of pills at the bottom
+    readonly property real floorScrimHeight: 360           // its height in logical px
+    readonly property real quietOpacity: highContrast ? 1 : 0.8    // a status pill while the screen is quiet
+    readonly property int pillClockSize: 26                // the time in a status pill
     readonly property real shutdownDim: 0.55               // light and wordmark when switching off
     readonly property int shutdownInDuration: 400          // picture to the dimmed boot look
     readonly property int shutdownOutDuration: 500         // the boot look to black; the entry holds the rest

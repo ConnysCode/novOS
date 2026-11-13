@@ -626,5 +626,29 @@
     "voice.record_again": "Volver a grabar",
     "voice.record_detail": "Un minuto, cinco frases cortas",
     "voice.recorded": "La voz de {name} está grabada"
+  },
+  "no_signal": {
+    "action.deep_color": "Activar HDMI Deep Color",
+    "action.home": "Ir al inicio",
+    "action.stay_on": "Mantener encendido",
+    "action.switch_source": "Cambiar fuente",
+    "action.turn_back_on": "Volver a encender",
+    "action.turn_on": "Encender",
+    "action.turn_on_again": "Volver a encender",
+    "action.tv_off": "Apagar el televisor",
+    "countdown.detail": "Pulsa cualquier tecla para que siga encendido",
+    "countdown.title": "Se apaga en {time}",
+    "detail.empty": "No hay nada conectado a {port}",
+    "detail.format": "{device} envía {format}",
+    "detail.lost": "{port} · ya no hay imagen",
+    "detail.starting": "{port} · la imagen llega enseguida",
+    "detail.unresponsive": "{port} · sin imagen tras encenderlo",
+    "speech.countdown": "El televisor se apaga en {minutes} minutos. Pulsa cualquier tecla para que siga encendido.",
+    "title.empty": "No se encontró ninguna fuente",
+    "title.format": "Formato no compatible",
+    "title.off": "{device} está apagado",
+    "title.silent": "{device} no envía imagen",
+    "title.starting": "{device} se está encendiendo",
+    "title.unresponsive": "{device} no responde"
   }
 }
