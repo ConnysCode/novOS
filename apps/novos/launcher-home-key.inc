@@ -21,6 +21,13 @@ function novosLauncherActive() {
     return booting[0] === "on" && Date.now() / 1000 - Number(booting[1]) < 180;
 }
 
+// novOS: back on our launcher goes to the launcher itself. It closes what it shows first (the
+// menu "Profil wechseln", the focus on the profile chip, an app being moved) and then leaves
+// with its own animation. LG's rule would close the home layer at once, menu and all.
+function novosLauncherTakesBack() {
+    return novosLauncherActive() && homeView.visible && homeView.appId === "com.webos.app.store-streamer";
+}
+
 // novOS: the home key on our launcher, which lives on the home layer, closes a menu over
 // it and the launcher in one go, back to the source. The launcher is asked again, as
 // before the home layer: it leaves with its own animation, the source's picture grows

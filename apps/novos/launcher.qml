@@ -936,11 +936,10 @@ StarfishSystemUIWindow {
             unit: launcher.unit
         }
 
-        // The clock left of the profile chip; it slides aside while the chip opens to a pill.
         Column {
             id: clock
-            anchors.right: profileChip.visible ? profileChip.left : parent.right
-            anchors.rightMargin: (profileChip.visible ? 22 : 96) * launcher.unit
+            anchors.right: parent.right
+            anchors.rightMargin: 96 * launcher.unit
             y: 64 * launcher.unit
             spacing: 2 * launcher.unit
             opacity: launcher.stepBack
@@ -966,15 +965,28 @@ StarfishSystemUIWindow {
             }
         }
 
-        // The active profile at the right edge, right of the clock: the avatar alone at rest, a
-        // white pill with the name in the focus, a glass pill while "Profil wechseln" is open,
-        // which stands right below it.
+        // A thin line between the profile and the clock, as tall as the avatar.
+        Rectangle {
+            id: clockDivider
+            visible: profileChip.visible
+            anchors.right: clock.left
+            anchors.rightMargin: 22 * launcher.unit
+            anchors.verticalCenter: clock.verticalCenter
+            width: Math.max(1, launcher.unit)
+            height: 44 * launcher.unit
+            color: GlassStyle.divider
+            opacity: launcher.stepBack
+        }
+
+        // The active profile left of the clock, beyond the line: the avatar alone at rest, a
+        // white pill with the name in the focus that grows to the left, a glass pill while
+        // "Profil wechseln" is open.
         Item {
             id: profileChip
             readonly property bool open: launcher.chipFocused || launcher.profileMenuOpen
             readonly property var profile: profileStore.active
-            anchors.right: parent.right
-            anchors.rightMargin: 96 * launcher.unit
+            anchors.right: clockDivider.left
+            anchors.rightMargin: 22 * launcher.unit
             anchors.verticalCenter: clock.verticalCenter
             width: (open ? 10 + 44 + 12 + chipName.implicitWidth / launcher.unit + 22 : 44) * launcher.unit
             height: (open ? 64 : 44) * launcher.unit
@@ -1035,19 +1047,27 @@ StarfishSystemUIWindow {
                 }
             }
 
-            Text {
-                id: chipName
+            // The name shows only inside the pill while it grows: a clipped room of its own, so
+            // that the focus ring outside the pill stays whole.
+            Item {
                 x: (10 + 44 + 12) * launcher.unit
+                width: Math.max(0, parent.width - x - 22 * launcher.unit)
                 height: parent.height
-                verticalAlignment: Text.AlignVCenter
-                opacity: profileChip.open ? 1 : 0
-                visible: opacity > 0
-                text: profileChip.profile ? profileChip.profile.nick : I18n.t("profile", "button.sign_in")
-                color: launcher.profileMenuOpen ? GlassStyle.textPrimary : GlassStyle.focusText
-                font.family: GlassStyle.rowFont
-                font.pixelSize: 20 * launcher.unit
-                font.hintingPreference: Font.PreferNoHinting
-                Behavior on opacity { NumberAnimation { duration: GlassStyle.colorDuration } }
+                clip: true
+
+                Text {
+                    id: chipName
+                    height: parent.height
+                    verticalAlignment: Text.AlignVCenter
+                    opacity: profileChip.open ? 1 : 0
+                    visible: opacity > 0
+                    text: profileChip.profile ? profileChip.profile.nick : I18n.t("profile", "button.sign_in")
+                    color: launcher.profileMenuOpen ? GlassStyle.textPrimary : GlassStyle.focusText
+                    font.family: GlassStyle.rowFont
+                    font.pixelSize: 20 * launcher.unit
+                    font.hintingPreference: Font.PreferNoHinting
+                    Behavior on opacity { NumberAnimation { duration: GlassStyle.colorDuration } }
+                }
             }
 
             MouseArea {

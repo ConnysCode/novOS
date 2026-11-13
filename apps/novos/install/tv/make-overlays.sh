@@ -25,10 +25,11 @@ toast=$(original Services.qml)
 
 # The home key opens our launcher while the marker is on. LG sets the pointer of the
 # Magic Remote to "on" at every start, the copy sets it to "off". With a menu open over
-# our launcher on the home layer, back goes to the menu, not to the launcher below.
+# our launcher on the home layer, back goes to the menu, not to the launcher below; without
+# one, back goes to our launcher itself (novosLauncherTakesBack in launcher-home-key.inc).
 sed -e '/^    applicationManager.launchDefaultApp(JSON.stringify({"category": "home"/i\    if (novosLauncherActive()) { lunaCall.send("com.webos.service.systemUIManager", "/launch", JSON.stringify({"appId": "com.webos.app.store-streamer"})); return; }' \
     -e "s/\"settings\":{\"remotePointer\":\"on\"}/\"settings\":{\"remotePointer\":\"off\"}/" \
-    -e '/^        if (!pressed && homeView.visible) {$/i\        if (overlayView.visible \&\& homeView.visible) return KeyPolicy.NotAccepted; // novOS: a menu over our launcher takes back first' \
+    -e '/^        if (!pressed && homeView.visible) {$/i\        if ((overlayView.visible || novosLauncherTakesBack()) \&\& homeView.visible) return KeyPolicy.NotAccepted; // novOS: a menu over our launcher takes back first' \
     -e '/^    if (pressed && homeView.visible) {$/i\    if (novosHomeKeyOnLauncher(pressed)) return KeyPolicy.Accepted; // novOS: home on our launcher' \
     "$keys" > "$DIR/systemUi.js"
 cat "$DIR/launcher-home-key.inc" >> "$DIR/systemUi.js"
