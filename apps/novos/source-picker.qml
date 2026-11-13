@@ -3,6 +3,7 @@ import QtQml 2.12
 import SystemUIComponent 1.0
 import WebOS.Global 1.0
 import WebOSServices 1.0
+import Qt.labs.settings 1.0
 import "module"
 import "module/SourceList.js" as SourceList
 import "module/ListScroll.js" as ListScroll
@@ -56,6 +57,7 @@ StarfishSystemUIWindow {
         }
         onClose: {
             rootWindow.opened = false;
+            picker.noSignalOpen = false;
             rootWindow.exit();
         }
     }
@@ -91,7 +93,6 @@ StarfishSystemUIWindow {
         readonly property int scrollLimit: Math.max(0, sources.length * tilePitch - 12 + 48 - 1808)
         readonly property rect barArea: Qt.rect(56 * unit, barY, 1808 * unit, barHeight)
         readonly property rect pillArea: Qt.rect(56 * unit, 56 * unit, 1808 * unit, 968 * unit)
-        readonly property int signalTimeout: 26     // checks of 300 ms
 
         property var devices: []
         property string foregroundApp: ""
@@ -116,7 +117,7 @@ StarfishSystemUIWindow {
         // The pill alone, for a source change that did not start in this window.
         property bool bannerMode: false
         property string bannerApp: ""
-        property string bannerState: ""        // connecting, waking, arrived, noSignal
+        property string bannerState: ""        // connecting, waking, arrived
         property int signalChecks: 0
         property var attributes: []            // the texts of LG's toasts, for the pill top right
         property string signalFormat: ""       // "4K · 24 Hz"
@@ -186,8 +187,7 @@ StarfishSystemUIWindow {
             var said = "";
             if (switched && bannerState !== "") {
                 var port = switched.port || "";
-                said = bannerState === "noSignal" ? guide.sentence([switched.title, I18n.t("picker", "speech.no_signal")]) :
-                       bannerState === "waking" ? guide.sentence([switched.title, port, I18n.t("picker", "speech.turning_on")]) :
+                said = bannerState === "waking" ? guide.sentence([switched.title, port, I18n.t("picker", "speech.turning_on")]) :
                        bannerState === "connecting" ? guide.sentence([switched.title, port, I18n.t("picker", "speech.connecting")]) :
                        switched.title;
             }
@@ -249,6 +249,8 @@ StarfishSystemUIWindow {
 
         // LG's input app calls this instead of showing its banner.
         function openBanner(appId) {
+            // banner-relay.py may have opened the screen for this source a moment earlier.
+            if (noSignalOpen && !noSignalPreview && noSignalApp === (appId || "")) return;
             bar.opacity = 0;
             noSignalOpen = false;
             backToNoSignal = false;
@@ -636,27 +638,28 @@ StarfishSystemUIWindow {
             var port = "HDMI " + device.port;
             var state = device.hdmiSignalExist ? "arrived" : "connecting";
             if (state === "connecting" && deviceIsOff(device)) state = "waking";
-            if (state !== "arrived" && signalChecks >= signalTimeout) state = "noSignal";
+            // Without a picture our screen covers LG's at once when nothing is plugged in, else
+            // after noSignalHandover, while the pill says "wird verbunden" or "wird eingeschaltet".
+            if (state !== "arrived" && (!device.hdmiPlugIn ||
+                                        signalChecks * signalCheck.interval >= GlassStyle.noSignalHandover)) {
+                openNoSignal(state === "waking" ? "starting" : "", false);
+                return;
+            }
             bannerState = state;
-            var plugged = device.hdmiPlugIn;
             switched = {
-                title: plugged && state !== "noSignal" ? deviceName(device) : port,
-                detail: state === "noSignal" ? I18n.t("picker", "detail.no_signal") :
-                        state === "waking" ? I18n.t("picker", "detail.port_waking", { port: port }) :
+                title: deviceName(device),
+                detail: state === "waking" ? I18n.t("picker", "detail.port_waking", { port: port }) :
                         state === "connecting" ? I18n.t("picker", "detail.port_connecting", { port: port }) :
                         signalFormat !== "" ? I18n.t("picker", "detail.port_format",
                                                      { port: port, format: signalFormat }) : port,
                 port: port,
-                icon: state === "noSignal" ? "source-alert" : deviceIcon(device)
+                icon: deviceIcon(device)
             };
-            if ((state === "arrived" || state === "noSignal") && signalCheck.running) {
+            if (state === "arrived" && signalCheck.running) {
                 signalCheck.stop();
-                // Without a picture the pill stands briefly, then the screen takes over.
-                pillTimer.interval = state === "noSignal" ? GlassStyle.noSignalHandover : 2200;
+                pillTimer.interval = 2200;
                 pillTimer.restart();
-                if (state === "arrived") {
-                    service.call("luna://com.webos.service.videooutput", "/getStatus", "{}");
-                }
+                service.call("luna://com.webos.service.videooutput", "/getStatus", "{}");
             }
             if (liveGlass.pictureReady) pillShown = true;
         }
@@ -674,14 +677,23 @@ StarfishSystemUIWindow {
             return null;
         }
 
-        // By hand (params.noSignal: { appId, kind, format }), for a preview of each case.
+        // params.noSignal: { appId, kind, format, preview }. banner-relay.py sends it whenever the
+        // source in front has no picture (after the TV starts, when the picture goes while
+        // watching); a screen already standing for that source stays as it is. "preview"
+        // opens a case by hand: no polling, a picture does not end it.
         function showNoSignal(info) {
+            var preview = info.preview === true;
+            if (!preview && noSignalOpen && !noSignalPreview && noSignalApp === (info.appId || "")) return;
+            // The pill of a switch already says "wird eingeschaltet": LG is waking the device.
+            var kind = info.kind || "";
+            if (!preview && kind === "" && bannerMode && bannerApp === info.appId && bannerState === "waking") kind = "starting";
             enterBanner();
             bannerApp = info.appId || "";
             bannerState = "";
             pillShown = false;
             noSignalFormat = info.format || "";
-            openNoSignal(info.kind || "", true);
+            signalChecks = 0;
+            openNoSignal(kind, preview);
             service.call("luna://com.webos.service.eim", "/getAllInputStatus", "{}");
         }
 
@@ -982,12 +994,6 @@ StarfishSystemUIWindow {
                 event.accepted = true;
                 return;
             }
-            // A key while the pill "Kein Signal" stands brings the screen at once.
-            if (bannerMode && bannerState === "noSignal" && pillTimer.running) {
-                openNoSignal("", false);
-                event.accepted = true;
-                return;
-            }
             if (bannerMode) {
                 rootWindow.webOSXInput.invokeFullKeyToAppAction(event.key, event.nativeScanCode, foregroundApp);
                 // The update pill stays while the remote goes on to the source.
@@ -1129,8 +1135,6 @@ StarfishSystemUIWindow {
             onTriggered: {
                 if (!picker.bannerMode) {
                     picker.close();
-                } else if (picker.bannerState === "noSignal" && !picker.noSignalOpen) {
-                    picker.openNoSignal("", false);
                 } else {
                     picker.pillShown = false;
                     picker.closeWhenIdle();
@@ -1190,6 +1194,13 @@ StarfishSystemUIWindow {
                 picker.noSignalSince = Date.now();
                 picker.updateCountdown();
             }
+        }
+
+        // banner-relay.py opens the screen again only while this says it is not standing.
+        Settings {
+            fileName: "/tmp/novos-nosignal-open.ini"
+            property bool open: picker.noSignalOpen && rootWindow.opened
+            property string app: picker.noSignalApp
         }
 
         // The source bar over that screen samples its photo, not the missing video.
@@ -1501,7 +1512,8 @@ StarfishSystemUIWindow {
             y: 56 * picker.unit
             width: pillContent.width + 48 * picker.unit
             height: 88 * picker.unit
-            opacity: picker.pillShown ? 1 : 0
+            // The full screen says the same and more: the pill steps aside while it stands.
+            opacity: picker.pillShown && !picker.noSignalOpen ? 1 : 0
             visible: opacity > 0
 
             Behavior on opacity {

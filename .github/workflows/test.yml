@@ -19,6 +19,8 @@ jobs:
         run: python3 apps/novos/install/test_updater.py
       - name: Test the supervisor's update notices and night installs
         run: python3 apps/novos/install/test_supervisor.py
+      - name: Test when the relay opens the screen without a picture
+        run: python3 apps/novos/install/test_relay.py
       - name: Check the release notes against the icons and pictures they name
         run: python3 apps/novos/install/check-notes.py
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Opens the pills that replace LG's banner and its picture attribute toasts, and our
-smart home hub in place of LG's Home Hub.
+"""Opens the pills that replace LG's banner and its picture attribute toasts, our smart
+home hub in place of LG's Home Hub, and our screen without a picture in place of LG's
+"Kein Signal".
 
 LG's input app may not start a system window: its bus role only reaches public
 methods. This process runs as root beside it and watches the foreground app and the
@@ -42,6 +43,22 @@ CLOSE = "luna://com.webos.applicationManager/closeByAppId"
 # How long the relay waits for the app below LG's Home Hub to come back.
 HUB_WAIT_SECONDS = 2
 LAUNCHER_STATE = "/tmp/novos-launcher-open.ini"
+# The screen without a picture (NoSignalScreen in the source window): LG's input app shows
+# "Kein Signal" whenever the HDMI source in front sends nothing, also after the TV starts and
+# when the picture goes while watching, where no switch opens our window. videooutput tells
+# every change of the main picture; LG's input status then says what is missing.
+VIDEO = "luna://com.webos.service.videooutput/getStatus"
+INPUTS = "luna://com.webos.service.eim/getAllInputStatus"
+HDMI = re.compile(r"^com\.webos\.app\.hdmi[1-4]$")
+NO_SIGNAL_STATE = "/tmp/novos-nosignal-open.ini"
+PANEL_STATE = "/tmp/novos-panel-open.ini"
+# A device that is plugged in gets this long to send a picture. A second more than
+# GlassStyle.noSignalHandover: after a switch the source window opens the screen itself, from
+# its pill ("wird eingeschaltet" becomes "startet"). An empty port shows the screen at once.
+NO_SIGNAL_GRACE = 4.0
+# While the picture stays away: whether our screen still stands, for example after the quick
+# panel took the overlay layer.
+NO_SIGNAL_RECHECK = 5.0
 # The launcher writes its state about 0.3 s after it shows.
 LAUNCHER_CHECK_SECONDS = 2
 LAUNCHER_RETRIES = 2
@@ -108,11 +125,128 @@ def open_hub(below):
 
 
 def launcher_open():
+    return note_open(LAUNCHER_STATE)
+
+
+def note_open(path, app_id=""):
+    """A window's note (Qt.labs.settings) says it stands, for app_id if given."""
     try:
-        with open(LAUNCHER_STATE) as file:
-            return "open=true" in file.read()
+        with open(path) as file:
+            text = file.read()
     except OSError:
         return False
+    return "open=true" in text and (not app_id or "app=" + app_id in text)
+
+
+def main_picture(line):
+    """(app id, has a picture) of the main video from a videooutput status, else None."""
+    try:
+        status = json.loads(line)
+    except ValueError:
+        return None
+    for video in status.get("video") or []:
+        if video.get("sink") == "MAIN":
+            source = video.get("sourceInput") or {}
+            return video.get("appId") or "", bool(source.get("width")) and bool(video.get("frameRate"))
+    return None
+
+
+def luna_answer(url, payload, timeout=4.0):
+    """One answer of a luna call; luna-send writes it only to a terminal."""
+    terminal, client = os.openpty()
+    process = subprocess.Popen(["luna-send", "-n", "1", "-w", "3000", url, json.dumps(payload)],
+                               stdin=subprocess.DEVNULL, stdout=client, stderr=client)
+    os.close(client)
+    output = b""
+    deadline = time.time() + timeout
+    try:
+        while time.time() < deadline:
+            ready, _, _ = select.select([terminal], [], [], 0.2)
+            if ready:
+                try:
+                    chunk = os.read(terminal, 65536)
+                except OSError:
+                    break
+                if not chunk:
+                    break
+                output += chunk
+            elif process.poll() is not None:
+                break
+    finally:
+        os.close(terminal)
+        if process.poll() is None:
+            process.kill()
+        process.wait()
+    text = output.decode("utf-8", "replace")
+    start = text.find("{")
+    try:
+        return json.JSONDecoder().raw_decode(text[start:])[0] if start >= 0 else None
+    except ValueError:
+        return None
+
+
+def input_of(app_id):
+    status = luna_answer(INPUTS, {}) or {}
+    for device in status.get("devices") or []:
+        if device.get("appId") == app_id:
+            return device
+    return None
+
+
+class NoSignal:
+    """Opens our screen while the HDMI source in front has no picture. "lost" when this
+    source had a picture since it came to the front."""
+
+    def __init__(self):
+        self.app = ""          # the source in front without a picture
+        self.since = 0.0
+        self.due = 0.0         # when to look at LG's input status next, 0 for not at all
+        self.pictured = set()  # sources in front that had a picture
+        self.last = None       # the last main picture: (app id, has a picture)
+
+    def front_changed(self, current):
+        self.pictured.discard(current)
+        if current != self.app:
+            self.app = ""
+            self.due = 0.0
+        # The video may have told its state before the source came to the front (at start).
+        if self.last and self.last[0] == current and not self.last[1]:
+            self.start(current)
+
+    def start(self, app_id):
+        if HDMI.match(app_id) and app_id != self.app:
+            self.app = app_id
+            self.since = time.time()
+            self.due = self.since
+
+    def video(self, line, front):
+        found = main_picture(line)
+        if not found:
+            return
+        app_id, picture = found
+        self.last = found
+        if picture:
+            self.pictured.add(app_id)
+            if app_id == self.app:
+                self.app = ""
+                self.due = 0.0
+        elif app_id == front:
+            self.start(app_id)
+
+    def tick(self, front):
+        if not self.app or not self.due or time.time() < self.due:
+            return
+        self.due = time.time() + NO_SIGNAL_RECHECK
+        if front != self.app or launcher_open() or note_open(PANEL_STATE) or note_open(NO_SIGNAL_STATE, self.app):
+            return
+        device = input_of(self.app)
+        if not device or device.get("hdmiSignalExist"):
+            return
+        if device.get("hdmiPlugIn") and time.time() - self.since < NO_SIGNAL_GRACE:
+            self.due = self.since + NO_SIGNAL_GRACE
+            return
+        kind = "lost" if self.app in self.pictured else ""
+        open_window({"noSignal": {"appId": self.app, "kind": kind}})
 
 
 def show_attribute(label):
@@ -204,6 +338,9 @@ def main():
     foreground, foreground_process = watch(WATCH)
     toasts, toast_process = watch(TOASTS)
     alerts, alert_process = watch(ALERTS)
+    video, video_process = watch(VIDEO)
+    no_signal = NoSignal()
+    pending_video = ""
     previous = ""
     pending = ""
     pending_toast = ""
@@ -219,7 +356,12 @@ def main():
     hub_due = 0
     try:
         while time.time() < deadline and os.path.exists(marker):
-            ready, _, _ = select.select([foreground, toasts, alerts], [], [], 0.5)
+            ready, _, _ = select.select([foreground, toasts, alerts, video], [], [], 0.5)
+            if video in ready:
+                lines, pending_video = read_lines(video, pending_video)
+                for line in lines:
+                    no_signal.video(line, previous)
+            no_signal.tick(previous)
             if hub_state and time.time() >= hub_due:
                 if hub_state == "returning":
                     # The app before did not come back: LG's Home Hub closes in front.
@@ -251,6 +393,7 @@ def main():
                 if not found or not found.group(1) or found.group(1) == previous:
                     continue
                 current = found.group(1)
+                no_signal.front_changed(current)
                 if current == LG_HUB:
                     if previous and previous != HOME:
                         return_to(previous)
@@ -280,6 +423,7 @@ def main():
         foreground_process.terminate()
         toast_process.terminate()
         alert_process.terminate()
+        video_process.terminate()
 
 
 if __name__ == "__main__":

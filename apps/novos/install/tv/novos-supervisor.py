@@ -52,6 +52,8 @@ PANEL = ROOT + "/current"
 MARKER = "/tmp/novos-banner-active"
 BOOTING = "/tmp/novos-booting"
 LAUNCHER_OPEN = "/tmp/novos-launcher-open.ini"
+# The screen without a picture and the quick panel note the same way (banner-relay.py reads them).
+WINDOW_NOTES = ("/tmp/novos-nosignal-open.ini", "/tmp/novos-panel-open.ini")
 VIDEO_BEAT = "/tmp/novos-launcher-video.ini"
 TARGETS = PANEL + "/lg-targets.txt"
 FAILURES = STATE + "/boot-failures"
@@ -562,8 +564,10 @@ def run():
                             len(restarts), CRASH_WINDOW))
                 pid = current
                 since = time.time()
-                # Windows die with surface-manager: the launcher's note would be stale.
+                # Windows die with surface-manager: their notes would be stale.
                 remove(LAUNCHER_OPEN)
+                for note in WINDOW_NOTES:
+                    remove(note)
             relay.check()
             if not counted and pid and time.time() - since >= STABLE_SECONDS and relay.alive():
                 counted = True

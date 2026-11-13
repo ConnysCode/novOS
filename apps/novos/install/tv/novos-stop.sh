@@ -80,7 +80,7 @@ rm -f /tmp/novos-early-mounted /tmp/novos-early-starts /tmp/novos-stable
 pkill -f 'novos-supervisor.p[y] run' 2>/dev/null
 # Without the marker LG's toasts, dialogs and Home come back at once.
 [ "$KEEP_HIDDEN" = yes ] || rm -f /tmp/novos-banner-active
-rm -f /tmp/novos-booting /tmp/novos-launcher-open.ini
+rm -f /tmp/novos-booting /tmp/novos-launcher-open.ini /tmp/novos-nosignal-open.ini /tmp/novos-panel-open.ini
 pkill -f 'banner-relay.p[y]' 2>/dev/null
 
 app=""

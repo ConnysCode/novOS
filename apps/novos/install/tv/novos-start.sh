@@ -258,7 +258,7 @@ if [ -n "$pid" ] && [ "$(awk '{ print $22 }' "/proc/$pid/stat")" -lt "$mounted_a
     # toasts stay out of sight. The overlays honour the flag for three minutes at most.
     echo "on $(date +%s)" > /tmp/novos-booting
     # The launcher's note dies with surface-manager; a stale one would block the source key.
-    rm -f /tmp/novos-launcher-open.ini
+    rm -f /tmp/novos-launcher-open.ini /tmp/novos-nosignal-open.ini /tmp/novos-panel-open.ini
     if [ "$MODE" = boot ]; then
         # Homebrew removes its failsafe flag 10 s after the hooks. A restart before
         # that could pass for a crash during startup.

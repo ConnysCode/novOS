@@ -3,6 +3,7 @@ import QtQml 2.12
 import SystemUIComponent 1.0
 import WebOS.Global 1.0
 import WebOSServices 1.0
+import Qt.labs.settings 1.0
 import "module"
 import "module/SourceList.js" as SourceList
 import "module/ListScroll.js" as ListScroll
@@ -18,6 +19,13 @@ StarfishSystemUIWindow {
     property bool opened: false
     // Performance probe, off outside perf-on-tv.sh (module/PerfProbe.qml).
     readonly property real perfCreated: PerfProbe.mark("window.create")
+
+    // While the panel stands, banner-relay.py does not open the screen without a picture
+    // again: that would close the panel (one overlay at a time).
+    Settings {
+        fileName: "/tmp/novos-panel-open.ini"
+        property bool open: rootWindow.opened
+    }
 
     Connections {
         target: rootWindow.lifeCycleStatus

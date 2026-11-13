@@ -220,7 +220,7 @@ LIST
     # LG's Home, its input splash, its banner and its toasts stay out of sight until the
     # boot has settled and the relay runs. The watch below keeps the flag fresh.
     echo "on $(date +%s)" > /tmp/novos-booting
-    rm -f /tmp/novos-launcher-open.ini "$STARTS"
+    rm -f /tmp/novos-launcher-open.ini /tmp/novos-nosignal-open.ini /tmp/novos-panel-open.ini "$STARTS"
     : > "$MOUNTING"
     while read -r name target hash; do
         mount --bind "$PANEL/$name" "$target" || {
