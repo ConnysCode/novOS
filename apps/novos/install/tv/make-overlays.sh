@@ -33,7 +33,8 @@ sed -e '/^    applicationManager.launchDefaultApp(JSON.stringify({"category": "h
     -e '/^    if (pressed && homeView.visible) {$/i\    if (novosHomeKeyOnLauncher(pressed)) return KeyPolicy.Accepted; // novOS: home on our launcher' \
     "$keys" > "$DIR/systemUi.js"
 cat "$DIR/launcher-home-key.inc" >> "$DIR/systemUi.js"
-expect novosLauncherActive "$DIR/systemUi.js" 3
+expect novosLauncherActive "$DIR/systemUi.js" 4
+expect novosLauncherTakesBack "$DIR/systemUi.js" 2
 expect '"remotePointer":"on"' "$DIR/systemUi.js" 0
 expect 'a menu over our launcher takes back first' "$DIR/systemUi.js" 1
 expect 'novosHomeKeyOnLauncher' "$DIR/systemUi.js" 2
