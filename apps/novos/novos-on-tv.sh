@@ -33,7 +33,8 @@ remote_status() {
 }
 
 install_release() {
-    version=$(git -C "$HERE" describe --always --dirty)
+    # Only novOS' own tags: a setup or CLI tag on the same commit would name it otherwise.
+    version=$(git -C "$HERE" describe --always --dirty --match 'novos-v*')
     case $version in
     *-dirty)
         [ "${NOVOS_ALLOW_DIRTY:-}" = 1 ] || {
