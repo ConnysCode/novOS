@@ -1,4 +1,46 @@
 {
+  "0.10.0-beta.4": {
+    "date": "2026-11-13",
+    "level": "patch",
+    "topics": {
+      "de": "Bildschirm ohne Signal",
+      "en": "No-signal screen",
+      "es": "Pantalla sin señal",
+      "fr": "Écran sans signal"
+    },
+    "items": [
+      {
+        "kind": "fix",
+        "title": {
+          "de": "Kein Signal ohne Wartezeit",
+          "en": "No signal without the wait",
+          "es": "Sin señal sin esperas",
+          "fr": "Pas de signal, sans attente"
+        },
+        "text": {
+          "de": "Der Bildschirm ohne Signal kommt jetzt sofort oder nach 3 Sekunden, auch nach dem Einschalten des Fernsehers und wenn das Bild beim Schauen wegbricht. LGs eigene Anzeige bleibt nicht mehr stehen.",
+          "en": "The no-signal screen now appears at once or after 3 seconds, also after turning the TV on and when the picture drops while watching. LG’s own message no longer stays on screen.",
+          "es": "La pantalla sin señal aparece ahora al instante o tras 3 segundos, también al encender el televisor y si la imagen se pierde mientras ves algo. El aviso de LG ya no se queda en pantalla.",
+          "fr": "L’écran sans signal apparaît désormais aussitôt ou après 3 secondes, aussi à l’allumage du téléviseur et quand l’image disparaît en cours de visionnage. Le message de LG ne reste plus affiché."
+        }
+      },
+      {
+        "kind": "fix",
+        "title": {
+          "de": "Keine doppelte Meldung",
+          "en": "No double message",
+          "es": "Sin aviso doble",
+          "fr": "Plus de double message"
+        },
+        "text": {
+          "de": "Die Pille oben links verschwindet, solange der Bildschirm ohne Signal steht.",
+          "en": "The pill at the top left goes away while the no-signal screen is shown.",
+          "es": "La píldora de arriba a la izquierda desaparece mientras se muestra la pantalla sin señal.",
+          "fr": "La pastille en haut à gauche disparaît tant que l’écran sans signal est affiché."
+        }
+      }
+    ]
+  },
   "0.10.0-beta.3": {
     "date": "2026-11-13",
     "level": "minor",
