@@ -1876,8 +1876,9 @@ StarfishSystemUIWindow {
             if (JSON.stringify(sounds) !== JSON.stringify(soundModes)) soundModes = sounds;
         }
 
-        // A press of the gear key: the game bar while a game runs, otherwise the panel. A launch
-        // with a page opens it straight away; page "game" shows the bar with stand-in values.
+        // A press of the gear key: the game bar while a game runs in front, otherwise the panel,
+        // also over our launcher with a game behind it. A launch with a page opens it straight
+        // away; page "game" shows the bar with stand-in values.
         function launch() {
             mode = "panel";
             fromGame = false;
@@ -1885,7 +1886,7 @@ StarfishSystemUIWindow {
                 openGame("");
             } else if (launchPage === "") {
                 PerfProbe.mark("game.check");
-                gameStatus.check();
+                gameStatus.check(liveGlass.launcherBelow());
             } else {
                 open();
             }

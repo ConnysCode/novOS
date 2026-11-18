@@ -9,6 +9,10 @@
 //   3. other.enableQuickGame === "on" (the "Spiele-Dashboard" switch),
 //   4. the HDMI app of the game input is in the foreground, not as a dual PC monitor;
 //      in Multi View only as the main picture of PIP or as part of SXS.
+//
+// novOS adds a fifth: 5. our launcher is not open. It lies on the home layer above the
+// game, while applicationManager still names the HDMI app as foreground; the gear key
+// there opens the panel (/tmp/novos-launcher-open.ini, LiveBackdrop.launcherBelow).
 
 var gamePictureModes = ["game", "hdrGame", "dolbyHdrGame"];
 var gameSoundMode = "game";
@@ -47,7 +51,9 @@ function gameInFront(gameInput, foreground, multiview) {
 
 // settings: { gameMode, enableQuickGame, gameInput, pictureMode, soundMode } as read from
 // settingsservice; gameInput comes from the dimension of the category "other".
-function isGameMode(settings, foreground, multiview) {
+// launcherOpen: our launcher stands in front of the game (point 5).
+function isGameMode(settings, foreground, multiview, launcherOpen) {
+    if (launcherOpen) return false;
     var values = settings || {};
     var modes = values.gameMode || {};
     if (!values.gameInput || modes[values.gameInput] !== "on") return false;

@@ -8,8 +8,9 @@ import "GameMode.js" as GameMode
 //
 // check() asks, in five small calls, whether the gear key opens the bar (LG's rule in
 // GameMode.js) and answers with decided() once all are in, or with false after
-// checkTimeout. live runs the frame rate and VRR subscription of the game input, as LG's
-// dashboard does (utp.extinputs: bind, then getVRRInfo every second); it ends with live.
+// checkTimeout. Over our launcher it answers false at once, without asking. live runs
+// the frame rate and VRR subscription of the game input, as LG's dashboard does
+// (utp.extinputs: bind, then getVRRInfo every second); it ends with live.
 Item {
     id: status
 
@@ -21,6 +22,7 @@ Item {
     property var settings: ({})
     property var foreground: []
     property var multiview: null
+    property bool launcherOpen: false
     readonly property string gameInput: settings.gameInput || ""
 
     // Live values; -1 and "" while the TV has not answered.
@@ -36,12 +38,18 @@ Item {
 
     signal decided(bool game)
 
-    function check() {
+    // launcherOpen: our launcher lies above the source (LiveBackdrop.launcherBelow()).
+    function check(launcherOpen) {
         checking = true;
         answers = 0;
         settings = {};
         foreground = [];
         multiview = null;
+        status.launcherOpen = launcherOpen === true;
+        if (status.launcherOpen) {
+            finish(GameMode.isGameMode(settings, foreground, multiview, true));
+            return;
+        }
         checkTimer.restart();
         call(checkService, "luna://com.webos.settingsservice", "/getSystemSettings",
              { category: "other", keys: ["gameMode", "enableQuickGame"] });
@@ -86,7 +94,7 @@ Item {
             multiview = response.status || null;
         }
         answers++;
-        if (answers >= expectedAnswers) finish(GameMode.isGameMode(settings, foreground, multiview));
+        if (answers >= expectedAnswers) finish(GameMode.isGameMode(settings, foreground, multiview, launcherOpen));
     }
 
     // Multi View side by side, as LG's dashboard starts it.

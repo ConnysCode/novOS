@@ -43,12 +43,14 @@ const cases = [
     ["input that is not HDMI", Object.assign({}, on, { gameInput: "ip", gameMode: { ip: "on" } }), ["com.webos.app.livetv"], single, false],
     ["state from the TV on 9 Nov 2026", { gameMode: { hdmi1: "off", hdmi2: "off", hdmi3: "off", hdmi4: "on" }, gameInput: "hdmi3",
         pictureMode: "hdrStandard", soundMode: "aiSoundPlus", enableQuickGame: "on" }, ["com.webos.app.hdmi3"],
-        { mode: "full", apps: [], usageType: "" }, false]
+        { mode: "full", apps: [], usageType: "" }, false],
+    ["our launcher open above the game", on, front, single, false, true],
+    ["our launcher closed again", on, front, single, true, false]
 ];
 
 let failed = 0;
-for (const [name, settings, foreground, multiview, expected] of cases) {
-    const result = GameMode.isGameMode(settings, foreground, multiview);
+for (const [name, settings, foreground, multiview, expected, launcherOpen] of cases) {
+    const result = GameMode.isGameMode(settings, foreground, multiview, launcherOpen);
     if (result !== expected) {
         failed++;
         console.log(`FAIL ${name}: ${result}, expected ${expected}`);
