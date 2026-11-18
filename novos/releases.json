@@ -3,6 +3,40 @@
   "app": "novos",
   "releases": [
     {
+      "version": "0.10.0-beta.5",
+      "channel": "beta",
+      "published": "2026-11-18T18:41:22Z",
+      "date": "2026-11-18",
+      "size": 18547544,
+      "restarts": 1,
+      "level": "patch",
+      "manifest": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.10.0-beta.5/novos-0.10.0-beta.5.manifest.json",
+      "signature": "https://github.com/ConnysCode/novOS/releases/download/novos-v0.10.0-beta.5/novos-0.10.0-beta.5.manifest.json.sig",
+      "topics": {
+        "de": "Bildschirm ohne Signal",
+        "en": "No-signal screen",
+        "es": "Pantalla sin señal",
+        "fr": "Écran sans signal"
+      },
+      "items": [
+        {
+          "kind": "fix",
+          "title": {
+            "de": "Bildschirm ohne Signal vorerst entfernt",
+            "en": "No-signal screen removed for now",
+            "es": "Pantalla sin señal retirada por ahora",
+            "fr": "Écran sans signal retiré pour l’instant"
+          },
+          "text": {
+            "de": "Der eigene Bildschirm ohne Signal lief nicht zuverlässig und ist vorerst wieder entfernt. Ohne Signal zeigt die Pille oben links wieder „Kein Signal“, dahinter LGs eigene Anzeige.",
+            "en": "The own no-signal screen was not reliable and is removed for now. Without a signal, the pill at the top left shows “No signal” again, with LG’s own message behind it.",
+            "es": "La pantalla propia sin señal no funcionaba de forma fiable y se ha retirado por ahora. Sin señal, la píldora de arriba a la izquierda vuelve a mostrar «Sin señal», con el aviso de LG detrás.",
+            "fr": "L’écran sans signal propre n’était pas fiable et est retiré pour l’instant. Sans signal, la pastille en haut à gauche affiche de nouveau « Aucun signal », avec le message de LG derrière."
+          }
+        }
+      ]
+    },
+    {
       "version": "0.10.0-beta.4",
       "channel": "beta",
       "published": "2026-11-13T15:01:38Z",
