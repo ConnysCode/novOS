@@ -20,11 +20,16 @@ init-hook.sh and novos-uninstall.sh.
     novos-setupd.py settings [--keyboard qwertz|t9] [--auto-update on|off] [--block-updates on|off]
     novos-setupd.py serve --dir <folder> [--window <url>] [--app <id>] [--idle <seconds>]
                           [--channel stable|beta] [--in-novos] [--pending]
+    novos-setupd.py watch <pid> [--state <state.json>]
 
 serve also runs what only windows ask for: download (fetch without installing; a later
 install takes the download), cancel (ends a running download), rollback (as below) and
 tonight (the version the supervisor installs between 2 and 5 at night, or none). restore
 is rollback for the settings of novOS 0.9.1-beta.3 and older.
+
+watch is started by this file itself, in a session of its own, while it works: should the
+process end in the middle of its work, it starts novOS again (if the process had stopped
+it) and answers the window with an error, instead of leaving novOS half stopped.
 
 An install or update that leaves novOS running also turns on its start at boot: the
 Homebrew hook (autostart on) and the early start, unless `autostart off` was asked for.
@@ -623,19 +628,176 @@ MARKER = system("/tmp/novos-banner-active")
 
 class KeepLgHidden:
     """Arm it once novOS is stopped for an update: if novOS does not run in the end, the
-    marker goes, and LG's Home is back instead of a black screen."""
+    marker goes, and LG's Home is back instead of a black screen. While it is armed, a
+    sudden end of this process leaves novOS to the watcher (see Watcher)."""
 
     def __init__(self):
         self.stopped = False
+        self.watcher = Watcher()
 
     def __enter__(self):
+        self.watcher.__enter__()
         return self
+
+    def arm(self):
+        self.stopped = True
+        write_file(STOPPED_NOTE, "%d\n" % os.getpid())
 
     def __exit__(self, *_exc):
         if self.stopped and not running():
             with contextlib.suppress(OSError):
                 os.remove(MARKER)
+        with contextlib.suppress(OSError):
+            os.remove(STOPPED_NOTE)
+        self.watcher.__exit__()
         return False
+
+
+# ---- the watcher -------------------------------------------------------------------------
+# On 18 November 2026 an update died in the middle of novos-stop.sh: this process and the
+# script ended without a word (cause unknown, no OOM). novOS stood half stopped, its overlays
+# mounted but without supervisor and relay, and the update page showed "wird installiert"
+# for good. Since then a watcher in a session of its own waits for this process while it
+# works. If it ends without saying goodbye, the watcher brings novOS back (when the dead
+# process had stopped it, STOPPED_NOTE) and answers the window with an error.
+
+STOPPED_NOTE = system("/tmp/novos-setupd-stopped")
+WATCH_POLL = 1.0              # seconds between two looks at the process
+SCRIPT_WAIT = 120             # an orphaned stop or start script may finish first
+BRIDGE_STATE = None           # state.json of the window, set by serve
+
+
+def process_alive(pid, started):
+    """started: field 22 of the stat when the watcher began, so that a reused pid is not
+    taken for the process; empty where there is no /proc (tests on a Mac). A zombie counts
+    as ended: its parent (the supervisor) may not reap it for a while."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        pass
+    fields = process_stat(pid)
+    if not fields:
+        return not started
+    return fields[0] != "Z" and (not started or fields[19] == started)
+
+
+def process_stat(pid):
+    """The fields of /proc/<pid>/stat after the name: state first, start time at 19."""
+    try:
+        with open("/proc/%d/stat" % pid) as handle:
+            fields = handle.read().rsplit(")", 1)[1].split()
+        return fields if len(fields) > 19 else []
+    except (OSError, IndexError):
+        return []
+
+
+def process_start(pid):
+    fields = process_stat(pid)
+    return fields[19] if fields else ""
+
+
+def scripts_running():
+    """novos-stop.sh or novos-start.sh of a release runs (left behind by the dead process)."""
+    if not os.path.isdir(PROC):
+        return False
+    for pid in os.listdir(PROC):
+        if not pid.isdigit() or int(pid) == os.getpid():
+            continue
+        try:
+            with open(os.path.join(PROC, pid, "cmdline"), "rb") as handle:
+                command = handle.read().replace(b"\0", b" ")
+        except OSError:
+            continue
+        if b"bin/novos-stop.sh" in command or b"bin/novos-start.sh" in command:
+            return True
+    return False
+
+
+class Watcher:
+    """One watcher per process, for as long as the outermost `with` lasts. It ends with a
+    SIGTERM when the work ends normally."""
+    depth = 0
+    process = None
+
+    def __enter__(self):
+        if Watcher.depth == 0:
+            args = [sys.executable, os.path.abspath(__file__), "watch", str(os.getpid())]
+            if BRIDGE_STATE:
+                args += ["--state", BRIDGE_STATE]
+            try:
+                Watcher.process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                                   stderr=subprocess.DEVNULL, start_new_session=True)
+            except OSError as error:
+                log("no watcher: %s" % error)
+                Watcher.process = None
+        Watcher.depth += 1
+        return self
+
+    def __exit__(self, *_exc):
+        Watcher.depth -= 1
+        if Watcher.depth == 0 and Watcher.process is not None:
+            with contextlib.suppress(OSError, subprocess.TimeoutExpired):
+                Watcher.process.terminate()
+                Watcher.process.wait(5)
+            Watcher.process = None
+        return False
+
+
+def watch(pid, state_path=None, poll=WATCH_POLL):
+    """Waits for pid to end; returns True when it rescued, False when the process ended
+    after its work (a watcher that gets no SIGTERM in time sees a quiet state)."""
+    started = process_start(pid)
+    while process_alive(pid, started):
+        time.sleep(poll)
+    return rescue(pid, state_path)
+
+
+def rescue(pid, state_path=None):
+    try:
+        stopped = read_first_line(STOPPED_NOTE).strip() == str(pid)
+    except OSError:
+        stopped = False
+    state = None
+    if state_path:
+        try:
+            with open(state_path) as handle:
+                state = json.load(handle)
+        except (OSError, ValueError):
+            state = None
+    unfinished = bool(state and state.get("busy") and state.get("pid") == pid)
+    if not stopped and not unfinished:
+        return False
+    log("watcher: novos-setupd %d ended in the middle of its work" % pid)
+    message = "the updater ended unexpectedly"
+    if stopped:
+        deadline = time.time() + SCRIPT_WAIT
+        while scripts_running() and time.time() < deadline:
+            time.sleep(WATCH_POLL)
+        report = Reporter(False)
+        try:
+            with single_run():
+                if not supervisor_running():
+                    if overlays_mounted():
+                        run_script(report, "novos-stop.sh", "--no-restart", "--keep-hidden")
+                    run_script(report, "novos-start.sh", "manual")
+                message += "; novOS %s runs again" % current_release()
+        except (SetupError, OSError) as error:
+            message += "; novOS could not be started again (%s)" % error
+        if not running():
+            with contextlib.suppress(OSError):
+                os.remove(MARKER)
+        with contextlib.suppress(OSError):
+            os.remove(STOPPED_NOTE)
+    log("watcher: %s" % message)
+    if state is not None and state.get("pid") == pid:
+        state.update(serving=False, updated=time.time())
+        if state.get("busy"):
+            state.update(phase="error", busy=False, error=message, errorKind="failed",
+                         installed=current_release(), eta=None)
+        write_file(state_path, json.dumps(state, ensure_ascii=False))
+    return True
 
 
 def install(report, source, allow_downgrade=False, start=False, before_start=None, after_start=None,
@@ -656,7 +818,7 @@ def install(report, source, allow_downgrade=False, start=False, before_start=Non
         if was_running:
             # novos-start.sh restarts surface-manager afterwards anyway: one restart instead of
             # two, and the setup's window stays up until then.
-            hidden.stopped = True
+            hidden.arm()
             run_script(report, "novos-stop.sh", "--no-restart", "--keep-hidden")
             if running():
                 raise SetupError("novOS still runs after the stop, nothing was changed")
@@ -905,7 +1067,7 @@ def rollback(report):
         was_running = running()
         if was_running:
             # LG's Home stays covered while the release is swapped, as in install().
-            hidden.stopped = True
+            hidden.arm()
             run_script(report, "novos-stop.sh", "--no-restart", "--keep-hidden")
             if running():
                 raise SetupError("novOS still runs after the stop, nothing was changed")
@@ -1215,6 +1377,8 @@ class Bridge:
         self.in_novos = in_novos
         self.state_path = os.path.join(folder, "state.json")
         self.command_path = os.path.join(folder, "command.ini")
+        global BRIDGE_STATE
+        BRIDGE_STATE = self.state_path      # the watcher answers here if this process dies
         # phase is what the window shows ("done" may come before the command ends, so that
         # the reopened window shows its last page at once); busy is whether a command runs.
         self.state = {"serving": True, "pid": os.getpid(), "id": "", "command": "", "phase": "idle", "busy": False,
@@ -1299,57 +1463,58 @@ class Bridge:
         self.state.update(id=command_serial(command), command=name, phase="running", stage="", percent=0,
                           steps=[], result=None, error=None, errorKind=None, busy=True)
         self.write()
-        report = Reporter(False, self.listen)
-        source = command.get("source") or self.channel or default_source()
-        self.state["channel"] = source if source in ("stable", "beta") else None
-        try:
-            if name in ("install", "update"):
-                apply_choices(report, command.get("keyboard") or None, command.get("autoUpdate") or None,
-                              command.get("blockUpdates") or None)
-                if name == "update" and not check(report, source):
-                    raise SetupError("nothing newer to install")
-                install(report, source, start=True, before_start=self.restarting, after_start=self.reopen,
-                        stay_dark=not self.in_novos)
-                if self.channel or command.get("source"):
-                    remember_channel(source)
-            elif name == "check":
-                check(report, source)
-            elif name == "channel":
-                set_channel(report, command.get("source"))
-                self.state["channel"] = read_setting("channel", "stable")
-            elif name == "settings":
-                result = apply_choices(report, command.get("keyboard") or None, command.get("autoUpdate") or None,
-                                       command.get("blockUpdates") or None)
-                report.result("settings stored", choices=result)
-            elif name == "download":
-                with single_run():
-                    folder, manifest = fetch(report, source)
-                settle_download(manifest["version"])
-                report.result("novOS %s is downloaded" % manifest["version"], downloaded=manifest["version"])
-            elif name == "cancel":
-                report.result("nothing to cancel")
-            elif name == "restore":
-                restore(report, command.get("version", ""))
-            elif name == "tonight":
-                plan_tonight(report, command.get("version", ""))
-            elif name == "rollback":
-                rollback(report)
-            elif name == "uninstall":
-                self.restarting()
-                uninstall(report, command.get("keepState") == "true")
-            elif name == "status":
-                status(report)
-            else:
-                raise SetupError("unknown command %r" % name)
-            self.state["phase"] = "done"
-        except Cancelled:
-            # The cancel is the answer: the window waits for its serial.
-            self.state.update(id=self.cancel_serial, command="cancel", phase="done", stage="", percent=0,
-                              result={"cancelled": name, "message": "cancelled"}, eta=None)
-        except (SetupError, release.ReleaseError, OSError, ValueError, KeyError) as error:
-            self.state["phase"] = "error"
-            self.state["error"] = str(error)
-            self.state["errorKind"] = error_kind(error)
+        with Watcher():
+            report = Reporter(False, self.listen)
+            source = command.get("source") or self.channel or default_source()
+            self.state["channel"] = source if source in ("stable", "beta") else None
+            try:
+                if name in ("install", "update"):
+                    apply_choices(report, command.get("keyboard") or None, command.get("autoUpdate") or None,
+                                  command.get("blockUpdates") or None)
+                    if name == "update" and not check(report, source):
+                        raise SetupError("nothing newer to install")
+                    install(report, source, start=True, before_start=self.restarting, after_start=self.reopen,
+                            stay_dark=not self.in_novos)
+                    if self.channel or command.get("source"):
+                        remember_channel(source)
+                elif name == "check":
+                    check(report, source)
+                elif name == "channel":
+                    set_channel(report, command.get("source"))
+                    self.state["channel"] = read_setting("channel", "stable")
+                elif name == "settings":
+                    result = apply_choices(report, command.get("keyboard") or None, command.get("autoUpdate") or None,
+                                           command.get("blockUpdates") or None)
+                    report.result("settings stored", choices=result)
+                elif name == "download":
+                    with single_run():
+                        folder, manifest = fetch(report, source)
+                    settle_download(manifest["version"])
+                    report.result("novOS %s is downloaded" % manifest["version"], downloaded=manifest["version"])
+                elif name == "cancel":
+                    report.result("nothing to cancel")
+                elif name == "restore":
+                    restore(report, command.get("version", ""))
+                elif name == "tonight":
+                    plan_tonight(report, command.get("version", ""))
+                elif name == "rollback":
+                    rollback(report)
+                elif name == "uninstall":
+                    self.restarting()
+                    uninstall(report, command.get("keepState") == "true")
+                elif name == "status":
+                    status(report)
+                else:
+                    raise SetupError("unknown command %r" % name)
+                self.state["phase"] = "done"
+            except Cancelled:
+                # The cancel is the answer: the window waits for its serial.
+                self.state.update(id=self.cancel_serial, command="cancel", phase="done", stage="", percent=0,
+                                  result={"cancelled": name, "message": "cancelled"}, eta=None)
+            except (SetupError, release.ReleaseError, OSError, ValueError, KeyError) as error:
+                self.state["phase"] = "error"
+                self.state["error"] = str(error)
+                self.state["errorKind"] = error_kind(error)
         self.state["choices"] = current_choices()
         self.state["installed"] = current_release()
         self.state["busy"] = False
@@ -1433,6 +1598,9 @@ def main(argv=None):
     settings_parser.add_argument("--keyboard", choices=("qwertz", "t9"))
     settings_parser.add_argument("--auto-update", choices=("on", "off"))
     settings_parser.add_argument("--block-updates", choices=("on", "off"))
+    watch_parser = sub.add_parser("watch")
+    watch_parser.add_argument("pid", type=int)
+    watch_parser.add_argument("--state")
     serve_parser = sub.add_parser("serve")
     serve_parser.add_argument("--dir", required=True)
     serve_parser.add_argument("--window", help="file:// URL of the setup's window, opened again after a restart")
@@ -1480,6 +1648,8 @@ def main(argv=None):
                 "blocked" if choices["blockUpdates"] else "allowed",
                 "" if choices["blockUpdates"] == choices["blockedNow"] else " (from the next restart on)"),
                 choices=choices)
+        elif args.command == "watch":
+            watch(args.pid, args.state)
         elif args.command == "serve":
             serve(args.dir, args.window, args.app, args.idle, args.channel, args.in_novos, args.pending)
         else:

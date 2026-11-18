@@ -6,6 +6,7 @@ with stub scripts, signed with a throwaway key and served from file:// URLs.
 """
 
 import base64
+import contextlib
 import importlib.util
 import io
 import json
@@ -805,6 +806,101 @@ class SetupdTest(unittest.TestCase):
         code, lines = self.run_setupd("uninstall", "--keep-state")
         self.assertEqual(code, 0, lines)
         self.assertEqual(self.calls()[-1], "uninstall --keep-state")
+
+    # ---- the watcher ----------------------------------------------------------------------
+
+    def dead_update(self, pid=999999, stopped=True):
+        """The state a process leaves that died in the stop of an update, as on 18 November."""
+        folder = os.path.join(self.sandbox, "update")
+        os.makedirs(folder, exist_ok=True)
+        state_path = os.path.join(folder, "state.json")
+        with open(state_path, "w") as handle:
+            json.dump({"serving": True, "pid": pid, "id": "u1", "command": "update", "phase": "running",
+                       "busy": True, "stage": "stop", "percent": 60}, handle)
+        if stopped:
+            os.makedirs(os.path.dirname(self.path("/tmp/novos-setupd-stopped")), exist_ok=True)
+            with open(self.path("/tmp/novos-setupd-stopped"), "w") as handle:
+                handle.write("%d\n" % pid)
+        return state_path
+
+    def read_json(self, path):
+        with open(path) as handle:
+            return json.load(handle)
+
+    def test_watcher_ends_with_the_work(self):
+        self.run_setupd("install", self.publish("1.0.0"), "--start")
+        code, lines = self.run_setupd("install", self.publish("1.1.0"))
+        self.assertEqual(code, 0, lines)
+        self.assertEqual(self.setupd.Watcher.depth, 0)
+        self.assertIsNone(self.setupd.Watcher.process)
+        self.assertFalse(os.path.exists(self.path("/tmp/novos-setupd-stopped")))
+
+    def test_watcher_brings_back_novos_stopped_half_way(self):
+        # The overlays are still mounted, supervisor and relay are gone.
+        self.run_setupd("install", self.publish("1.0.0"), "--start")
+        state_path = self.dead_update()
+        before = len(self.calls())
+        with contextlib.redirect_stdout(Quiet()):
+            self.assertTrue(self.setupd.rescue(999999, state_path))
+        self.assertEqual(self.calls()[before:], ["stop --no-restart --keep-hidden", "start manual restore=1"])
+        self.assertTrue(self.setupd.running())
+        state = self.read_json(state_path)
+        self.assertEqual((state["phase"], state["busy"], state["serving"]), ("error", False, False))
+        self.assertIn("novOS 1.0.0 runs again", state["error"])
+        self.assertEqual(state["errorKind"], "failed")
+        self.assertFalse(os.path.exists(self.path("/tmp/novos-setupd-stopped")))
+
+    def test_watcher_starts_novos_after_a_full_stop(self):
+        self.run_setupd("install", self.publish("1.0.0"), "--start")
+        open(self.path("/proc/mounts"), "w").close()
+        state_path = self.dead_update()
+        before = len(self.calls())
+        with contextlib.redirect_stdout(Quiet()):
+            self.setupd.rescue(999999, state_path)
+        self.assertEqual(self.calls()[before:], ["start manual restore=1"])
+
+    def test_watcher_gives_lg_home_back_when_nothing_starts(self):
+        marker = self.path("/tmp/novos-banner-active")
+        self.run_setupd("install", self.publish("1.0.0"), "--start")
+        with open(marker, "w") as handle:
+            handle.write("on\n")
+        open(os.path.join(self.sandbox, "fail-start-always"), "w").close()
+        state_path = self.dead_update()
+        with contextlib.redirect_stdout(Quiet()):
+            self.setupd.rescue(999999, state_path)
+        self.assertFalse(self.setupd.running())
+        self.assertFalse(os.path.exists(marker))
+        self.assertIn("could not be started again", self.read_json(state_path)["error"])
+
+    def test_watcher_only_answers_a_command_that_had_not_stopped_novos(self):
+        self.run_setupd("install", self.publish("1.0.0"), "--start")
+        state_path = self.dead_update(stopped=False)
+        before = len(self.calls())
+        with contextlib.redirect_stdout(Quiet()):
+            self.assertTrue(self.setupd.rescue(999999, state_path))
+        self.assertEqual(self.calls()[before:], [])
+        self.assertEqual(self.read_json(state_path)["phase"], "error")
+
+    def test_watcher_leaves_a_finished_command_alone(self):
+        state_path = self.dead_update(stopped=False)
+        state = self.read_json(state_path)
+        state.update(busy=False, phase="done")
+        with open(state_path, "w") as handle:
+            json.dump(state, handle)
+        self.assertFalse(self.setupd.rescue(999999, state_path))
+        self.assertEqual(self.read_json(state_path)["phase"], "done")
+        self.assertTrue(self.read_json(state_path)["serving"])
+
+    def test_watch_waits_for_the_process(self):
+        import subprocess
+        import threading
+        child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(0.4)"])
+        threading.Thread(target=child.wait, daemon=True).start()
+        state_path = self.dead_update(pid=child.pid, stopped=False)
+        started = time.time()
+        self.assertTrue(self.setupd.watch(child.pid, state_path, poll=0.05))
+        self.assertGreater(time.time() - started, 0.2)
+        self.assertEqual(self.read_json(state_path)["phase"], "error")
 
 
 if __name__ == "__main__":
