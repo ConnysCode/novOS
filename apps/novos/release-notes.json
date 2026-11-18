@@ -1,4 +1,31 @@
 {
+  "0.10.0-beta.6": {
+    "date": "2026-11-18",
+    "level": "patch",
+    "topics": {
+      "de": "Zahnrad im Launcher",
+      "en": "Gear key on the launcher",
+      "es": "Tecla de engranaje en el lanzador",
+      "fr": "Touche engrenage dans le lanceur"
+    },
+    "items": [
+      {
+        "kind": "fix",
+        "title": {
+          "de": "Schnellmenü statt Spieleleiste im Launcher",
+          "en": "Quick menu instead of the game bar on the launcher",
+          "es": "Menú rápido en lugar de la barra de juego en el lanzador",
+          "fr": "Menu rapide au lieu de la barre de jeu dans le lanceur"
+        },
+        "text": {
+          "de": "Läuft eine Konsole im Hintergrund und der Launcher ist offen, öffnet die Zahnrad-Taste jetzt das normale Schnellmenü. Die Spieleleiste erscheint nur noch, wenn das Spiel vorn zu sehen ist.",
+          "en": "With a console running in the background and the launcher open, the gear key now opens the normal quick menu. The game bar only appears when the game is in front.",
+          "es": "Con una consola en segundo plano y el lanzador abierto, la tecla de engranaje abre ahora el menú rápido normal. La barra de juego solo aparece cuando el juego está delante.",
+          "fr": "Avec une console en arrière-plan et le lanceur ouvert, la touche engrenage ouvre désormais le menu rapide normal. La barre de jeu n’apparaît que lorsque le jeu est au premier plan."
+        }
+      }
+    ]
+  },
   "0.10.0-beta.5": {
     "date": "2026-11-18",
     "level": "patch",
